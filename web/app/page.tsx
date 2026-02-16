@@ -25,7 +25,7 @@ import {
 	Cpu,
 	Globe,
 	HardDrive,
-	Compress,
+	Package,
 	Eye,
 	Bug,
 	ZapOff,
