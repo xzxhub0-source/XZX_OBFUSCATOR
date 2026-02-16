@@ -543,14 +543,6 @@ export default function Home() {
 										value={inputCode} 
 										onChange={handleInputChange} 
 										error={inputError}
-										options={{
-											readOnly: false,
-											automaticLayout: true,
-											wordWrap: "on",
-											lineNumbers: "on",
-											fontSize: 14,
-											scrollBeyondLastLine: false,
-										}}
 									/>
 								</div>
 							</Card>
@@ -590,14 +582,6 @@ export default function Home() {
 									<CodeEditor 
 										value={outputCode} 
 										readOnly 
-										options={{
-											readOnly: true,
-											automaticLayout: true,
-											wordWrap: "on",
-											lineNumbers: "on",
-											fontSize: 14,
-											scrollBeyondLastLine: false,
-										}}
 									/>
 								</div>
 							</Card>
