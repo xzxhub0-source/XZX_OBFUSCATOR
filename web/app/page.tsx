@@ -761,4 +761,507 @@ export default function Home() {
 
 								{/* Encryption Algorithm Selector */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
-								
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										String Encryption
+									</Label>
+
+									<div className="space-y-3">
+										<Label htmlFor="encryption-algorithm" className="text-sm font-semibold text-gray-100">
+											Encryption Algorithm
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Choose how strings are encrypted (requires Encode Strings)
+											</p>
+										</Label>
+										<Select
+											value={settings.encryptionAlgorithm}
+											onValueChange={(value: EncryptionAlgorithm) => {
+												setSettings({ ...settings, encryptionAlgorithm: value });
+												trackSettingsChange({ setting: "encryptionAlgorithm", value }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											disabled={!settings.encodeStrings}
+										>
+											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent className="bg-slate-900 border-white/20">
+												<SelectItem value="none">None (Basic)</SelectItem>
+												<SelectItem value="xor">XOR Cipher</SelectItem>
+												<SelectItem value="base64">Base64</SelectItem>
+												<SelectItem value="huffman">Huffman</SelectItem>
+												<SelectItem value="chunked">Chunked</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+								</div>
+
+								{/* Advanced Obfuscation */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										Advanced Techniques
+									</Label>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="encode-numbers"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Encode Numbers</span>
+												{settings.encodeNumbers && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Transform numeric literals into mathematical expressions
+											</p>
+										</Label>
+										<Switch
+											id="encode-numbers"
+											checked={settings.encodeNumbers}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, encodeNumbers: checked });
+												trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="control-flow" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Control Flow</span>
+												{settings.controlFlow && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Add opaque predicates to complicate control flow analysis
+											</p>
+										</Label>
+										<Switch
+											id="control-flow"
+											checked={settings.controlFlow}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, controlFlow: checked });
+												trackSettingsChange({ setting: "controlFlow", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="control-flow-flattening"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Control Flow Flattening</span>
+												{settings.controlFlowFlattening && (
+													<Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
+												)}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Transform code into state machine patterns (CPU intensive)
+											</p>
+										</Label>
+										<Switch
+											id="control-flow-flattening"
+											checked={settings.controlFlowFlattening}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, controlFlowFlattening: checked });
+												trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="dead-code-injection"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Dead Code Injection</span>
+												{settings.deadCodeInjection && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Inject unreachable code blocks to confuse analysis
+											</p>
+										</Label>
+										<Switch
+											id="dead-code-injection"
+											checked={settings.deadCodeInjection}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, deadCodeInjection: checked });
+												trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="anti-debugging"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Anti-Debugging</span>
+												{settings.antiDebugging && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Add runtime checks to detect debuggers and modified environments
+											</p>
+										</Label>
+										<Switch
+											id="anti-debugging"
+											checked={settings.antiDebugging}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, antiDebugging: checked });
+												trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+								</div>
+
+								{/* Output Formatting */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										Output Format
+									</Label>
+
+									<div className="space-y-3">
+										<Label htmlFor="formatting-style" className="text-sm font-semibold text-gray-100">
+											Code Style
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Choose how the output code is formatted
+											</p>
+										</Label>
+										<Select
+											value={settings.formattingStyle}
+											onValueChange={(value: FormattingStyle) => {
+												setSettings({ ...settings, formattingStyle: value });
+												trackSettingsChange({ setting: "formattingStyle", value }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+										>
+											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent className="bg-slate-900 border-white/20">
+												<SelectItem value="minified">Minified (Compact)</SelectItem>
+												<SelectItem value="pretty">Pretty (Readable)</SelectItem>
+												<SelectItem value="obfuscated">Obfuscated (Random)</SelectItem>
+												<SelectItem value="single-line">Single Line</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+								</div>
+
+								{/* Protection Level Slider */}
+								<div className="space-y-5 pt-6 border-t border-purple-500/30">
+									<div className="flex items-center justify-between">
+										<Label
+											htmlFor="compression"
+											className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5"
+										>
+											<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+											Protection Level
+										</Label>
+										<div className="flex items-center gap-2">
+											<div
+												className={cn(
+													"px-3 py-1.5 rounded-lg font-bold text-xs backdrop-blur-sm border transition-all duration-300",
+													protectionStrength === "none" && "bg-gray-500/20 border-gray-500/30 text-gray-300",
+													protectionStrength === "low" && "bg-purple-500/20 border-purple-500/30 text-purple-300",
+													protectionStrength === "medium" && "bg-pink-500/20 border-pink-500/30 text-pink-300",
+													protectionStrength === "high" &&
+														"bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/30 text-purple-300"
+												)}
+											>
+												{settings.compressionLevel}%
+											</div>
+										</div>
+									</div>
+									<div className="relative">
+										<Slider
+											id="compression"
+											value={[settings.compressionLevel]}
+											onValueChange={value => {
+												const level = value[0];
+												const oldLevel = settings.compressionLevel;
+
+												setSettings({
+													...settings,
+													compressionLevel: level,
+													// Basic obfuscation (v1.0)
+													minify: level >= 10,
+													mangleNames: level >= 20,
+													encodeStrings: level >= 30,
+													encodeNumbers: level >= 50,
+													controlFlow: level >= 60,
+													// Advanced obfuscation (v1.1)
+													encryptionAlgorithm: level >= 70 ? "xor" : level >= 30 ? "none" : "none",
+													deadCodeInjection: level >= 75,
+													controlFlowFlattening: level >= 85,
+													antiDebugging: level >= 90,
+													formattingStyle: level >= 10 ? "minified" : "pretty",
+												});
+
+												// Track protection level change
+												if (oldLevel !== level) {
+													trackProtectionLevelChange({
+														oldLevel,
+														newLevel: level,
+														changeType: "slider",
+													}).catch(err => console.error("Analytics tracking failed:", err));
+												}
+											}}
+											max={100}
+											step={10}
+											className="w-full"
+										/>
+									</div>
+									<div
+										className={cn(
+											"text-xs rounded-xl p-4 backdrop-blur-sm border transition-all duration-300",
+											protectionStrength === "none" && "bg-gray-500/10 border-gray-500/20 text-gray-300",
+											protectionStrength === "low" && "bg-purple-500/10 border-purple-500/20 text-purple-200",
+											protectionStrength === "medium" && "bg-pink-500/10 border-pink-500/20 text-pink-200",
+											protectionStrength === "high" &&
+												"bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/20 text-purple-200"
+										)}
+									>
+										{settings.compressionLevel === 0 && (
+											<div className="flex items-center gap-2">
+												<div className="w-2 h-2 rounded-full bg-gray-400"></div>
+												<p>No automatic obfuscation enabled</p>
+											</div>
+										)}
+										{settings.compressionLevel >= 10 && settings.compressionLevel < 20 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Active:</strong> Minify
+													</p>
+												</div>
+											</div>
+										)}
+										{settings.compressionLevel >= 20 && settings.compressionLevel < 30 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Active:</strong> Minify, Mangle Names
+													</p>
+												</div>
+											</div>
+										)}
+										{settings.compressionLevel >= 30 && settings.compressionLevel < 50 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Encode Strings
+													</p>
+												</div>
+											</div>
+										)}
+										{settings.compressionLevel >= 50 && settings.compressionLevel < 60 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Encode Strings, Encode
+														Numbers
+													</p>
+												</div>
+											</div>
+										)}
+										{settings.compressionLevel >= 60 && settings.compressionLevel < 70 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Active:</strong> Basic + Control Flow
+													</p>
+												</div>
+												<p className="text-[10px] text-gray-400 pl-4">All basic techniques + opaque predicates</p>
+											</div>
+										)}
+										{settings.compressionLevel >= 70 && settings.compressionLevel < 75 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Advanced:</strong> Basic + XOR Encryption
+													</p>
+												</div>
+												<p className="text-[10px] text-gray-400 pl-4">All basic + XOR cipher for strings</p>
+											</div>
+										)}
+										{settings.compressionLevel >= 75 && settings.compressionLevel < 85 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Advanced:</strong> Encryption + Dead Code
+													</p>
+												</div>
+												<p className="text-[10px] text-gray-400 pl-4">XOR encryption + injected dead code blocks</p>
+											</div>
+										)}
+										{settings.compressionLevel >= 85 && settings.compressionLevel < 90 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Maximum:</strong> Control Flow Flattening
+													</p>
+												</div>
+												<p className="text-[10px] text-gray-400 pl-4">
+													All advanced + state machine transformation (CPU intensive)
+												</p>
+											</div>
+										)}
+										{settings.compressionLevel >= 90 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Maximum Protection:</strong> All Techniques
+													</p>
+												</div>
+												<p className="text-[10px] text-gray-400 pl-4">
+													All features + anti-debugging measures (strongest protection)
+												</p>
+											</div>
+										)}
+									</div>
+								</div>
+
+								{/* Enhanced Info Box */}
+								<div className="pt-6 border-t border-purple-500/30">
+									<div className="relative overflow-hidden bg-gradient-to-br from-[#8b5cf6]/20 via-[#ec4899]/15 to-[#8b5cf6]/10 border border-[#8b5cf6]/40 rounded-2xl p-5 shadow-2xl backdrop-blur-sm">
+										<div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-transparent rounded-full blur-2xl"></div>
+										<div className="relative flex items-start gap-3">
+											<div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#8b5cf6]/30 to-[#ec4899]/30 flex items-center justify-center flex-shrink-0 shadow-lg backdrop-blur-sm border border-purple-400/30">
+												<Sparkles className="w-4 h-4 text-purple-300" />
+											</div>
+											<div>
+												<p className="text-xs text-purple-100 leading-relaxed">
+													<strong className="font-bold text-sm block mb-1">💡 XZX Pro Tip</strong>
+													Use the Protection Level slider for quick presets, or manually toggle individual techniques
+													for fine-grained control. Higher protection levels provide stronger obfuscation but may impact
+													performance.
+												</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</Card>
+					</aside>
+				</section>
+
+				{/* Enhanced Error Display */}
+				{error && (
+					<aside
+						role="alert"
+						aria-live="assertive"
+						className="relative overflow-hidden bg-gradient-to-r from-red-900/40 via-red-800/30 to-red-900/40 border-2 border-red-500/60 rounded-2xl p-6 flex items-start gap-4 shadow-2xl shadow-red-500/30 backdrop-blur-xl ring-1 ring-red-500/30 animate-in slide-in-from-bottom fade-in duration-500"
+					>
+						<div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-red-500/20 to-transparent rounded-full blur-3xl"></div>
+						<div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-red-500/30 to-red-600/30 flex items-center justify-center flex-shrink-0 shadow-lg backdrop-blur-sm border border-red-500/40">
+							<AlertCircle className="w-6 h-6 text-red-300 animate-pulse" aria-hidden="true" />
+						</div>
+						<div className="flex-1 relative">
+							<h3 className="text-red-200 font-bold mb-2 text-base flex items-center gap-2">
+								Obfuscation Error
+								<span className="px-2 py-0.5 bg-red-500/20 rounded-md text-xs">Failed</span>
+							</h3>
+							<p className="text-red-100/90 text-sm leading-relaxed">{error}</p>
+						</div>
+					</aside>
+				)}
+
+				{/* SEO-Optimized Content Section - Screen reader accessible */}
+				<section className="sr-only">
+					<h2>About XZX Lua Obfuscator</h2>
+					<p>
+						XZX Lua Obfuscator is a professional, free online tool for protecting Lua source code through advanced
+						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
+						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
+					</p>
+
+					<h3>Key Features</h3>
+					<ul>
+						<li>Variable and Function Name Mangling - Replace identifiers with hexadecimal codes</li>
+						<li>String Encoding - Convert string literals to byte arrays using string.char()</li>
+						<li>Number Encoding - Transform numeric literals into mathematical expressions</li>
+						<li>Control Flow Obfuscation - Add opaque predicates to complicate reverse engineering</li>
+						<li>Code Minification - Remove comments and whitespace for smaller file sizes</li>
+						<li>Real-time Processing - Instant obfuscation in your browser with no server uploads</li>
+						<li>Multi-Version Support - Compatible with Lua 5.1, 5.2, 5.3, and 5.4</li>
+						<li>Configurable Protection Levels - Adjust security vs performance trade-offs (0-100%)</li>
+						<li>Monaco Code Editor - Professional code editing with syntax highlighting</li>
+						<li>Copy & Download - Easy export of obfuscated code</li>
+						<li>Free & Private - No registration, no tracking, code never leaves your device</li>
+					</ul>
+
+					<h3>Supported Lua Versions</h3>
+					<p>
+						Our Lua obfuscator supports all major Lua versions including Lua 5.1 (most common in game modding), Lua 5.2,
+						Lua 5.3, and Lua 5.4. The tool automatically handles syntax and semantic differences between versions to
+						ensure your obfuscated code remains compatible with your target runtime environment.
+					</p>
+
+					<h3>Common Use Cases</h3>
+					<ul>
+						<li>Roblox Game Scripts - Protect your Roblox game logic and prevent script theft</li>
+						<li>FiveM Resources - Secure your GTA V multiplayer server scripts</li>
+						<li>Garry's Mod Addons - Protect your GMod Lua code from unauthorized copying and reverse engineering</li>
+						<li>World of Warcraft Addons - Obfuscate WoW addon code while maintaining functionality</li>
+						<li>ComputerCraft Programs - Secure Minecraft ComputerCraft scripts</li>
+						<li>LÖVE2D Games - Protect your LÖVE game engine code</li>
+						<li>Commercial Lua Applications - Secure proprietary business logic in Lua-based software</li>
+						<li>Educational Projects - Demonstrate obfuscation techniques for security education</li>
+					</ul>
+				</section>
+
+				{/* Version Footer */}
+				<footer
+					className="mt-auto pt-8 pb-4 text-center"
+					role="contentinfo"
+					aria-label="Version and author information"
+				>
+					<div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-purple-500/30 hover:bg-white/10 transition-all duration-300">
+						<span className="text-sm text-gray-400 font-mono">v1.1.0 by</span>
+						<a
+							href="https://github.com/xzxhub0-source"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-sm font-semibold text-purple-400 hover:text-pink-400 font-mono transition-colors duration-200 hover:underline"
+							aria-label="Visit XZX GitHub"
+						>
+							XZX
+						</a>
+					</div>
+				</footer>
+			</main>
+		</div>
+	);
+}
