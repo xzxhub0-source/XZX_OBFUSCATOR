@@ -272,11 +272,17 @@ export default function Home() {
 				const newCount = obfuscationCount + 1;
 				setObfuscationCount(newCount);
 
-				// Track obfuscation event
-				const obfuscationType = settings.intenseVM ? "military" : "standard";
+				// Track obfuscation event - FIXED with proper type mapping
+				const uiObfuscationType = settings.intenseVM ? "military" : "standard";
+				
+				// Map UI values to what the analytics expects
+				const analyticsTypeMap = {
+					standard: "mangle" as const,
+					military: "full" as const,
+				};
 
 				trackObfuscation({
-					obfuscationType,
+					obfuscationType: analyticsTypeMap[uiObfuscationType],
 					codeSize: inputCode.length,
 					protectionLevel: settings.compressionLevel,
 				}).catch(err => console.error("Analytics tracking failed:", err));
