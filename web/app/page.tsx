@@ -22,6 +22,15 @@ import {
 	Upload,
 	File,
 	X,
+	Cpu,
+	Globe,
+	HardDrive,
+	Compress,
+	Eye,
+	Bug,
+	ZapOff,
+	Layers,
+	ShieldAlert,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { obfuscateLua, type ObfuscationResult } from "@/lib/obfuscator-simple";
@@ -64,7 +73,7 @@ interface ObfuscatorSettings {
 	antiDebugging: boolean;
 	formattingStyle: FormattingStyle;
 
-	// New Luraph-style features
+	// Luraph-style military grade features
 	intenseVM: boolean;
 	gcFixes: boolean;
 	targetVersion: "5.1" | "5.2" | "5.3" | "5.4" | "luajit";
@@ -74,6 +83,17 @@ interface ObfuscatorSettings {
 	vmCompression: boolean;
 	disableLineInfo: boolean;
 	useDebugLibrary: boolean;
+	
+	// Additional military grade features
+	opaquePredicates: boolean;
+	virtualization: boolean;
+	bytecodeEncryption: boolean;
+	antiTamper: boolean;
+	selfModifying: boolean;
+	mutation: boolean;
+	codeSplitting: boolean;
+	environmentLock: boolean;
+	integrityChecks: boolean;
 }
 
 export default function Home() {
@@ -104,7 +124,7 @@ export default function Home() {
 		antiDebugging: false,
 		formattingStyle: "minified",
 
-		// New Luraph-style features
+		// Luraph-style military grade features
 		intenseVM: false,
 		gcFixes: false,
 		targetVersion: "5.1",
@@ -114,6 +134,17 @@ export default function Home() {
 		vmCompression: false,
 		disableLineInfo: false,
 		useDebugLibrary: false,
+		
+		// Additional military grade features
+		opaquePredicates: false,
+		virtualization: false,
+		bytecodeEncryption: false,
+		antiTamper: false,
+		selfModifying: false,
+		mutation: false,
+		codeSplitting: false,
+		environmentLock: false,
+		integrityChecks: false,
 	});
 
 	const [obfuscationCount, setObfuscationCount] = useState(0);
@@ -184,8 +215,9 @@ export default function Home() {
 		try {
 			const startTime = Date.now();
 
-			// Build obfuscation options with all new features
+			// Build obfuscation options with all military grade features
 			const options = {
+				// Basic options
 				mangleNames: settings.mangleNames,
 				encodeStrings: settings.encodeStrings,
 				encodeNumbers: settings.encodeNumbers,
@@ -198,7 +230,7 @@ export default function Home() {
 				antiDebugging: settings.antiDebugging,
 				formattingStyle: settings.formattingStyle,
 				
-				// New Luraph-style features
+				// Luraph-style features
 				intenseVM: settings.intenseVM,
 				gcFixes: settings.gcFixes,
 				targetVersion: settings.targetVersion,
@@ -208,9 +240,20 @@ export default function Home() {
 				vmCompression: settings.vmCompression,
 				disableLineInfo: settings.disableLineInfo,
 				useDebugLibrary: settings.useDebugLibrary,
+				
+				// Military grade features
+				opaquePredicates: settings.opaquePredicates,
+				virtualization: settings.virtualization,
+				bytecodeEncryption: settings.bytecodeEncryption,
+				antiTamper: settings.antiTamper,
+				selfModifying: settings.selfModifying,
+				mutation: settings.mutation,
+				codeSplitting: settings.codeSplitting,
+				environmentLock: settings.environmentLock,
+				integrityChecks: settings.integrityChecks,
 			};
 
-			// Perform client-side obfuscation (wrapped in setTimeout to prevent UI blocking)
+			// Perform client-side obfuscation
 			const result: ObfuscationResult = await new Promise(resolve => {
 				setTimeout(() => {
 					resolve(obfuscateLua(inputCode, options));
@@ -230,16 +273,7 @@ export default function Home() {
 				setObfuscationCount(newCount);
 
 				// Track obfuscation event
-				const obfuscationType =
-					settings.mangleNames && settings.encodeStrings && settings.minify
-						? "full"
-						: settings.mangleNames && settings.encodeStrings
-							? "mangle_encode"
-							: settings.mangleNames
-								? "mangle"
-								: settings.encodeStrings
-									? "encode"
-									: "minify";
+				const obfuscationType = settings.intenseVM ? "military" : "standard";
 
 				trackObfuscation({
 					obfuscationType,
@@ -266,7 +300,7 @@ export default function Home() {
 					protectionLevel: settings.compressionLevel,
 				}).catch(err => console.error("Analytics tracking failed:", err));
 
-				// Track milestones (1st, 5th, 10th, 25th, 50th obfuscation)
+				// Track milestones
 				if ([1, 5, 10, 25, 50].includes(newCount)) {
 					trackObfuscationMilestone(newCount).catch(err => console.error("Analytics tracking failed:", err));
 				}
@@ -276,7 +310,6 @@ export default function Home() {
 				setOutputCode("");
 				setMetrics(null);
 
-				// Track error event
 				trackError({
 					errorType: result.errorDetails ? "parse_error" : "obfuscation_error",
 					errorMessage: result.error,
@@ -296,8 +329,6 @@ export default function Home() {
 			await navigator.clipboard.writeText(outputCode);
 			setCopySuccess(true);
 			setTimeout(() => setCopySuccess(false), 2000);
-
-			// Track copy event
 			trackCopy(outputCode.length).catch(err => console.error("Analytics tracking failed:", err));
 		} catch (err) {
 			setError("Failed to copy to clipboard");
@@ -312,8 +343,6 @@ export default function Home() {
 		a.download = fileName ? `obfuscated_${fileName}` : "obfuscated.lua";
 		a.click();
 		URL.revokeObjectURL(url);
-
-		// Track download event
 		trackDownload(outputCode.length).catch(err => console.error("Analytics tracking failed:", err));
 	};
 
@@ -322,10 +351,30 @@ export default function Home() {
 		if (settings.compressionLevel === 0) return "none";
 		if (settings.compressionLevel < 40) return "low";
 		if (settings.compressionLevel < 70) return "medium";
-		return "high";
+		if (settings.compressionLevel < 90) return "high";
+		return "military";
 	};
 
 	const protectionStrength = getProtectionStrength();
+
+	// Count active military features
+	const getActiveMilitaryCount = () => {
+		let count = 0;
+		if (settings.intenseVM) count++;
+		if (settings.opaquePredicates) count++;
+		if (settings.virtualization) count++;
+		if (settings.bytecodeEncryption) count++;
+		if (settings.antiTamper) count++;
+		if (settings.selfModifying) count++;
+		if (settings.mutation) count++;
+		if (settings.codeSplitting) count++;
+		if (settings.environmentLock) count++;
+		if (settings.integrityChecks) count++;
+		if (settings.controlFlowFlattening) count++;
+		if (settings.deadCodeInjection) count++;
+		if (settings.antiDebugging) count++;
+		return count;
+	};
 
 	return (
 		<>
@@ -341,7 +390,7 @@ export default function Home() {
 			/>
 			
 			<main className="relative z-10 flex flex-col p-4 sm:p-6 gap-4 lg:gap-6 min-h-screen">
-				{/* Header with XZX Theme */}
+				{/* Header with Military Grade Badge */}
 				<header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top duration-700">
 					<div className="flex items-center gap-4">
 						<div className="relative group">
@@ -350,7 +399,7 @@ export default function Home() {
 								className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#8b5cf6] via-[#a855f7] to-[#ec4899] flex items-center justify-center shadow-2xl shadow-purple-500/30 ring-2 ring-white/20 backdrop-blur-sm transform group-hover:scale-105 transition-all duration-300"
 								aria-hidden="true"
 							>
-								<Lock className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
+								<ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
 							</div>
 						</div>
 						<div>
@@ -358,11 +407,18 @@ export default function Home() {
 								<span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400">
 									XZX
 								</span>
-								<span className="text-white ml-2">Obfuscator</span>
+								<span className="text-white ml-2">Military Obfuscator</span>
 							</h1>
-							<p className="text-xs sm:text-sm text-gray-300/90 hidden sm:block font-medium">
-								v1.0.0 | Advanced Lua code protection
-							</p>
+							<div className="flex items-center gap-2 mt-1">
+								<p className="text-xs sm:text-sm text-gray-300/90 font-medium">
+									v2.0.0 | Military Grade Protection
+								</p>
+								{getActiveMilitaryCount() > 0 && (
+									<div className="px-2 py-0.5 bg-red-500/20 border border-red-500/30 rounded-full text-[10px] text-red-300">
+										{getActiveMilitaryCount()} Active
+									</div>
+								)}
+							</div>
 						</div>
 					</div>
 					<nav className="flex flex-wrap gap-3 w-full sm:w-auto" aria-label="Main actions">
@@ -370,7 +426,6 @@ export default function Home() {
 							onClick={copyToClipboard}
 							disabled={!outputCode}
 							className="group bg-white/10 hover:bg-white/20 active:bg-white/25 text-white border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-							aria-label={copySuccess ? "Copied to clipboard" : "Copy obfuscated code to clipboard"}
 						>
 							{copySuccess ? (
 								<>
@@ -388,7 +443,6 @@ export default function Home() {
 							onClick={downloadCode}
 							disabled={!outputCode}
 							className="group bg-white/10 hover:bg-white/20 active:bg-white/25 text-white border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-							aria-label="Download obfuscated code as .lua file"
 						>
 							<Download className="w-4 h-4 mr-2 group-hover:translate-y-0.5 transition-transform duration-200" />
 							Download
@@ -397,7 +451,6 @@ export default function Home() {
 							onClick={obfuscateCode}
 							disabled={!inputCode || isProcessing}
 							className="group relative bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] hover:from-[#9b6cf6] hover:via-[#b865f7] hover:to-[#fc59a9] active:scale-[0.98] text-white shadow-xl hover:shadow-2xl shadow-purple-500/40 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 overflow-hidden"
-							aria-label="Obfuscate Lua code"
 						>
 							<div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
 							<Shuffle className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-180 transition-transform duration-500" />
@@ -411,10 +464,10 @@ export default function Home() {
 					<div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top fade-in duration-300">
 						<div className="bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3">
 							<div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-								<Sparkles className="w-5 h-5 text-white animate-pulse" />
+								<Shield className="w-5 h-5 text-white animate-pulse" />
 							</div>
 							<div>
-								<p className="text-white font-bold text-sm">Obfuscation Complete!</p>
+								<p className="text-white font-bold text-sm">Military Grade Protection!</p>
 								<p className="text-purple-50 text-xs">Your code is now XZX protected</p>
 							</div>
 						</div>
@@ -426,7 +479,7 @@ export default function Home() {
 					className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-6 min-h-0 overflow-y-auto animate-in fade-in slide-in-from-bottom duration-700"
 					aria-label="Code editor workspace"
 				>
-					{/* Code Editors - Side by Side on Desktop, Stacked on Mobile */}
+					{/* Code Editors */}
 					<div className="lg:col-span-8 flex flex-col lg:grid lg:grid-cols-2 gap-4 lg:min-h-0">
 						{/* Input Editor */}
 						<section
@@ -446,7 +499,7 @@ export default function Home() {
 											<h2 id="input-code-heading" className="text-sm font-bold text-white tracking-wide">
 												Original Lua Code
 											</h2>
-											<p className="text-xs text-gray-400 font-medium">Paste your Lua code or upload a file</p>
+											<p className="text-xs text-gray-400 font-medium">Paste code or upload a file</p>
 										</div>
 									</div>
 									
@@ -514,7 +567,7 @@ export default function Home() {
 											</div>
 											<div>
 												<h2 id="output-code-heading" className="text-sm font-bold text-white tracking-wide">
-													Obfuscated Output
+													Military Output
 												</h2>
 												<p className="text-xs text-gray-400 font-medium">Protected by XZX</p>
 											</div>
@@ -552,19 +605,18 @@ export default function Home() {
 										<div className="relative">
 											<div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] rounded-lg blur-md opacity-50"></div>
 											<div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] flex items-center justify-center shadow-lg">
-												<Sparkles className="w-4.5 h-4.5 text-white" aria-hidden="true" />
+												<Cpu className="w-4.5 h-4.5 text-white" aria-hidden="true" />
 											</div>
 										</div>
 										<div>
 											<h2 id="metrics-heading" className="text-sm font-bold text-white tracking-wide">
-												XZX Metrics
+												Military Metrics
 											</h2>
 											<p className="text-xs text-gray-400 font-medium">Protection statistics</p>
 										</div>
 									</div>
 
 									<div className="space-y-4">
-										{/* Size metrics */}
 										<div className="space-y-2">
 											<div className="flex justify-between items-center">
 												<span className="text-xs text-gray-400">Input Size</span>
@@ -579,11 +631,11 @@ export default function Home() {
 												</span>
 											</div>
 											<div className="flex justify-between items-center">
-												<span className="text-xs text-gray-400">Size Ratio</span>
+												<span className="text-xs text-gray-400">Protection Ratio</span>
 												<span
 													className={cn(
 														"text-sm font-bold",
-														metrics.sizeRatio > 2 ? "text-pink-400" : "text-purple-400"
+														metrics.sizeRatio > 3 ? "text-pink-400" : "text-purple-400"
 													)}
 												>
 													{metrics.sizeRatio.toFixed(2)}x
@@ -594,54 +646,27 @@ export default function Home() {
 										<div className="border-t border-purple-500/30 pt-4">
 											<div className="flex justify-between items-center mb-3">
 												<span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-													Transformations
+													Military Features
 												</span>
 											</div>
-											<div className="space-y-2">
-												{metrics.transformations.namesMangled > 0 && (
-													<div className="flex justify-between items-center">
-														<span className="text-xs text-gray-400">Names Mangled</span>
-														<span className="text-sm font-semibold text-purple-400">
-															{metrics.transformations.namesMangled}
-														</span>
-													</div>
+											<div className="grid grid-cols-2 gap-2">
+												{settings.intenseVM && (
+													<div className="text-xs text-purple-300 bg-purple-500/10 px-2 py-1 rounded">Intense VM</div>
 												)}
-												{metrics.transformations.stringsEncoded > 0 && (
-													<div className="flex justify-between items-center">
-														<span className="text-xs text-gray-400">
-															Strings Encrypted{" "}
-															{metrics.encryptionAlgorithm && metrics.encryptionAlgorithm !== "none" && (
-																<span className="text-[10px] text-pink-400">({metrics.encryptionAlgorithm})</span>
-															)}
-														</span>
-														<span className="text-sm font-semibold text-pink-400">
-															{metrics.transformations.stringsEncoded}
-														</span>
-													</div>
+												{settings.virtualization && (
+													<div className="text-xs text-pink-300 bg-pink-500/10 px-2 py-1 rounded">Virtualization</div>
 												)}
-												{metrics.transformations.numbersEncoded > 0 && (
-													<div className="flex justify-between items-center">
-														<span className="text-xs text-gray-400">Numbers Encoded</span>
-														<span className="text-sm font-semibold text-green-400">
-															{metrics.transformations.numbersEncoded}
-														</span>
-													</div>
+												{settings.bytecodeEncryption && (
+													<div className="text-xs text-blue-300 bg-blue-500/10 px-2 py-1 rounded">Bytecode Encryption</div>
 												)}
-												{metrics.transformations.deadCodeBlocks > 0 && (
-													<div className="flex justify-between items-center">
-														<span className="text-xs text-gray-400">Dead Code Blocks</span>
-														<span className="text-sm font-semibold text-orange-400">
-															{metrics.transformations.deadCodeBlocks}
-														</span>
-													</div>
+												{settings.antiTamper && (
+													<div className="text-xs text-red-300 bg-red-500/10 px-2 py-1 rounded">Anti-Tamper</div>
 												)}
-												{metrics.transformations.antiDebugChecks > 0 && (
-													<div className="flex justify-between items-center">
-														<span className="text-xs text-gray-400">Anti-Debug Checks</span>
-														<span className="text-sm font-semibold text-red-400">
-															{metrics.transformations.antiDebugChecks}
-														</span>
-													</div>
+												{settings.selfModifying && (
+													<div className="text-xs text-yellow-300 bg-yellow-500/10 px-2 py-1 rounded">Self-Modifying</div>
+												)}
+												{settings.mutation && (
+													<div className="text-xs text-green-300 bg-green-500/10 px-2 py-1 rounded">Mutation</div>
 												)}
 											</div>
 										</div>
@@ -665,12 +690,12 @@ export default function Home() {
 								<div className="relative">
 									<div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] rounded-xl blur-lg opacity-50"></div>
 									<div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] flex items-center justify-center shadow-lg">
-										<Settings className="w-5.5 h-5.5 text-white" aria-hidden="true" />
+										<Layers className="w-5.5 h-5.5 text-white" aria-hidden="true" />
 									</div>
 								</div>
 								<div className="flex-1">
 									<h2 id="settings-heading" className="text-lg sm:text-xl font-bold text-white tracking-tight">
-										XZX Settings
+										Military Settings
 									</h2>
 									<p className="text-xs text-gray-400 font-medium mt-0.5">Configure protection level</p>
 								</div>
@@ -684,84 +709,16 @@ export default function Home() {
 										Basic Obfuscation
 									</Label>
 
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="mangle-names" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Mangle Names</span>
-												{settings.mangleNames && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Replace variable and function names with hexadecimal identifiers
-											</p>
-										</Label>
-										<Switch
-											id="mangle-names"
-											checked={settings.mangleNames}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, mangleNames: checked });
-												trackSettingsChange({ setting: "mangleNames", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="encode-strings"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Encode Strings</span>
-												{settings.encodeStrings && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Convert strings to byte arrays using string.char()
-											</p>
-										</Label>
-										<Switch
-											id="encode-strings"
-											checked={settings.encodeStrings}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, encodeStrings: checked });
-												trackSettingsChange({ setting: "encodeStrings", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-pink-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="minify" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Minify Code</span>
-												{settings.minify && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Remove comments and whitespace
-											</p>
-										</Label>
-										<Switch
-											id="minify"
-											checked={settings.minify}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, minify: checked });
-												trackSettingsChange({ setting: "minify", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
+									{renderSwitch("Mangle Names", "mangleNames", "Replace variable and function names with hexadecimal identifiers", settings, setSettings, "purple")}
+									{renderSwitch("Encode Strings", "encodeStrings", "Convert strings to byte arrays using string.char()", settings, setSettings, "pink")}
+									{renderSwitch("Minify Code", "minify", "Remove comments and whitespace", settings, setSettings, "purple")}
 								</div>
 
 								{/* Target Version */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										Target Version
+										<Globe className="w-4 h-4 mr-1" /> Target Version
 									</Label>
 
 									<div className="space-y-3">
@@ -786,208 +743,84 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Luraph-style Advanced Features */}
+								{/* VM & Core Military Features */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										Advanced VM Features
+										<Cpu className="w-4 h-4 mr-1" /> VM & Core Military Features
 									</Label>
 
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="intense-vm" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Intense VM Structure</span>
-												{settings.intenseVM && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Adds extra layers of processing to the VM for extra security
-											</p>
-										</Label>
-										<Switch
-											id="intense-vm"
-											checked={settings.intenseVM}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, intenseVM: checked });
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="gc-fixes" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>GC Fixes</span>
-												{settings.gcFixes && <span className="text-[10px] text-yellow-400">(Heavy)</span>}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Fixes garbage collection issues for __gc metamethod (heavy performance cost)
-											</p>
-										</Label>
-										<Switch
-											id="gc-fixes"
-											checked={settings.gcFixes}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, gcFixes: checked });
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="hardcode-globals" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Hardcode Globals</span>
-												{settings.hardcodeGlobals && <span className="text-[10px] text-yellow-400">(Exposes names)</span>}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Hardcodes global accesses for performance (exposes global names)
-											</p>
-										</Label>
-										<Switch
-											id="hardcode-globals"
-											checked={settings.hardcodeGlobals}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, hardcodeGlobals: checked });
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="static-env" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Static Environment</span>
-												{settings.staticEnvironment && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Optimizes assuming environment never changes via getfenv/setfenv
-											</p>
-										</Label>
-										<Switch
-											id="static-env"
-											checked={settings.staticEnvironment}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, staticEnvironment: checked });
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="vm-compression" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>VM Compression</span>
-												{settings.vmCompression && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Strong compression for smaller file size (requires loadstring)
-											</p>
-										</Label>
-										<Switch
-											id="vm-compression"
-											checked={settings.vmCompression}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, vmCompression: checked });
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="disable-lineinfo" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Disable Line Info</span>
-												{settings.disableLineInfo && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Removes line information for better performance (no error line numbers)
-											</p>
-										</Label>
-										<Switch
-											id="disable-lineinfo"
-											checked={settings.disableLineInfo}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, disableLineInfo: checked });
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="use-debug" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Use Debug Library</span>
-												{settings.useDebugLibrary && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Adds extra security using Lua's debug library
-											</p>
-										</Label>
-										<Switch
-											id="use-debug"
-											checked={settings.useDebugLibrary}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, useDebugLibrary: checked });
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
+									{renderSwitch("Intense VM Structure", "intenseVM", "Adds extra layers of processing to the VM for maximum security", settings, setSettings, "purple", true)}
+									{renderSwitch("Virtualization", "virtualization", "Complete code virtualization - runs in custom VM", settings, setSettings, "pink", true)}
+									{renderSwitch("Bytecode Encryption", "bytecodeEncryption", "Encrypts the VM bytecode with AES-256", settings, setSettings, "blue", true)}
+									{renderSwitch("VM Compression", "vmCompression", "Strong compression for smaller file size (requires loadstring)", settings, setSettings, "purple")}
+									{renderSwitch("GC Fixes", "gcFixes", "Fixes garbage collection issues (heavy performance cost)", settings, setSettings, "yellow", true)}
 								</div>
 
-								{/* Optimization Level */}
+								{/* Anti-Analysis Features */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										Optimization Level
+										<Bug className="w-4 h-4 mr-1" /> Anti-Analysis
+									</Label>
+
+									{renderSwitch("Anti-Debugging", "antiDebugging", "Runtime checks to detect debuggers", settings, setSettings, "red", true)}
+									{renderSwitch("Anti-Tamper", "antiTamper", "Detects code modification and integrity violations", settings, setSettings, "red", true)}
+									{renderSwitch("Self-Modifying Code", "selfModifying", "Code that modifies itself at runtime", settings, setSettings, "orange", true)}
+									{renderSwitch("Integrity Checks", "integrityChecks", "Cryptographic hash verification of code sections", settings, setSettings, "red", true)}
+									{renderSwitch("Use Debug Library", "useDebugLibrary", "Extra security using Lua's debug library", settings, setSettings, "purple")}
+								</div>
+
+								{/* Control Flow Features */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										<Shuffle className="w-4 h-4 mr-1" /> Control Flow
+									</Label>
+
+									{renderSwitch("Control Flow Flattening", "controlFlowFlattening", "Transform code into state machine patterns (CPU intensive)", settings, setSettings, "orange", true)}
+									{renderSwitch("Opaque Predicates", "opaquePredicates", "Insert complex always-true/false conditions", settings, setSettings, "purple", true)}
+									{renderSwitch("Mutation", "mutation", "Constant code structure mutation", settings, setSettings, "green", true)}
+									{renderSwitch("Code Splitting", "codeSplitting", "Split code into many small fragments", settings, setSettings, "blue", true)}
+									{renderSwitch("Control Flow (Basic)", "controlFlow", "Add opaque predicates to complicate analysis", settings, setSettings, "purple")}
+								</div>
+
+								{/* Code Obfuscation */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										<Code className="w-4 h-4 mr-1" /> Code Obfuscation
+									</Label>
+
+									{renderSwitch("Dead Code Injection", "deadCodeInjection", "Inject unreachable code blocks", settings, setSettings, "orange", true)}
+									{renderSwitch("Encode Numbers", "encodeNumbers", "Transform numeric literals into mathematical expressions", settings, setSettings, "purple")}
+									{renderSwitch("Hardcode Globals", "hardcodeGlobals", "Hardcodes global accesses for performance (exposes global names)", settings, setSettings, "yellow")}
+								</div>
+
+								{/* Environment & Optimization */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										<HardDrive className="w-4 h-4 mr-1" /> Environment & Optimization
+									</Label>
+
+									{renderSwitch("Static Environment", "staticEnvironment", "Optimizes assuming environment never changes", settings, setSettings, "purple")}
+									{renderSwitch("Environment Lock", "environmentLock", "Locks script to specific environment", settings, setSettings, "blue", true)}
+									{renderSwitch("Disable Line Info", "disableLineInfo", "Removes line information for better performance", settings, setSettings, "purple")}
+								</div>
+
+								{/* Encryption Algorithm */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										<Lock className="w-4 h-4 mr-1" /> String Encryption
 									</Label>
 
 									<div className="space-y-3">
-										<Select
-											value={settings.optimizationLevel.toString()}
-											onValueChange={(value: string) => {
-												setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
-											}}
-										>
-											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
-												<SelectValue placeholder="Select optimization level" />
-											</SelectTrigger>
-											<SelectContent className="bg-slate-900 border-white/20">
-												<SelectItem value="0">Level 0 (No optimization)</SelectItem>
-												<SelectItem value="1">Level 1 (Basic)</SelectItem>
-												<SelectItem value="2">Level 2 (Aggressive)</SelectItem>
-												<SelectItem value="3">Level 3 (Maximum - may change metamethod order)</SelectItem>
-											</SelectContent>
-										</Select>
-										<p className="text-xs text-gray-400/90">
-											{settings.optimizationLevel === 0 && "No optimizations applied"}
-											{settings.optimizationLevel === 1 && "Basic optimizations (constant folding, dead code elimination)"}
-											{settings.optimizationLevel === 2 && "Aggressive optimizations with minimal risk"}
-											{settings.optimizationLevel === 3 && "Maximum optimizations - may change metamethod execution order"}
-										</p>
-									</div>
-								</div>
-
-								{/* Encryption Algorithm Selector */}
-								<div className="space-y-4 pt-6 border-t border-purple-500/30">
-									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										String Encryption
-									</Label>
-
-									<div className="space-y-3">
-										<Label htmlFor="encryption-algorithm" className="text-sm font-semibold text-gray-100">
-											Encryption Algorithm
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Choose how strings are encrypted (requires Encode Strings)
-											</p>
-										</Label>
 										<Select
 											value={settings.encryptionAlgorithm}
 											onValueChange={(value: EncryptionAlgorithm) => {
 												setSettings({ ...settings, encryptionAlgorithm: value });
-												trackSettingsChange({ setting: "encryptionAlgorithm", value }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
 											}}
 											disabled={!settings.encodeStrings}
 										>
@@ -1005,140 +838,30 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Advanced Obfuscation Techniques */}
+								{/* Optimization Level */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										Advanced Techniques
+										<Zap className="w-4 h-4 mr-1" /> Optimization Level
 									</Label>
 
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="encode-numbers"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+									<div className="space-y-3">
+										<Select
+											value={settings.optimizationLevel.toString()}
+											onValueChange={(value: string) => {
+												setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
+											}}
 										>
-											<div className="flex items-center gap-2">
-												<span>Encode Numbers</span>
-												{settings.encodeNumbers && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Transform numeric literals into mathematical expressions
-											</p>
-										</Label>
-										<Switch
-											id="encode-numbers"
-											checked={settings.encodeNumbers}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, encodeNumbers: checked });
-												trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label htmlFor="control-flow" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-											<div className="flex items-center gap-2">
-												<span>Control Flow</span>
-												{settings.controlFlow && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Add opaque predicates to complicate control flow analysis
-											</p>
-										</Label>
-										<Switch
-											id="control-flow"
-											checked={settings.controlFlow}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, controlFlow: checked });
-												trackSettingsChange({ setting: "controlFlow", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="control-flow-flattening"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Control Flow Flattening</span>
-												{settings.controlFlowFlattening && (
-													<Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
-												)}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Transform code into state machine patterns (CPU intensive)
-											</p>
-										</Label>
-										<Switch
-											id="control-flow-flattening"
-											checked={settings.controlFlowFlattening}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, controlFlowFlattening: checked });
-												trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="dead-code-injection"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Dead Code Injection</span>
-												{settings.deadCodeInjection && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Inject unreachable code blocks to confuse analysis
-											</p>
-										</Label>
-										<Switch
-											id="dead-code-injection"
-											checked={settings.deadCodeInjection}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, deadCodeInjection: checked });
-												trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="anti-debugging"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Anti-Debugging</span>
-												{settings.antiDebugging && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Add runtime checks to detect debuggers and modified environments
-											</p>
-										</Label>
-										<Switch
-											id="anti-debugging"
-											checked={settings.antiDebugging}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, antiDebugging: checked });
-												trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
+											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
+												<SelectValue placeholder="Select optimization level" />
+											</SelectTrigger>
+											<SelectContent className="bg-slate-900 border-white/20">
+												<SelectItem value="0">Level 0 (No optimization)</SelectItem>
+												<SelectItem value="1">Level 1 (Basic)</SelectItem>
+												<SelectItem value="2">Level 2 (Aggressive)</SelectItem>
+												<SelectItem value="3">Level 3 (Maximum - may change behavior)</SelectItem>
+											</SelectContent>
+										</Select>
 									</div>
 								</div>
 
@@ -1146,7 +869,7 @@ export default function Home() {
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										Output Format
+										<Eye className="w-4 h-4 mr-1" /> Output Format
 									</Label>
 
 									<div className="space-y-3">
@@ -1154,9 +877,6 @@ export default function Home() {
 											value={settings.formattingStyle}
 											onValueChange={(value: FormattingStyle) => {
 												setSettings({ ...settings, formattingStyle: value });
-												trackSettingsChange({ setting: "formattingStyle", value }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
 											}}
 										>
 											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
@@ -1189,8 +909,8 @@ export default function Home() {
 													protectionStrength === "none" && "bg-gray-500/20 border-gray-500/30 text-gray-300",
 													protectionStrength === "low" && "bg-purple-500/20 border-purple-500/30 text-purple-300",
 													protectionStrength === "medium" && "bg-pink-500/20 border-pink-500/30 text-pink-300",
-													protectionStrength === "high" &&
-														"bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/30 text-purple-300"
+													protectionStrength === "high" && "bg-orange-500/20 border-orange-500/30 text-orange-300",
+													protectionStrength === "military" && "bg-red-500/20 border-red-500/30 text-red-300 animate-pulse"
 												)}
 											>
 												{settings.compressionLevel}%
@@ -1203,43 +923,36 @@ export default function Home() {
 											value={[settings.compressionLevel]}
 											onValueChange={value => {
 												const level = value[0];
-												const oldLevel = settings.compressionLevel;
-
 												setSettings({
 													...settings,
 													compressionLevel: level,
-													// Basic obfuscation (v1.0)
+													// Basic
 													minify: level >= 10,
 													mangleNames: level >= 20,
 													encodeStrings: level >= 30,
-													encodeNumbers: level >= 50,
-													controlFlow: level >= 60,
-													// Advanced obfuscation (v1.1)
-													encryptionAlgorithm: level >= 70 ? "xor" : level >= 30 ? "none" : "none",
-													deadCodeInjection: level >= 75,
-													controlFlowFlattening: level >= 85,
-													antiDebugging: level >= 90,
-													formattingStyle: level >= 10 ? "minified" : "pretty",
-													// New Luraph-style features
-													intenseVM: level >= 80,
-													staticEnvironment: level >= 60,
-													vmCompression: level >= 70,
-													disableLineInfo: level >= 40,
-													useDebugLibrary: level >= 85,
-													optimizationLevel: level >= 80 ? 3 : level >= 60 ? 2 : level >= 30 ? 1 : 0,
+													// Advanced
+													encodeNumbers: level >= 40,
+													controlFlow: level >= 50,
+													encryptionAlgorithm: level >= 60 ? "xor" : "none",
+													deadCodeInjection: level >= 65,
+													controlFlowFlattening: level >= 70,
+													// Military
+													intenseVM: level >= 75,
+													antiDebugging: level >= 80,
+													opaquePredicates: level >= 80,
+													virtualization: level >= 85,
+													bytecodeEncryption: level >= 85,
+													antiTamper: level >= 90,
+													selfModifying: level >= 90,
+													mutation: level >= 90,
+													codeSplitting: level >= 90,
+													environmentLock: level >= 90,
+													integrityChecks: level >= 95,
+													optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
 												});
-
-												// Track protection level change
-												if (oldLevel !== level) {
-													trackProtectionLevelChange({
-														oldLevel,
-														newLevel: level,
-														changeType: "slider",
-													}).catch(err => console.error("Analytics tracking failed:", err));
-												}
 											}}
 											max={100}
-											step={10}
+											step={5}
 											className="w-full"
 										/>
 									</div>
@@ -1249,193 +962,57 @@ export default function Home() {
 											protectionStrength === "none" && "bg-gray-500/10 border-gray-500/20 text-gray-300",
 											protectionStrength === "low" && "bg-purple-500/10 border-purple-500/20 text-purple-200",
 											protectionStrength === "medium" && "bg-pink-500/10 border-pink-500/20 text-pink-200",
-											protectionStrength === "high" &&
-												"bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/20 text-purple-200"
+											protectionStrength === "high" && "bg-orange-500/10 border-orange-500/20 text-orange-200",
+											protectionStrength === "military" && "bg-red-500/10 border-red-500/20 text-red-200"
 										)}
 									>
-										{settings.compressionLevel === 0 && (
-											<div className="flex items-center gap-2">
-												<div className="w-2 h-2 rounded-full bg-gray-400"></div>
-												<p>No automatic obfuscation enabled</p>
-											</div>
-										)}
-										{settings.compressionLevel >= 10 && settings.compressionLevel < 20 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Active:</strong> Minify
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 20 && settings.compressionLevel < 30 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Active:</strong> Minify, Mangle Names
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 30 && settings.compressionLevel < 40 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Encode Strings, Opt Level 1
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 40 && settings.compressionLevel < 50 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Active:</strong> + Disable Line Info
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 50 && settings.compressionLevel < 60 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Active:</strong> + Encode Numbers
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 60 && settings.compressionLevel < 70 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Active:</strong> + Control Flow, Static Environment, Opt Level 2
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 70 && settings.compressionLevel < 75 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Advanced:</strong> + XOR Encryption, VM Compression
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 75 && settings.compressionLevel < 80 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Advanced:</strong> + Dead Code Injection
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 80 && settings.compressionLevel < 85 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Advanced:</strong> + Intense VM, Opt Level 3
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 85 && settings.compressionLevel < 90 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Maximum:</strong> + Control Flow Flattening, Use Debug Library
-													</p>
-												</div>
-											</div>
-										)}
-										{settings.compressionLevel >= 90 && (
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
-													<p>
-														<strong className="font-bold">Maximum Protection:</strong> All Techniques
-													</p>
-												</div>
-												<p className="text-[10px] text-gray-400 pl-4">
-													Every protection feature enabled (strongest security)
-												</p>
-											</div>
-										)}
+										{settings.compressionLevel < 30 && "Standard Protection"}
+										{settings.compressionLevel >= 30 && settings.compressionLevel < 60 && "Enhanced Protection"}
+										{settings.compressionLevel >= 60 && settings.compressionLevel < 80 && "Advanced Protection"}
+										{settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Military Grade"}
+										{settings.compressionLevel >= 95 && "Maximum Military Grade - May Impact Performance"}
 									</div>
 								</div>
 
-								{/* GC Fixes Warning */}
+								{/* Warnings */}
 								{settings.gcFixes && (
 									<div className="pt-2">
 										<div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
 											<p className="text-xs text-yellow-200/90">
 												<strong className="font-bold block mb-1">⚠️ Performance Warning</strong>
-												GC Fixes enabled - This option has a heavy performance cost. Only use if your script depends on __gc metamethods.
+												GC Fixes enabled - Heavy performance cost
 											</p>
 										</div>
 									</div>
 								)}
 
-								{/* Hardcode Globals Warning */}
 								{settings.hardcodeGlobals && (
 									<div className="pt-2">
 										<div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
 											<p className="text-xs text-yellow-200/90">
 												<strong className="font-bold block mb-1">⚠️ Security Warning</strong>
-												Hardcode Globals exposes the names of all globals used in your script. Do not use if any globals are sensitive!
+												Hardcode Globals exposes global names
 											</p>
 										</div>
 									</div>
 								)}
 
-								{/* VM Compression Warning */}
-								{settings.vmCompression && (
+								{(settings.virtualization || settings.intenseVM) && (
 									<div className="pt-2">
-										<div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-											<p className="text-xs text-blue-200/90">
-												<strong className="font-bold block mb-1">ℹ️ Requirement</strong>
-												VM Compression requires loadstring or load to be available in your environment.
+										<div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
+											<p className="text-xs text-purple-200/90">
+												<strong className="font-bold block mb-1">💪 Military Grade Active</strong>
+												Maximum protection enabled - code is virtualized
 											</p>
 										</div>
 									</div>
 								)}
-
-								{/* Enhanced Info Box */}
-								<div className="pt-6 border-t border-purple-500/30">
-									<div className="relative overflow-hidden bg-gradient-to-br from-[#8b5cf6]/20 via-[#ec4899]/15 to-[#8b5cf6]/10 border border-[#8b5cf6]/40 rounded-2xl p-5 shadow-2xl backdrop-blur-sm">
-										<div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-transparent rounded-full blur-2xl"></div>
-										<div className="relative flex items-start gap-3">
-											<div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#8b5cf6]/30 to-[#ec4899]/30 flex items-center justify-center flex-shrink-0 shadow-lg backdrop-blur-sm border border-purple-400/30">
-												<Sparkles className="w-4 h-4 text-purple-300" />
-											</div>
-											<div>
-												<p className="text-xs text-purple-100 leading-relaxed">
-													<strong className="font-bold text-sm block mb-1">💡 XZX Pro Tip</strong>
-													Use the Protection Level slider for quick presets, or manually toggle individual techniques
-													for fine-grained control. Higher protection levels provide stronger obfuscation but may impact
-													performance.
-												</p>
-											</div>
-										</div>
-									</div>
-								</div>
 							</div>
 						</Card>
 					</aside>
 				</section>
 
-				{/* Enhanced Error Display */}
+				{/* Error Display */}
 				{error && (
 					<aside
 						role="alert"
@@ -1456,48 +1033,17 @@ export default function Home() {
 					</aside>
 				)}
 
-				{/* SEO-Optimized Content Section - Screen reader accessible */}
-				<section className="sr-only">
-					<h2>About XZX Lua Obfuscator</h2>
-					<p>
-						XZX Lua Obfuscator v1.0.0 is a professional, free online tool for protecting Lua source code through advanced
-						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
-						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
-					</p>
-
-					<h3>Key Features</h3>
-					<ul>
-						<li>Variable and Function Name Mangling - Replace identifiers with hexadecimal codes</li>
-						<li>String Encoding - Convert string literals to byte arrays using string.char()</li>
-						<li>Number Encoding - Transform numeric literals into mathematical expressions</li>
-						<li>Control Flow Obfuscation - Add opaque predicates to complicate reverse engineering</li>
-						<li>Code Minification - Remove comments and whitespace for smaller file sizes</li>
-						<li>Intense VM Structure - Extra processing layers for maximum security</li>
-						<li>GC Fixes - Garbage collection bugfixes for __gc metamethod</li>
-						<li>Multiple Lua Version Support - 5.1, 5.2, 5.3, 5.4, LuaJIT</li>
-						<li>Hardcode Globals - Performance optimization (exposes global names)</li>
-						<li>3-Level Optimization - From basic to aggressive optimizations</li>
-						<li>Static Environment - Optimizations for unchanging environments</li>
-						<li>VM Compression - Strong compression for smaller file size</li>
-						<li>Disable Line Information - Better performance, no error line numbers</li>
-						<li>Debug Library Integration - Extra security features</li>
-						<li>Real-time Processing - Instant obfuscation in your browser</li>
-						<li>Configurable Protection Levels - Adjust security vs performance (0-100%)</li>
-						<li>File Upload Support - Load .lua files directly</li>
-					</ul>
-				</section>
-
-				{/* Version Footer */}
+				{/* Footer with Discord Link */}
 				<footer
 					className="mt-auto pt-8 pb-4 text-center"
 					role="contentinfo"
 					aria-label="Version and author information"
 				>
 					<div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-purple-500/30 hover:bg-white/10 transition-all duration-300">
-						<span className="text-sm text-gray-400 font-mono">v1.0.0</span>
+						<span className="text-sm text-gray-400 font-mono">v2.0.0</span>
 						<span className="text-sm text-gray-400">Made by</span>
 						<a
-							href="https://github.com/xzxhub0-source"
+							href="https://discord.gg/5q5bEKmYqF"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="text-sm font-semibold text-purple-400 hover:text-pink-400 font-mono transition-colors duration-200 hover:underline"
@@ -1529,10 +1075,52 @@ export default function Home() {
 					background: linear-gradient(135deg, #8b5cf6, #ec4899);
 					border-radius: 10px;
 				}
-				.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-					opacity: 0.8;
-				}
 			`}</style>
 		</>
+	);
+}
+
+// Helper function to render switches
+function renderSwitch(
+	label: string,
+	key: keyof ObfuscatorSettings,
+	description: string,
+	settings: ObfuscatorSettings,
+	setSettings: React.Dispatch<React.SetStateAction<ObfuscatorSettings>>,
+	color: string = "purple",
+	military: boolean = false
+) {
+	const colors = {
+		purple: "data-[state=checked]:bg-purple-600",
+		pink: "data-[state=checked]:bg-pink-600",
+		blue: "data-[state=checked]:bg-blue-600",
+		red: "data-[state=checked]:bg-red-600",
+		orange: "data-[state=checked]:bg-orange-600",
+		green: "data-[state=checked]:bg-green-600",
+		yellow: "data-[state=checked]:bg-yellow-600",
+	};
+
+	return (
+		<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+			<Label htmlFor={key} className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+				<div className="flex items-center gap-2">
+					<span>{label}</span>
+					{military && <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>}
+					{settings[key] as boolean && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+				</div>
+				<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">{description}</p>
+			</Label>
+			<Switch
+				id={key}
+				checked={settings[key] as boolean}
+				onCheckedChange={checked => {
+					setSettings({ ...settings, [key]: checked });
+					trackSettingsChange({ setting: key, value: checked }).catch(err =>
+						console.error("Analytics tracking failed:", err)
+					);
+				}}
+				className={colors[color as keyof typeof colors]}
+			/>
+		</div>
 	);
 }
