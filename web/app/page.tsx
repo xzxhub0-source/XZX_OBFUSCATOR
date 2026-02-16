@@ -45,6 +45,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // Empty default - no pre-loaded code
 const DEFAULT_LUA_CODE = "";
 
+// Target Lua versions
+type LuaVersion = "5.1" | "5.2" | "5.3" | "5.4" | "luajit";
+
+// Optimization levels
+type OptimizationLevel = 0 | 1 | 2 | 3;
+
 interface ObfuscatorSettings {
 	// Basic options (v1.0)
 	mangleNames: boolean;
@@ -60,6 +66,17 @@ interface ObfuscatorSettings {
 	deadCodeInjection: boolean;
 	antiDebugging: boolean;
 	formattingStyle: FormattingStyle;
+
+	// NEW FEATURES - Luraph Style
+	intenseVMStructure: boolean;      // Intense VM Structure
+	gcFixes: boolean;                  // Enable GC Fixes
+	targetVersion: LuaVersion;         // Target Version (Lua 5.1, 5.2, etc.)
+	hardcodeGlobals: boolean;          // Hardcode Globals
+	optimizationLevel: OptimizationLevel; // Optimization Level (1, 2, 3)
+	staticEnvironment: boolean;        // Static Environment
+	vmCompression: boolean;            // VM Compression
+	disableLineInfo: boolean;          // Disable Line Information
+	useDebugLibrary: boolean;          // Use Debug Library
 }
 
 export default function Home() {
@@ -87,6 +104,17 @@ export default function Home() {
 		deadCodeInjection: false,
 		antiDebugging: false,
 		formattingStyle: "minified",
+
+		// NEW FEATURES - Luraph Style
+		intenseVMStructure: false,
+		gcFixes: false,
+		targetVersion: "5.1",
+		hardcodeGlobals: false,
+		optimizationLevel: 0,
+		staticEnvironment: false,
+		vmCompression: false,
+		disableLineInfo: false,
+		useDebugLibrary: false,
 	});
 
 	const [obfuscationCount, setObfuscationCount] = useState(0);
@@ -130,19 +158,33 @@ export default function Home() {
 		try {
 			const startTime = Date.now();
 
-			// Build obfuscation options
+			// Build obfuscation options with ALL features
 			const options = {
+				// Basic options
 				mangleNames: settings.mangleNames,
 				encodeStrings: settings.encodeStrings,
 				encodeNumbers: settings.encodeNumbers,
 				controlFlow: settings.controlFlow,
 				minify: !settings.formattingStyle || settings.formattingStyle === "minified",
 				protectionLevel: settings.compressionLevel,
+				
+				// Advanced options
 				encryptionAlgorithm: settings.encryptionAlgorithm,
 				controlFlowFlattening: settings.controlFlowFlattening,
 				deadCodeInjection: settings.deadCodeInjection,
 				antiDebugging: settings.antiDebugging,
 				formattingStyle: settings.formattingStyle,
+				
+				// NEW FEATURES - Luraph Style
+				intenseVMStructure: settings.intenseVMStructure,
+				gcFixes: settings.gcFixes,
+				targetVersion: settings.targetVersion,
+				hardcodeGlobals: settings.hardcodeGlobals,
+				optimizationLevel: settings.optimizationLevel,
+				staticEnvironment: settings.staticEnvironment,
+				vmCompression: settings.vmCompression,
+				disableLineInfo: settings.disableLineInfo,
+				useDebugLibrary: settings.useDebugLibrary,
 			};
 
 			// Perform client-side obfuscation (wrapped in setTimeout to prevent UI blocking)
@@ -559,9 +601,14 @@ export default function Home() {
 								</div>
 							</div>
 
-							<div className="space-y-7">
-								{/* Toggle Settings */}
+							<div className="space-y-7 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+								{/* Toggle Settings - Basic */}
 								<div className="space-y-4">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										Basic Obfuscation
+									</Label>
+									
 									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
 										<Label htmlFor="mangle-names" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
@@ -635,6 +682,264 @@ export default function Home() {
 									</div>
 								</div>
 
+								{/* Luraph-Style VM Features */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										VM & Core Protection
+									</Label>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="intense-vm"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Intense VM Structure</span>
+												{settings.intenseVMStructure && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Adds extra layers of processing to the VM for extra security. Makes analyzing VM functions more difficult.
+											</p>
+										</Label>
+										<Switch
+											id="intense-vm"
+											checked={settings.intenseVMStructure}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, intenseVMStructure: checked });
+												trackSettingsChange({ setting: "intenseVMStructure", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="gc-fixes"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Enable GC Fixes</span>
+												{settings.gcFixes && <Zap className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Fixes garbage collection issues. Heavy performance cost - only enable if your script depends on __gc metamethod.
+											</p>
+										</Label>
+										<Switch
+											id="gc-fixes"
+											checked={settings.gcFixes}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, gcFixes: checked });
+												trackSettingsChange({ setting: "gcFixes", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-yellow-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="static-env"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Static Environment</span>
+												{settings.staticEnvironment && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Extra optimizations if global environment never changes via getfenv/setfenv or _ENV reassignments.
+											</p>
+										</Label>
+										<Switch
+											id="static-env"
+											checked={settings.staticEnvironment}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, staticEnvironment: checked });
+												trackSettingsChange({ setting: "staticEnvironment", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-blue-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="vm-compression"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>VM Compression</span>
+												{settings.vmCompression && <Zap className="w-3.5 h-3.5 text-green-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Strong compression to lower file size. Requires loadstring/load to be available.
+											</p>
+										</Label>
+										<Switch
+											id="vm-compression"
+											checked={settings.vmCompression}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, vmCompression: checked });
+												trackSettingsChange({ setting: "vmCompression", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-green-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="disable-line-info"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Disable Line Information</span>
+												{settings.disableLineInfo && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Removes line info from errors. Improves performance but you lose line numbers in errors.
+											</p>
+										</Label>
+										<Switch
+											id="disable-line-info"
+											checked={settings.disableLineInfo}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, disableLineInfo: checked });
+												trackSettingsChange({ setting: "disableLineInfo", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-orange-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="use-debug"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Use Debug Library</span>
+												{settings.useDebugLibrary && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Uses Lua's debug library for extra security. Only use if debug library is available.
+											</p>
+										</Label>
+										<Switch
+											id="use-debug"
+											checked={settings.useDebugLibrary}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, useDebugLibrary: checked });
+												trackSettingsChange({ setting: "useDebugLibrary", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-red-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="hardcode-globals"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Hardcode Globals</span>
+												{settings.hardcodeGlobals && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Hardcodes global accesses for performance. ⚠️ Exposes global names! Don't use with sensitive globals.
+											</p>
+										</Label>
+										<Switch
+											id="hardcode-globals"
+											checked={settings.hardcodeGlobals}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, hardcodeGlobals: checked });
+												trackSettingsChange({ setting: "hardcodeGlobals", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-pink-600"
+										/>
+									</div>
+								</div>
+
+								{/* Target Version & Optimization Level */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										Target & Optimization
+									</Label>
+
+									{/* Target Version Selector */}
+									<div className="space-y-3">
+										<Label htmlFor="target-version" className="text-sm font-semibold text-gray-100">
+											Target Lua Version
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Specifies which Lua version to target. Acts as platform/version lock.
+											</p>
+										</Label>
+										<Select
+											value={settings.targetVersion}
+											onValueChange={(value: LuaVersion) => {
+												setSettings({ ...settings, targetVersion: value });
+												trackSettingsChange({ setting: "targetVersion", value }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+										>
+											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent className="bg-slate-900 border-white/20">
+												<SelectItem value="5.1">Lua 5.1 (Recommended)</SelectItem>
+												<SelectItem value="5.2">Lua 5.2</SelectItem>
+												<SelectItem value="5.3">Lua 5.3</SelectItem>
+												<SelectItem value="5.4">Lua 5.4</SelectItem>
+												<SelectItem value="luajit">LuaJIT</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+
+									{/* Optimization Level Selector */}
+									<div className="space-y-3">
+										<Label htmlFor="optimization-level" className="text-sm font-semibold text-gray-100">
+											Optimization Level
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Higher levels may change execution order of metamethods.
+											</p>
+										</Label>
+										<Select
+											value={settings.optimizationLevel.toString()}
+											onValueChange={(value: string) => {
+												const level = parseInt(value) as OptimizationLevel;
+												setSettings({ ...settings, optimizationLevel: level });
+												trackSettingsChange({ setting: "optimizationLevel", value: level }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+										>
+											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent className="bg-slate-900 border-white/20">
+												<SelectItem value="0">Level 0 - No Optimization</SelectItem>
+												<SelectItem value="1">Level 1 - Basic Optimization</SelectItem>
+												<SelectItem value="2">Level 2 - Advanced Optimization</SelectItem>
+												<SelectItem value="3">Level 3 - Aggressive Optimization</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+								</div>
+
 								{/* Encryption Algorithm Selector */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
@@ -673,7 +978,7 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Advanced Obfuscation */}
+								{/* Advanced Obfuscation Techniques */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -894,6 +1199,14 @@ export default function Home() {
 													controlFlowFlattening: level >= 85,
 													antiDebugging: level >= 90,
 													formattingStyle: level >= 10 ? "minified" : "pretty",
+													// Luraph features
+													intenseVMStructure: level >= 65,
+													staticEnvironment: level >= 45,
+													vmCompression: level >= 80,
+													disableLineInfo: level >= 25,
+													useDebugLibrary: level >= 95,
+													hardcodeGlobals: level >= 55,
+													optimizationLevel: level >= 70 ? 3 : level >= 50 ? 2 : level >= 30 ? 1 : 0,
 												});
 
 												// Track protection level change
@@ -941,17 +1254,27 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Minify, Mangle Names
+														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Disable Line Info
 													</p>
 												</div>
 											</div>
 										)}
-										{settings.compressionLevel >= 30 && settings.compressionLevel < 50 && (
+										{settings.compressionLevel >= 30 && settings.compressionLevel < 40 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Encode Strings
+														<strong className="font-bold">Active:</strong> Basic + Encode Strings (Opt Level 1)
+													</p>
+												</div>
+											</div>
+										)}
+										{settings.compressionLevel >= 40 && settings.compressionLevel < 50 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Active:</strong> Basic + Static Environment
 													</p>
 												</div>
 											</div>
@@ -961,8 +1284,7 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Encode Strings, Encode
-														Numbers
+														<strong className="font-bold">Active:</strong> + Encode Numbers, Hardcode Globals (Opt Level 2)
 													</p>
 												</div>
 											</div>
@@ -972,35 +1294,32 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Basic + Control Flow
+														<strong className="font-bold">Active:</strong> Basic + Control Flow, Intense VM
 													</p>
 												</div>
-												<p className="text-[10px] text-gray-400 pl-4">All basic techniques + opaque predicates</p>
 											</div>
 										)}
-										{settings.compressionLevel >= 70 && settings.compressionLevel < 75 && (
+										{settings.compressionLevel >= 70 && settings.compressionLevel < 80 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Advanced:</strong> Basic + XOR Encryption
+														<strong className="font-bold">Advanced:</strong> XOR Encryption, Opt Level 3
 													</p>
 												</div>
-												<p className="text-[10px] text-gray-400 pl-4">All basic + XOR cipher for strings</p>
 											</div>
 										)}
-										{settings.compressionLevel >= 75 && settings.compressionLevel < 85 && (
+										{settings.compressionLevel >= 80 && settings.compressionLevel < 90 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Advanced:</strong> Encryption + Dead Code
+														<strong className="font-bold">Advanced:</strong> VM Compression, Dead Code
 													</p>
 												</div>
-												<p className="text-[10px] text-gray-400 pl-4">XOR encryption + injected dead code blocks</p>
 											</div>
 										)}
-										{settings.compressionLevel >= 85 && settings.compressionLevel < 90 && (
+										{settings.compressionLevel >= 90 && settings.compressionLevel < 95 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
@@ -1008,22 +1327,16 @@ export default function Home() {
 														<strong className="font-bold">Maximum:</strong> Control Flow Flattening
 													</p>
 												</div>
-												<p className="text-[10px] text-gray-400 pl-4">
-													All advanced + state machine transformation (CPU intensive)
-												</p>
 											</div>
 										)}
-										{settings.compressionLevel >= 90 && (
+										{settings.compressionLevel >= 95 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Maximum Protection:</strong> All Techniques
+														<strong className="font-bold">Ultimate:</strong> All Features + Anti-Debug, Debug Library
 													</p>
 												</div>
-												<p className="text-[10px] text-gray-400 pl-4">
-													All features + anti-debugging measures (strongest protection)
-												</p>
 											</div>
 										)}
 									</div>
@@ -1040,9 +1353,7 @@ export default function Home() {
 											<div>
 												<p className="text-xs text-purple-100 leading-relaxed">
 													<strong className="font-bold text-sm block mb-1">💡 XZX Pro Tip</strong>
-													Use the Protection Level slider for quick presets, or manually toggle individual techniques
-													for fine-grained control. Higher protection levels provide stronger obfuscation but may impact
-													performance.
+													Use the Protection Level slider for quick presets. GC Fixes have heavy performance cost. Hardcode Globals exposes global names - use with caution!
 												</p>
 											</div>
 										</div>
@@ -1079,21 +1390,9 @@ export default function Home() {
 					<h2>About XZX Lua Obfuscator</h2>
 					<p>
 						XZX Lua Obfuscator v1.0.0 is a professional, free online tool for protecting Lua source code through advanced
-						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
-						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
+						obfuscation techniques. Features include Intense VM Structure, GC Fixes, multiple target versions, hardcoded globals,
+						optimization levels, static environment, VM compression, line info control, and debug library integration.
 					</p>
-
-					<h3>Key Features</h3>
-					<ul>
-						<li>Variable and Function Name Mangling - Replace identifiers with hexadecimal codes</li>
-						<li>String Encoding - Convert string literals to byte arrays using string.char()</li>
-						<li>Number Encoding - Transform numeric literals into mathematical expressions</li>
-						<li>Control Flow Obfuscation - Add opaque predicates to complicate reverse engineering</li>
-						<li>Code Minification - Remove comments and whitespace for smaller file sizes</li>
-						<li>Real-time Processing - Instant obfuscation in your browser with no server uploads</li>
-						<li>Multi-Version Support - Compatible with Lua 5.1, 5.2, 5.3, and 5.4</li>
-						<li>Configurable Protection Levels - Adjust security vs performance trade-offs (0-100%)</li>
-					</ul>
 				</section>
 
 				{/* Version Footer */}
