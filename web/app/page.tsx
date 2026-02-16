@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,6 +19,9 @@ import {
 	Zap,
 	Shield,
 	Sparkles,
+	Upload,
+	File,
+	X,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { obfuscateLua, type ObfuscationResult } from "@/lib/obfuscator-simple";
@@ -45,12 +48,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 // Empty default - no pre-loaded code
 const DEFAULT_LUA_CODE = "";
 
-// Target Lua versions
-type LuaVersion = "5.1" | "5.2" | "5.3" | "5.4" | "luajit";
-
-// Optimization levels
-type OptimizationLevel = 0 | 1 | 2 | 3;
-
 interface ObfuscatorSettings {
 	// Basic options (v1.0)
 	mangleNames: boolean;
@@ -67,16 +64,16 @@ interface ObfuscatorSettings {
 	antiDebugging: boolean;
 	formattingStyle: FormattingStyle;
 
-	// NEW FEATURES - Luraph Style
-	intenseVMStructure: boolean;      // Intense VM Structure
-	gcFixes: boolean;                  // Enable GC Fixes
-	targetVersion: LuaVersion;         // Target Version (Lua 5.1, 5.2, etc.)
-	hardcodeGlobals: boolean;          // Hardcode Globals
-	optimizationLevel: OptimizationLevel; // Optimization Level (1, 2, 3)
-	staticEnvironment: boolean;        // Static Environment
-	vmCompression: boolean;            // VM Compression
-	disableLineInfo: boolean;          // Disable Line Information
-	useDebugLibrary: boolean;          // Use Debug Library
+	// New Luraph-style features
+	intenseVM: boolean;
+	gcFixes: boolean;
+	targetVersion: "5.1" | "5.2" | "5.3" | "5.4" | "luajit";
+	hardcodeGlobals: boolean;
+	optimizationLevel: 0 | 1 | 2 | 3;
+	staticEnvironment: boolean;
+	vmCompression: boolean;
+	disableLineInfo: boolean;
+	useDebugLibrary: boolean;
 }
 
 export default function Home() {
@@ -88,6 +85,8 @@ export default function Home() {
 	const [copySuccess, setCopySuccess] = useState(false);
 	const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 	const [metrics, setMetrics] = useState<ObfuscationMetrics | null>(null);
+	const [fileName, setFileName] = useState<string>("");
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const [settings, setSettings] = useState<ObfuscatorSettings>({
 		// Basic options (v1.0)
@@ -105,12 +104,12 @@ export default function Home() {
 		antiDebugging: false,
 		formattingStyle: "minified",
 
-		// NEW FEATURES - Luraph Style
-		intenseVMStructure: false,
+		// New Luraph-style features
+		intenseVM: false,
 		gcFixes: false,
 		targetVersion: "5.1",
 		hardcodeGlobals: false,
-		optimizationLevel: 0,
+		optimizationLevel: 1,
 		staticEnvironment: false,
 		vmCompression: false,
 		disableLineInfo: false,
@@ -148,6 +147,33 @@ export default function Home() {
 		}
 	};
 
+	// File upload handler
+	const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+
+		setFileName(file.name);
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const content = e.target?.result as string;
+			setInputCode(content);
+		};
+		reader.readAsText(file);
+	};
+
+	const triggerFileUpload = () => {
+		fileInputRef.current?.click();
+	};
+
+	const clearFile = () => {
+		setFileName("");
+		setInputCode("");
+		if (fileInputRef.current) {
+			fileInputRef.current.value = "";
+		}
+	};
+
 	const obfuscateCode = async () => {
 		setIsProcessing(true);
 		setError(null);
@@ -158,25 +184,22 @@ export default function Home() {
 		try {
 			const startTime = Date.now();
 
-			// Build obfuscation options with ALL features
+			// Build obfuscation options with all new features
 			const options = {
-				// Basic options
 				mangleNames: settings.mangleNames,
 				encodeStrings: settings.encodeStrings,
 				encodeNumbers: settings.encodeNumbers,
 				controlFlow: settings.controlFlow,
 				minify: !settings.formattingStyle || settings.formattingStyle === "minified",
 				protectionLevel: settings.compressionLevel,
-				
-				// Advanced options
 				encryptionAlgorithm: settings.encryptionAlgorithm,
 				controlFlowFlattening: settings.controlFlowFlattening,
 				deadCodeInjection: settings.deadCodeInjection,
 				antiDebugging: settings.antiDebugging,
 				formattingStyle: settings.formattingStyle,
 				
-				// NEW FEATURES - Luraph Style
-				intenseVMStructure: settings.intenseVMStructure,
+				// New Luraph-style features
+				intenseVM: settings.intenseVM,
 				gcFixes: settings.gcFixes,
 				targetVersion: settings.targetVersion,
 				hardcodeGlobals: settings.hardcodeGlobals,
@@ -286,7 +309,7 @@ export default function Home() {
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
-		a.download = "obfuscated.lua";
+		a.download = fileName ? `obfuscated_${fileName}` : "obfuscated.lua";
 		a.click();
 		URL.revokeObjectURL(url);
 
@@ -423,12 +446,53 @@ export default function Home() {
 											<h2 id="input-code-heading" className="text-sm font-bold text-white tracking-wide">
 												Original Lua Code
 											</h2>
-											<p className="text-xs text-gray-400 font-medium">Paste your Lua code here</p>
+											<p className="text-xs text-gray-400 font-medium">Paste your Lua code or upload a file</p>
 										</div>
+									</div>
+									
+									{/* File Upload Controls */}
+									<div className="flex items-center gap-2 mt-3">
+										<input
+											type="file"
+											ref={fileInputRef}
+											onChange={handleFileUpload}
+											accept=".lua,.txt"
+											className="hidden"
+										/>
+										<Button
+											onClick={triggerFileUpload}
+											variant="outline"
+											size="sm"
+											className="bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/30 text-white"
+										>
+											<Upload className="w-4 h-4 mr-2" />
+											Upload File
+										</Button>
+										{fileName && (
+											<div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
+												<File className="w-3 h-3 text-purple-400" />
+												<span className="text-xs text-purple-300">{fileName}</span>
+												<button onClick={clearFile} className="hover:text-white">
+													<X className="w-3 h-3" />
+												</button>
+											</div>
+										)}
 									</div>
 								</div>
 								<div className="flex-1 min-h-0">
-									<CodeEditor value={inputCode} onChange={handleInputChange} error={inputError} />
+									<CodeEditor 
+										value={inputCode} 
+										onChange={handleInputChange} 
+										error={inputError}
+										options={{
+											readOnly: false,
+											automaticLayout: true,
+											wordWrap: "on",
+											lineNumbers: "on",
+											fontSize: 14,
+											scrollBeyondLastLine: false,
+										}}
+									/>
 								</div>
 							</Card>
 						</section>
@@ -464,7 +528,18 @@ export default function Home() {
 									</div>
 								</div>
 								<div className="flex-1 min-h-0">
-									<CodeEditor value={outputCode} readOnly />
+									<CodeEditor 
+										value={outputCode} 
+										readOnly 
+										options={{
+											readOnly: true,
+											automaticLayout: true,
+											wordWrap: "on",
+											lineNumbers: "on",
+											fontSize: 14,
+											scrollBeyondLastLine: false,
+										}}
+									/>
 								</div>
 							</Card>
 						</section>
@@ -601,14 +676,14 @@ export default function Home() {
 								</div>
 							</div>
 
-							<div className="space-y-7 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-								{/* Toggle Settings - Basic */}
+							<div className="space-y-7 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+								{/* Basic Toggle Settings */}
 								<div className="space-y-4">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
 										Basic Obfuscation
 									</Label>
-									
+
 									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
 										<Label htmlFor="mangle-names" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
@@ -682,222 +757,22 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Luraph-Style VM Features */}
+								{/* Target Version */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										VM & Core Protection
+										Target Version
 									</Label>
 
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="intense-vm"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Intense VM Structure</span>
-												{settings.intenseVMStructure && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Adds extra layers of processing to the VM for extra security. Makes analyzing VM functions more difficult.
-											</p>
-										</Label>
-										<Switch
-											id="intense-vm"
-											checked={settings.intenseVMStructure}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, intenseVMStructure: checked });
-												trackSettingsChange({ setting: "intenseVMStructure", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-purple-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="gc-fixes"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Enable GC Fixes</span>
-												{settings.gcFixes && <Zap className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Fixes garbage collection issues. Heavy performance cost - only enable if your script depends on __gc metamethod.
-											</p>
-										</Label>
-										<Switch
-											id="gc-fixes"
-											checked={settings.gcFixes}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, gcFixes: checked });
-												trackSettingsChange({ setting: "gcFixes", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-yellow-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="static-env"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Static Environment</span>
-												{settings.staticEnvironment && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Extra optimizations if global environment never changes via getfenv/setfenv or _ENV reassignments.
-											</p>
-										</Label>
-										<Switch
-											id="static-env"
-											checked={settings.staticEnvironment}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, staticEnvironment: checked });
-												trackSettingsChange({ setting: "staticEnvironment", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-blue-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="vm-compression"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>VM Compression</span>
-												{settings.vmCompression && <Zap className="w-3.5 h-3.5 text-green-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Strong compression to lower file size. Requires loadstring/load to be available.
-											</p>
-										</Label>
-										<Switch
-											id="vm-compression"
-											checked={settings.vmCompression}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, vmCompression: checked });
-												trackSettingsChange({ setting: "vmCompression", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-green-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="disable-line-info"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Disable Line Information</span>
-												{settings.disableLineInfo && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Removes line info from errors. Improves performance but you lose line numbers in errors.
-											</p>
-										</Label>
-										<Switch
-											id="disable-line-info"
-											checked={settings.disableLineInfo}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, disableLineInfo: checked });
-												trackSettingsChange({ setting: "disableLineInfo", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-orange-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="use-debug"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Use Debug Library</span>
-												{settings.useDebugLibrary && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Uses Lua's debug library for extra security. Only use if debug library is available.
-											</p>
-										</Label>
-										<Switch
-											id="use-debug"
-											checked={settings.useDebugLibrary}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, useDebugLibrary: checked });
-												trackSettingsChange({ setting: "useDebugLibrary", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-red-600"
-										/>
-									</div>
-
-									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-										<Label
-											htmlFor="hardcode-globals"
-											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-										>
-											<div className="flex items-center gap-2">
-												<span>Hardcode Globals</span>
-												{settings.hardcodeGlobals && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
-											</div>
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Hardcodes global accesses for performance. ⚠️ Exposes global names! Don't use with sensitive globals.
-											</p>
-										</Label>
-										<Switch
-											id="hardcode-globals"
-											checked={settings.hardcodeGlobals}
-											onCheckedChange={checked => {
-												setSettings({ ...settings, hardcodeGlobals: checked });
-												trackSettingsChange({ setting: "hardcodeGlobals", value: checked }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
-											}}
-											className="data-[state=checked]:bg-pink-600"
-										/>
-									</div>
-								</div>
-
-								{/* Target Version & Optimization Level */}
-								<div className="space-y-4 pt-6 border-t border-purple-500/30">
-									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										Target & Optimization
-									</Label>
-
-									{/* Target Version Selector */}
 									<div className="space-y-3">
-										<Label htmlFor="target-version" className="text-sm font-semibold text-gray-100">
-											Target Lua Version
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Specifies which Lua version to target. Acts as platform/version lock.
-											</p>
-										</Label>
 										<Select
 											value={settings.targetVersion}
-											onValueChange={(value: LuaVersion) => {
+											onValueChange={(value: any) => {
 												setSettings({ ...settings, targetVersion: value });
-												trackSettingsChange({ setting: "targetVersion", value }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
 											}}
 										>
 											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
-												<SelectValue />
+												<SelectValue placeholder="Select Lua version" />
 											</SelectTrigger>
 											<SelectContent className="bg-slate-900 border-white/20">
 												<SelectItem value="5.1">Lua 5.1 (Recommended)</SelectItem>
@@ -907,36 +782,188 @@ export default function Home() {
 												<SelectItem value="luajit">LuaJIT</SelectItem>
 											</SelectContent>
 										</Select>
+										<p className="text-xs text-gray-400/90">Platform/version lock for compatibility</p>
 									</div>
+								</div>
 
-									{/* Optimization Level Selector */}
-									<div className="space-y-3">
-										<Label htmlFor="optimization-level" className="text-sm font-semibold text-gray-100">
-											Optimization Level
+								{/* Luraph-style Advanced Features */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										Advanced VM Features
+									</Label>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="intense-vm" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Intense VM Structure</span>
+												{settings.intenseVM && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Higher levels may change execution order of metamethods.
+												Adds extra layers of processing to the VM for extra security
 											</p>
 										</Label>
+										<Switch
+											id="intense-vm"
+											checked={settings.intenseVM}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, intenseVM: checked });
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="gc-fixes" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>GC Fixes</span>
+												{settings.gcFixes && <span className="text-[10px] text-yellow-400">(Heavy)</span>}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Fixes garbage collection issues for __gc metamethod (heavy performance cost)
+											</p>
+										</Label>
+										<Switch
+											id="gc-fixes"
+											checked={settings.gcFixes}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, gcFixes: checked });
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="hardcode-globals" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Hardcode Globals</span>
+												{settings.hardcodeGlobals && <span className="text-[10px] text-yellow-400">(Exposes names)</span>}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Hardcodes global accesses for performance (exposes global names)
+											</p>
+										</Label>
+										<Switch
+											id="hardcode-globals"
+											checked={settings.hardcodeGlobals}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, hardcodeGlobals: checked });
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="static-env" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Static Environment</span>
+												{settings.staticEnvironment && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Optimizes assuming environment never changes via getfenv/setfenv
+											</p>
+										</Label>
+										<Switch
+											id="static-env"
+											checked={settings.staticEnvironment}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, staticEnvironment: checked });
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="vm-compression" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>VM Compression</span>
+												{settings.vmCompression && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Strong compression for smaller file size (requires loadstring)
+											</p>
+										</Label>
+										<Switch
+											id="vm-compression"
+											checked={settings.vmCompression}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, vmCompression: checked });
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="disable-lineinfo" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Disable Line Info</span>
+												{settings.disableLineInfo && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Removes line information for better performance (no error line numbers)
+											</p>
+										</Label>
+										<Switch
+											id="disable-lineinfo"
+											checked={settings.disableLineInfo}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, disableLineInfo: checked });
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="use-debug" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Use Debug Library</span>
+												{settings.useDebugLibrary && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Adds extra security using Lua's debug library
+											</p>
+										</Label>
+										<Switch
+											id="use-debug"
+											checked={settings.useDebugLibrary}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, useDebugLibrary: checked });
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+								</div>
+
+								{/* Optimization Level */}
+								<div className="space-y-4 pt-6 border-t border-purple-500/30">
+									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+										Optimization Level
+									</Label>
+
+									<div className="space-y-3">
 										<Select
 											value={settings.optimizationLevel.toString()}
 											onValueChange={(value: string) => {
-												const level = parseInt(value) as OptimizationLevel;
-												setSettings({ ...settings, optimizationLevel: level });
-												trackSettingsChange({ setting: "optimizationLevel", value: level }).catch(err =>
-													console.error("Analytics tracking failed:", err)
-												);
+												setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
 											}}
 										>
 											<SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20">
-												<SelectValue />
+												<SelectValue placeholder="Select optimization level" />
 											</SelectTrigger>
 											<SelectContent className="bg-slate-900 border-white/20">
-												<SelectItem value="0">Level 0 - No Optimization</SelectItem>
-												<SelectItem value="1">Level 1 - Basic Optimization</SelectItem>
-												<SelectItem value="2">Level 2 - Advanced Optimization</SelectItem>
-												<SelectItem value="3">Level 3 - Aggressive Optimization</SelectItem>
+												<SelectItem value="0">Level 0 (No optimization)</SelectItem>
+												<SelectItem value="1">Level 1 (Basic)</SelectItem>
+												<SelectItem value="2">Level 2 (Aggressive)</SelectItem>
+												<SelectItem value="3">Level 3 (Maximum - may change metamethod order)</SelectItem>
 											</SelectContent>
 										</Select>
+										<p className="text-xs text-gray-400/90">
+											{settings.optimizationLevel === 0 && "No optimizations applied"}
+											{settings.optimizationLevel === 1 && "Basic optimizations (constant folding, dead code elimination)"}
+											{settings.optimizationLevel === 2 && "Aggressive optimizations with minimal risk"}
+											{settings.optimizationLevel === 3 && "Maximum optimizations - may change metamethod execution order"}
+										</p>
 									</div>
 								</div>
 
@@ -1123,12 +1150,6 @@ export default function Home() {
 									</Label>
 
 									<div className="space-y-3">
-										<Label htmlFor="formatting-style" className="text-sm font-semibold text-gray-100">
-											Code Style
-											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-												Choose how the output code is formatted
-											</p>
-										</Label>
 										<Select
 											value={settings.formattingStyle}
 											onValueChange={(value: FormattingStyle) => {
@@ -1199,14 +1220,13 @@ export default function Home() {
 													controlFlowFlattening: level >= 85,
 													antiDebugging: level >= 90,
 													formattingStyle: level >= 10 ? "minified" : "pretty",
-													// Luraph features
-													intenseVMStructure: level >= 65,
-													staticEnvironment: level >= 45,
-													vmCompression: level >= 80,
-													disableLineInfo: level >= 25,
-													useDebugLibrary: level >= 95,
-													hardcodeGlobals: level >= 55,
-													optimizationLevel: level >= 70 ? 3 : level >= 50 ? 2 : level >= 30 ? 1 : 0,
+													// New Luraph-style features
+													intenseVM: level >= 80,
+													staticEnvironment: level >= 60,
+													vmCompression: level >= 70,
+													disableLineInfo: level >= 40,
+													useDebugLibrary: level >= 85,
+													optimizationLevel: level >= 80 ? 3 : level >= 60 ? 2 : level >= 30 ? 1 : 0,
 												});
 
 												// Track protection level change
@@ -1254,7 +1274,7 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Disable Line Info
+														<strong className="font-bold">Active:</strong> Minify, Mangle Names
 													</p>
 												</div>
 											</div>
@@ -1264,7 +1284,7 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Basic + Encode Strings (Opt Level 1)
+														<strong className="font-bold">Active:</strong> Minify, Mangle Names, Encode Strings, Opt Level 1
 													</p>
 												</div>
 											</div>
@@ -1274,7 +1294,7 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Basic + Static Environment
+														<strong className="font-bold">Active:</strong> + Disable Line Info
 													</p>
 												</div>
 											</div>
@@ -1284,7 +1304,7 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> + Encode Numbers, Hardcode Globals (Opt Level 2)
+														<strong className="font-bold">Active:</strong> + Encode Numbers
 													</p>
 												</div>
 											</div>
@@ -1294,53 +1314,102 @@ export default function Home() {
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Active:</strong> Basic + Control Flow, Intense VM
+														<strong className="font-bold">Active:</strong> + Control Flow, Static Environment, Opt Level 2
 													</p>
 												</div>
 											</div>
 										)}
-										{settings.compressionLevel >= 70 && settings.compressionLevel < 80 && (
+										{settings.compressionLevel >= 70 && settings.compressionLevel < 75 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Advanced:</strong> XOR Encryption, Opt Level 3
+														<strong className="font-bold">Advanced:</strong> + XOR Encryption, VM Compression
 													</p>
 												</div>
 											</div>
 										)}
-										{settings.compressionLevel >= 80 && settings.compressionLevel < 90 && (
+										{settings.compressionLevel >= 75 && settings.compressionLevel < 80 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Advanced:</strong> VM Compression, Dead Code
+														<strong className="font-bold">Advanced:</strong> + Dead Code Injection
 													</p>
 												</div>
 											</div>
 										)}
-										{settings.compressionLevel >= 90 && settings.compressionLevel < 95 && (
+										{settings.compressionLevel >= 80 && settings.compressionLevel < 85 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Maximum:</strong> Control Flow Flattening
+														<strong className="font-bold">Advanced:</strong> + Intense VM, Opt Level 3
 													</p>
 												</div>
 											</div>
 										)}
-										{settings.compressionLevel >= 95 && (
+										{settings.compressionLevel >= 85 && settings.compressionLevel < 90 && (
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<div className="w-2 h-2 rounded-full bg-pink-400 animate-pulse"></div>
+													<p>
+														<strong className="font-bold">Maximum:</strong> + Control Flow Flattening, Use Debug Library
+													</p>
+												</div>
+											</div>
+										)}
+										{settings.compressionLevel >= 90 && (
 											<div className="space-y-1">
 												<div className="flex items-center gap-2">
 													<div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
 													<p>
-														<strong className="font-bold">Ultimate:</strong> All Features + Anti-Debug, Debug Library
+														<strong className="font-bold">Maximum Protection:</strong> All Techniques
 													</p>
 												</div>
+												<p className="text-[10px] text-gray-400 pl-4">
+													Every protection feature enabled (strongest security)
+												</p>
 											</div>
 										)}
 									</div>
 								</div>
+
+								{/* GC Fixes Warning */}
+								{settings.gcFixes && (
+									<div className="pt-2">
+										<div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+											<p className="text-xs text-yellow-200/90">
+												<strong className="font-bold block mb-1">⚠️ Performance Warning</strong>
+												GC Fixes enabled - This option has a heavy performance cost. Only use if your script depends on __gc metamethods.
+											</p>
+										</div>
+									</div>
+								)}
+
+								{/* Hardcode Globals Warning */}
+								{settings.hardcodeGlobals && (
+									<div className="pt-2">
+										<div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+											<p className="text-xs text-yellow-200/90">
+												<strong className="font-bold block mb-1">⚠️ Security Warning</strong>
+												Hardcode Globals exposes the names of all globals used in your script. Do not use if any globals are sensitive!
+											</p>
+										</div>
+									</div>
+								)}
+
+								{/* VM Compression Warning */}
+								{settings.vmCompression && (
+									<div className="pt-2">
+										<div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+											<p className="text-xs text-blue-200/90">
+												<strong className="font-bold block mb-1">ℹ️ Requirement</strong>
+												VM Compression requires loadstring or load to be available in your environment.
+											</p>
+										</div>
+									</div>
+								)}
 
 								{/* Enhanced Info Box */}
 								<div className="pt-6 border-t border-purple-500/30">
@@ -1353,7 +1422,9 @@ export default function Home() {
 											<div>
 												<p className="text-xs text-purple-100 leading-relaxed">
 													<strong className="font-bold text-sm block mb-1">💡 XZX Pro Tip</strong>
-													Use the Protection Level slider for quick presets. GC Fixes have heavy performance cost. Hardcode Globals exposes global names - use with caution!
+													Use the Protection Level slider for quick presets, or manually toggle individual techniques
+													for fine-grained control. Higher protection levels provide stronger obfuscation but may impact
+													performance.
 												</p>
 											</div>
 										</div>
@@ -1390,9 +1461,30 @@ export default function Home() {
 					<h2>About XZX Lua Obfuscator</h2>
 					<p>
 						XZX Lua Obfuscator v1.0.0 is a professional, free online tool for protecting Lua source code through advanced
-						obfuscation techniques. Features include Intense VM Structure, GC Fixes, multiple target versions, hardcoded globals,
-						optimization levels, static environment, VM compression, line info control, and debug library integration.
+						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
+						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
 					</p>
+
+					<h3>Key Features</h3>
+					<ul>
+						<li>Variable and Function Name Mangling - Replace identifiers with hexadecimal codes</li>
+						<li>String Encoding - Convert string literals to byte arrays using string.char()</li>
+						<li>Number Encoding - Transform numeric literals into mathematical expressions</li>
+						<li>Control Flow Obfuscation - Add opaque predicates to complicate reverse engineering</li>
+						<li>Code Minification - Remove comments and whitespace for smaller file sizes</li>
+						<li>Intense VM Structure - Extra processing layers for maximum security</li>
+						<li>GC Fixes - Garbage collection bugfixes for __gc metamethod</li>
+						<li>Multiple Lua Version Support - 5.1, 5.2, 5.3, 5.4, LuaJIT</li>
+						<li>Hardcode Globals - Performance optimization (exposes global names)</li>
+						<li>3-Level Optimization - From basic to aggressive optimizations</li>
+						<li>Static Environment - Optimizations for unchanging environments</li>
+						<li>VM Compression - Strong compression for smaller file size</li>
+						<li>Disable Line Information - Better performance, no error line numbers</li>
+						<li>Debug Library Integration - Extra security features</li>
+						<li>Real-time Processing - Instant obfuscation in your browser</li>
+						<li>Configurable Protection Levels - Adjust security vs performance (0-100%)</li>
+						<li>File Upload Support - Load .lua files directly</li>
+					</ul>
 				</section>
 
 				{/* Version Footer */}
@@ -1424,6 +1516,23 @@ export default function Home() {
 					</div>
 				</footer>
 			</main>
+
+			<style jsx global>{`
+				.custom-scrollbar::-webkit-scrollbar {
+					width: 6px;
+				}
+				.custom-scrollbar::-webkit-scrollbar-track {
+					background: rgba(139, 92, 246, 0.1);
+					border-radius: 10px;
+				}
+				.custom-scrollbar::-webkit-scrollbar-thumb {
+					background: linear-gradient(135deg, #8b5cf6, #ec4899);
+					border-radius: 10px;
+				}
+				.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+					opacity: 0.8;
+				}
+			`}</style>
 		</>
 	);
 }
