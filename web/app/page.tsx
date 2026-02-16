@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { obfuscateLua, type ObfuscationResult } from "@/lib/obfuscator-simple";
-import { BackgroundGradient } from "@/components/BackgroundGradient";
+import { BackgroundGradientAnimation } from "@/components/BackgroundGradient";
 import {
 	trackObfuscation,
 	trackCopy,
