@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: xzx-obfuscator
+    runtime: node
+    repo: https://github.com/xzxhub0-source/XZX_OBFUSCATOR
+    plan: free
+    region: oregon
+    buildCommand: cd web && npm install && npm run build
+    startCommand: cd web && npm start
+    rootDir: web
