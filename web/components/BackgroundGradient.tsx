@@ -23,14 +23,14 @@ import { cn } from "@/lib/utils";
  * @param containerClassName - Additional CSS classes for container
  */
 export const BackgroundGradientAnimation = ({
-	gradientBackgroundStart = "rgb(15, 23, 42)",
-	gradientBackgroundEnd = "rgb(30, 41, 59)",
-	firstColor = "0, 122, 255",
-	secondColor = "139, 92, 246",
-	thirdColor = "236, 72, 153",
-	fourthColor = "168, 85, 247",
-	fifthColor = "99, 102, 241",
-	pointerColor = "140, 100, 255",
+	gradientBackgroundStart = "rgb(5, 5, 8)", // XZX dark
+	gradientBackgroundEnd = "rgb(10, 10, 15)", // XZX darker
+	firstColor = "139, 92, 246", // XZX purple
+	secondColor = "168, 85, 247", // Medium purple
+	thirdColor = "192, 38, 211", // Fuchsia
+	fourthColor = "236, 72, 153", // XZX pink
+	fifthColor = "219, 39, 119", // Dark pink
+	pointerColor = "139, 92, 246", // XZX purple
 	size = "80%",
 	blendingValue = "hard-light",
 	children,
@@ -109,7 +109,7 @@ export const BackgroundGradientAnimation = ({
 	return (
 		<div
 			className={cn(
-				"h-screen w-screen relative overflow-hidden top-0 left-0 bg-[linear-gradient(40deg,var(--gradient-background-start),var(--gradient-background-end))]",
+				"h-screen w-screen fixed top-0 left-0 -z-10 bg-[linear-gradient(40deg,var(--gradient-background-start),var(--gradient-background-end))]",
 				containerClassName
 			)}
 		>
@@ -122,7 +122,7 @@ export const BackgroundGradientAnimation = ({
 					</filter>
 				</defs>
 			</svg>
-			<div className={cn("", className)}>{children}</div>
+			<div className={cn("relative z-10", className)}>{children}</div>
 			<div
 				className={cn(
 					"gradients-container h-full w-full blur-lg",
