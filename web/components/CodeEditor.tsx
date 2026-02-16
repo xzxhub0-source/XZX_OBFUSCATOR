@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
-import Editor, { type OnMount, type EditorProps } from "@monaco-editor/react";
+import Editor, { type OnMount, type OnChange } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type { ParseError } from "@/lib/parser";
 import { Loader2 } from "lucide-react";
@@ -12,7 +12,7 @@ interface CodeEditorProps {
 	error?: ParseError;
 	readOnly?: boolean;
 	height?: string;
-	options?: editor.IStandaloneEditorConstructionOptions; // Add this line
+	options?: editor.IStandaloneEditorConstructionOptions;
 }
 
 export function CodeEditor({ 
@@ -21,7 +21,7 @@ export function CodeEditor({
 	error, 
 	readOnly = false, 
 	height = "100%",
-	options = {} // Add default empty object
+	options = {}
 }: CodeEditorProps) {
 	const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 	const monacoRef = useRef<any>(null);
@@ -97,6 +97,12 @@ export function CodeEditor({
 		monaco.editor.setTheme("xzx-dark");
 	};
 
+	const handleEditorChange: OnChange = (value) => {
+		if (onChange && value !== undefined) {
+			onChange(value);
+		}
+	};
+
 	// Handle error highlighting
 	useEffect(() => {
 		if (editorRef.current && error) {
@@ -143,7 +149,7 @@ export function CodeEditor({
 		renderLineHighlight: "all",
 		hideCursorInOverviewRuler: true,
 		overviewRulerBorder: false,
-		...options // Merge with passed options
+		...options
 	};
 
 	return (
@@ -152,7 +158,7 @@ export function CodeEditor({
 				height={height}
 				defaultLanguage="lua"
 				value={value}
-				onChange={onChange}
+				onChange={handleEditorChange}
 				onMount={handleEditorDidMount}
 				options={defaultOptions}
 				loading={
