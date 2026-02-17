@@ -25,7 +25,7 @@ import {
 	Cpu,
 	Globe,
 	HardDrive,
-	Package,
+	Compress,
 	Eye,
 	Bug,
 	ZapOff,
@@ -272,17 +272,11 @@ export default function Home() {
 				const newCount = obfuscationCount + 1;
 				setObfuscationCount(newCount);
 
-				// Track obfuscation event - FIXED with proper type mapping
-				const uiObfuscationType = settings.intenseVM ? "military" : "standard";
-				
-				// Map UI values to what the analytics expects
-				const analyticsTypeMap = {
-					standard: "mangle" as const,
-					military: "full" as const,
-				};
+				// Track obfuscation event
+				const obfuscationType = settings.intenseVM ? "military" : "standard";
 
 				trackObfuscation({
-					obfuscationType: analyticsTypeMap[uiObfuscationType],
+					obfuscationType,
 					codeSize: inputCode.length,
 					protectionLevel: settings.compressionLevel,
 				}).catch(err => console.error("Analytics tracking failed:", err));
@@ -543,6 +537,14 @@ export default function Home() {
 										value={inputCode} 
 										onChange={handleInputChange} 
 										error={inputError}
+										options={{
+											readOnly: false,
+											automaticLayout: true,
+											wordWrap: "on",
+											lineNumbers: "on",
+											fontSize: 14,
+											scrollBeyondLastLine: false,
+										}}
 									/>
 								</div>
 							</Card>
@@ -582,6 +584,14 @@ export default function Home() {
 									<CodeEditor 
 										value={outputCode} 
 										readOnly 
+										options={{
+											readOnly: true,
+											automaticLayout: true,
+											wordWrap: "on",
+											lineNumbers: "on",
+											fontSize: 14,
+											scrollBeyondLastLine: false,
+										}}
 									/>
 								</div>
 							</Card>
@@ -1022,6 +1032,41 @@ export default function Home() {
 						</div>
 					</aside>
 				)}
+
+				{/* SEO-Optimized Content Section - Screen reader accessible */}
+				<section className="sr-only">
+					<h2>About XZX Lua Obfuscator</h2>
+					<p>
+						XZX Lua Obfuscator v2.0.0 is a professional, free online tool for protecting Lua source code through advanced
+						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
+						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
+					</p>
+
+					<h3>Key Features</h3>
+					<ul>
+						<li>Variable and Function Name Mangling - Replace identifiers with hexadecimal codes</li>
+						<li>String Encoding - Convert string literals to byte arrays using string.char()</li>
+						<li>Number Encoding - Transform numeric literals into mathematical expressions</li>
+						<li>Control Flow Obfuscation - Add opaque predicates to complicate reverse engineering</li>
+						<li>Code Minification - Remove comments and whitespace for smaller file sizes</li>
+						<li>Intense VM Structure - Extra processing layers for maximum security</li>
+						<li>GC Fixes - Garbage collection bugfixes for __gc metamethod</li>
+						<li>Multiple Lua Version Support - 5.1, 5.2, 5.3, 5.4, LuaJIT</li>
+						<li>Hardcode Globals - Performance optimization (exposes global names)</li>
+						<li>3-Level Optimization - From basic to aggressive optimizations</li>
+						<li>Static Environment - Optimizations for unchanging environments</li>
+						<li>VM Compression - Strong compression for smaller file size</li>
+						<li>Disable Line Information - Better performance, no error line numbers</li>
+						<li>Debug Library Integration - Extra security features</li>
+						<li>Virtualization - Complete code virtualization</li>
+						<li>Bytecode Encryption - AES-256 encryption</li>
+						<li>Anti-Tamper - Detects code modification</li>
+						<li>Self-Modifying Code - Runtime code mutation</li>
+						<li>Real-time Processing - Instant obfuscation in your browser</li>
+						<li>Configurable Protection Levels - Adjust security vs performance (0-100%)</li>
+						<li>File Upload Support - Load .lua files directly</li>
+					</ul>
+				</section>
 
 				{/* Footer with Discord Link */}
 				<footer
