@@ -25,10 +25,8 @@ import {
 	Cpu,
 	Globe,
 	HardDrive,
-	Compress,
 	Eye,
 	Bug,
-	ZapOff,
 	Layers,
 	ShieldAlert,
 } from "lucide-react";
@@ -1033,41 +1031,6 @@ export default function Home() {
 					</aside>
 				)}
 
-				{/* SEO-Optimized Content Section - Screen reader accessible */}
-				<section className="sr-only">
-					<h2>About XZX Lua Obfuscator</h2>
-					<p>
-						XZX Lua Obfuscator v2.0.0 is a professional, free online tool for protecting Lua source code through advanced
-						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
-						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
-					</p>
-
-					<h3>Key Features</h3>
-					<ul>
-						<li>Variable and Function Name Mangling - Replace identifiers with hexadecimal codes</li>
-						<li>String Encoding - Convert string literals to byte arrays using string.char()</li>
-						<li>Number Encoding - Transform numeric literals into mathematical expressions</li>
-						<li>Control Flow Obfuscation - Add opaque predicates to complicate reverse engineering</li>
-						<li>Code Minification - Remove comments and whitespace for smaller file sizes</li>
-						<li>Intense VM Structure - Extra processing layers for maximum security</li>
-						<li>GC Fixes - Garbage collection bugfixes for __gc metamethod</li>
-						<li>Multiple Lua Version Support - 5.1, 5.2, 5.3, 5.4, LuaJIT</li>
-						<li>Hardcode Globals - Performance optimization (exposes global names)</li>
-						<li>3-Level Optimization - From basic to aggressive optimizations</li>
-						<li>Static Environment - Optimizations for unchanging environments</li>
-						<li>VM Compression - Strong compression for smaller file size</li>
-						<li>Disable Line Information - Better performance, no error line numbers</li>
-						<li>Debug Library Integration - Extra security features</li>
-						<li>Virtualization - Complete code virtualization</li>
-						<li>Bytecode Encryption - AES-256 encryption</li>
-						<li>Anti-Tamper - Detects code modification</li>
-						<li>Self-Modifying Code - Runtime code mutation</li>
-						<li>Real-time Processing - Instant obfuscation in your browser</li>
-						<li>Configurable Protection Levels - Adjust security vs performance (0-100%)</li>
-						<li>File Upload Support - Load .lua files directly</li>
-					</ul>
-				</section>
-
 				{/* Footer with Discord Link */}
 				<footer
 					className="mt-auto pt-8 pb-4 text-center"
@@ -1125,7 +1088,7 @@ function renderSwitch(
 	color: string = "purple",
 	military: boolean = false
 ) {
-	const colors = {
+	const colors: Record<string, string> = {
 		purple: "data-[state=checked]:bg-purple-600",
 		pink: "data-[state=checked]:bg-pink-600",
 		blue: "data-[state=checked]:bg-blue-600",
@@ -1154,7 +1117,7 @@ function renderSwitch(
 						console.error("Analytics tracking failed:", err)
 					);
 				}}
-				className={colors[color as keyof typeof colors]}
+				className={colors[color] || colors.purple}
 			/>
 		</div>
 	);
