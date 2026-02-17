@@ -10,4 +10,8 @@ restartPolicyType = "ON_FAILURE"
 
 [env]
 NODE_VERSION = "20"
-NPM_VERSION = "10"
+
+[nixpacks]
+# This ensures Node.js is installed
+nodeVersion = "20"
+installCommand = "npm ci"
