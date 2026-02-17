@@ -11,11 +11,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Skip the manifest route
-  exportPathMap: async function (defaultPathMap) {
-    delete defaultPathMap['/manifest.webmanifest'];
-    return defaultPathMap;
-  },
+  // Remove exportPathMap - it doesn't work with App Router
 }
 
-module.exports = nextConfig
+export default nextConfig
