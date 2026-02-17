@@ -1,6 +1,5 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "cd web && npm install && npm run build"
+builder = "DOCKERFILE"
 
 [deploy]
-static = "web/out"
+# No need for static directive; Dockerfile handles it
