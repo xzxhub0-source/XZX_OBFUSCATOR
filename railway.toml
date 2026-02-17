@@ -1,9 +1,13 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "cd web && npm install && npm run build"
+buildCommand = "cd web && npm ci && npm run build"
 
 [deploy]
-startCommand = "cd web && npm start"
+startCommand = "cd web && npm run start"
 healthcheckPath = "/"
-healthcheckTimeout = 100
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
+
+[env]
+NODE_VERSION = "20"
+NPM_VERSION = "10"
