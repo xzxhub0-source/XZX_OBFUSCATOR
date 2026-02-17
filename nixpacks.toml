@@ -2,13 +2,14 @@
 name = "xzx-obfuscator"
 
 [phases.setup]
-nixPkgs = ["nodejs-18_x"]  # Use Node.js 18 specifically
+nixPkgs = ["nodejs-18_x", "nodePackages.npm"]
 
 [phases.install]
-cmds = ["cd web && npm ci --no-audit --no-fund"]
+cmds = [
+  "cd web && npm install"
+]
 
 [phases.build]
-cmds = ["cd web && npm run build"]
-
-[start]
-cmd = "cd web && npm run start"
+cmds = [
+  "cd web && npm run build"
+]
