@@ -1,7 +1,6 @@
 [build]
 builder = "NIXPACKS"
+buildCommand = "cd web && npm install && npm run build"
 
 [deploy]
-healthcheckPath = "/"
-healthcheckTimeout = 300
-restartPolicyType = "ON_FAILURE"
+static = "web/out"
