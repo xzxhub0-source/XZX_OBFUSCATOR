@@ -52,26 +52,20 @@ import type { FormattingStyle } from "@/lib/formatter";
 import type { ObfuscationMetrics } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Empty default - no pre-loaded code
 const DEFAULT_LUA_CODE = "";
 
 interface ObfuscatorSettings {
-	// Basic options (v1.0)
 	mangleNames: boolean;
 	encodeStrings: boolean;
 	encodeNumbers: boolean;
 	controlFlow: boolean;
 	minify: boolean;
 	compressionLevel: number;
-
-	// Advanced options (v1.1)
 	encryptionAlgorithm: EncryptionAlgorithm;
 	controlFlowFlattening: boolean;
 	deadCodeInjection: boolean;
 	antiDebugging: boolean;
 	formattingStyle: FormattingStyle;
-
-	// Luraph-style military grade features
 	intenseVM: boolean;
 	gcFixes: boolean;
 	targetVersion: "5.1" | "5.2" | "5.3" | "5.4" | "luajit";
@@ -81,8 +75,6 @@ interface ObfuscatorSettings {
 	vmCompression: boolean;
 	disableLineInfo: boolean;
 	useDebugLibrary: boolean;
-	
-	// Additional military grade features
 	opaquePredicates: boolean;
 	virtualization: boolean;
 	bytecodeEncryption: boolean;
@@ -107,22 +99,17 @@ export default function Home() {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const [settings, setSettings] = useState<ObfuscatorSettings>({
-		// Basic options (v1.0)
 		mangleNames: false,
 		encodeStrings: false,
 		encodeNumbers: false,
 		controlFlow: false,
 		minify: false,
 		compressionLevel: 0,
-
-		// Advanced options (v1.1)
 		encryptionAlgorithm: "none",
 		controlFlowFlattening: false,
 		deadCodeInjection: false,
 		antiDebugging: false,
 		formattingStyle: "minified",
-
-		// Luraph-style military grade features
 		intenseVM: false,
 		gcFixes: false,
 		targetVersion: "5.1",
@@ -132,8 +119,6 @@ export default function Home() {
 		vmCompression: false,
 		disableLineInfo: false,
 		useDebugLibrary: false,
-		
-		// Additional military grade features
 		opaquePredicates: false,
 		virtualization: false,
 		bytecodeEncryption: false,
@@ -148,18 +133,14 @@ export default function Home() {
 	const [obfuscationCount, setObfuscationCount] = useState(0);
 	const [pageStartTime] = useState(Date.now());
 
-	// Track session start on mount
 	useEffect(() => {
 		trackSessionStart().catch(err => console.error("Analytics tracking failed:", err));
-
-		// Track time on page on unmount
 		return () => {
 			const timeOnPage = Math.floor((Date.now() - pageStartTime) / 1000);
 			trackTimeOnPage(timeOnPage).catch(err => console.error("Analytics tracking failed:", err));
 		};
 	}, [pageStartTime]);
 
-	// Success animation effect
 	useEffect(() => {
 		if (outputCode && !error) {
 			setShowSuccessAnimation(true);
@@ -168,7 +149,6 @@ export default function Home() {
 		}
 	}, [outputCode, error]);
 
-	// Clear input error when user starts typing to fix it
 	const handleInputChange = (newCode: string) => {
 		setInputCode(newCode);
 		if (inputError) {
@@ -176,7 +156,6 @@ export default function Home() {
 		}
 	};
 
-	// File upload handler
 	const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];
 		if (!file) return;
@@ -213,9 +192,7 @@ export default function Home() {
 		try {
 			const startTime = Date.now();
 
-			// Build obfuscation options with all military grade features
 			const options = {
-				// Basic options
 				mangleNames: settings.mangleNames,
 				encodeStrings: settings.encodeStrings,
 				encodeNumbers: settings.encodeNumbers,
@@ -227,8 +204,6 @@ export default function Home() {
 				deadCodeInjection: settings.deadCodeInjection,
 				antiDebugging: settings.antiDebugging,
 				formattingStyle: settings.formattingStyle,
-				
-				// Luraph-style features
 				intenseVM: settings.intenseVM,
 				gcFixes: settings.gcFixes,
 				targetVersion: settings.targetVersion,
@@ -238,8 +213,6 @@ export default function Home() {
 				vmCompression: settings.vmCompression,
 				disableLineInfo: settings.disableLineInfo,
 				useDebugLibrary: settings.useDebugLibrary,
-				
-				// Military grade features
 				opaquePredicates: settings.opaquePredicates,
 				virtualization: settings.virtualization,
 				bytecodeEncryption: settings.bytecodeEncryption,
@@ -251,7 +224,6 @@ export default function Home() {
 				integrityChecks: settings.integrityChecks,
 			};
 
-			// Perform client-side obfuscation
 			const result: ObfuscationResult = await new Promise(resolve => {
 				setTimeout(() => {
 					resolve(obfuscateLua(inputCode, options));
@@ -266,20 +238,15 @@ export default function Home() {
 				setInputError(undefined);
 				setMetrics(result.metrics || null);
 
-				// Update obfuscation count
 				const newCount = obfuscationCount + 1;
 				setObfuscationCount(newCount);
 
-				// Track obfuscation event
-				const obfuscationType = settings.intenseVM ? "military" : "standard";
-
 				trackObfuscation({
-					obfuscationType,
+					obfuscationType: settings.intenseVM ? "military" : "standard",
 					codeSize: inputCode.length,
 					protectionLevel: settings.compressionLevel,
 				}).catch(err => console.error("Analytics tracking failed:", err));
 
-				// Track performance metrics
 				const sizeRatio = result.code.length / inputCode.length;
 				trackObfuscationPerformance({
 					inputSize: inputCode.length,
@@ -288,7 +255,6 @@ export default function Home() {
 					sizeRatio: sizeRatio,
 				}).catch(err => console.error("Analytics tracking failed:", err));
 
-				// Track feature combination
 				trackFeatureCombination({
 					mangleNames: settings.mangleNames,
 					encodeStrings: settings.encodeStrings,
@@ -298,7 +264,6 @@ export default function Home() {
 					protectionLevel: settings.compressionLevel,
 				}).catch(err => console.error("Analytics tracking failed:", err));
 
-				// Track milestones
 				if ([1, 5, 10, 25, 50].includes(newCount)) {
 					trackObfuscationMilestone(newCount).catch(err => console.error("Analytics tracking failed:", err));
 				}
@@ -344,7 +309,6 @@ export default function Home() {
 		trackDownload(outputCode.length).catch(err => console.error("Analytics tracking failed:", err));
 	};
 
-	// Calculate protection strength for visual feedback
 	const getProtectionStrength = () => {
 		if (settings.compressionLevel === 0) return "none";
 		if (settings.compressionLevel < 40) return "low";
@@ -355,7 +319,6 @@ export default function Home() {
 
 	const protectionStrength = getProtectionStrength();
 
-	// Count active military features
 	const getActiveMilitaryCount = () => {
 		let count = 0;
 		if (settings.intenseVM) count++;
@@ -388,7 +351,6 @@ export default function Home() {
 			/>
 			
 			<main className="relative z-10 flex flex-col p-4 sm:p-6 gap-4 lg:gap-6 min-h-screen">
-				{/* Header with Military Grade Badge */}
 				<header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top duration-700">
 					<div className="flex items-center gap-4">
 						<div className="relative group">
@@ -457,7 +419,6 @@ export default function Home() {
 					</nav>
 				</header>
 
-				{/* Success Animation Overlay */}
 				{showSuccessAnimation && (
 					<div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top fade-in duration-300">
 						<div className="bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3">
@@ -472,14 +433,11 @@ export default function Home() {
 					</div>
 				)}
 
-				{/* Main Content */}
 				<section
 					className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-6 min-h-0 overflow-y-auto animate-in fade-in slide-in-from-bottom duration-700"
 					aria-label="Code editor workspace"
 				>
-					{/* Code Editors - Side by Side on Desktop, Stacked on Mobile */}
 					<div className="lg:col-span-8 flex flex-col lg:grid lg:grid-cols-2 gap-4 lg:min-h-0">
-						{/* Input Editor */}
 						<section
 							aria-labelledby="input-code-heading"
 							className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
@@ -501,7 +459,6 @@ export default function Home() {
 										</div>
 									</div>
 									
-									{/* File Upload Controls */}
 									<div className="flex items-center gap-2 mt-3">
 										<input
 											type="file"
@@ -548,7 +505,6 @@ export default function Home() {
 							</Card>
 						</section>
 
-						{/* Output Editor */}
 						<section
 							aria-labelledby="output-code-heading"
 							className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
@@ -595,7 +551,6 @@ export default function Home() {
 							</Card>
 						</section>
 
-						{/* Metrics Display */}
 						{metrics && (
 							<section aria-labelledby="metrics-heading" className="lg:col-span-2">
 								<Card className="bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
@@ -615,7 +570,6 @@ export default function Home() {
 									</div>
 
 									<div className="space-y-4">
-										{/* Size metrics */}
 										<div className="space-y-2">
 											<div className="flex justify-between items-center">
 												<span className="text-xs text-gray-400">Input Size</span>
@@ -709,7 +663,6 @@ export default function Home() {
 						)}
 					</div>
 
-					{/* Settings Panel */}
 					<aside className="lg:col-span-4 lg:overflow-auto" aria-labelledby="settings-heading">
 						<Card className="bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
 							<div className="flex items-center gap-3 mb-6 sm:mb-8 pb-5 border-b border-purple-500/30">
@@ -728,7 +681,6 @@ export default function Home() {
 							</div>
 
 							<div className="space-y-7 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-								{/* Basic Toggle Settings */}
 								<div className="space-y-4">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -808,7 +760,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Target Version */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -837,7 +788,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* VM & Core Military Features */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -964,7 +914,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Anti-Analysis Features */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -1091,7 +1040,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Control Flow Features */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -1218,7 +1166,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Code Obfuscation */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -1297,7 +1244,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Environment & Optimization */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -1375,7 +1321,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Encryption Algorithm */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -1404,7 +1349,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Optimization Level */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -1431,7 +1375,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Output Formatting */}
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
@@ -1458,7 +1401,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Protection Level Slider */}
 								<div className="space-y-5 pt-6 border-t border-purple-500/30">
 									<div className="flex items-center justify-between">
 										<Label
@@ -1492,17 +1434,14 @@ export default function Home() {
 												setSettings({
 													...settings,
 													compressionLevel: level,
-													// Basic
 													minify: level >= 10,
 													mangleNames: level >= 20,
 													encodeStrings: level >= 30,
-													// Advanced
 													encodeNumbers: level >= 40,
 													controlFlow: level >= 50,
 													encryptionAlgorithm: level >= 60 ? "xor" : "none",
 													deadCodeInjection: level >= 65,
 													controlFlowFlattening: level >= 70,
-													// Military
 													intenseVM: level >= 75,
 													antiDebugging: level >= 80,
 													opaquePredicates: level >= 80,
@@ -1540,7 +1479,6 @@ export default function Home() {
 									</div>
 								</div>
 
-								{/* Warnings */}
 								{settings.gcFixes && (
 									<div className="pt-2">
 										<div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
@@ -1578,7 +1516,6 @@ export default function Home() {
 					</aside>
 				</section>
 
-				{/* Error Display */}
 				{error && (
 					<aside
 						role="alert"
@@ -1599,17 +1536,14 @@ export default function Home() {
 					</aside>
 				)}
 
-				{/* SEO-Optimized Content Section - Screen reader accessible */}
 				<section className="sr-only">
 					<h2>About XZX Lua Obfuscator</h2>
 					<p>
 						XZX Lua Obfuscator v2.0.0 is a professional, free online tool for protecting Lua source code through advanced
-						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
-						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
+						obfuscation techniques.
 					</p>
 				</section>
 
-				{/* Footer with Discord Link */}
 				<footer
 					className="mt-auto pt-8 pb-4 text-center"
 					role="contentinfo"
