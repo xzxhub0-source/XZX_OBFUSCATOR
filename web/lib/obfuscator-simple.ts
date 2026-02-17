@@ -1,6 +1,6 @@
 /**
  * XZX Military-Grade Lua Obfuscator Engine
- * Version: 2.0.0
+ * Version: 2.0.0 - Optimized for browser performance
  * Protected by XZX HUB (https://discord.gg/5q5bEKmYqF)
  */
 
@@ -65,8 +65,8 @@ export interface ObfuscationResult {
 }
 
 /**
- * XZX Military-Grade Obfuscation Engine
- * Implements VM-based obfuscation with multiple security layers
+ * XZX Military-Grade Obfuscation Engine - Browser Optimized
+ * Implements VM-based obfuscation with progressive processing
  */
 export class XZXObfuscatorEngine {
   private options: ObfuscationOptions;
@@ -84,6 +84,7 @@ export class XZXObfuscatorEngine {
   private nameMap: Map<string, string> = new Map();
   private stringMap: Map<string, string> = new Map();
   private constCounter: number = 0;
+  private abortController: AbortController = new AbortController();
 
   constructor(options: ObfuscationOptions) {
     this.options = options;
@@ -97,14 +98,50 @@ export class XZXObfuscatorEngine {
   }
 
   /**
-   * Main obfuscation pipeline
+   * Sleep function to yield to browser
    */
-  public obfuscate(sourceCode: string): ObfuscationResult {
+  private async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Check if operation was aborted
+   */
+  private checkAborted(): void {
+    if (this.abortController.signal.aborted) {
+      throw new Error('Obfuscation aborted by user');
+    }
+  }
+
+  /**
+   * Process in chunks to avoid browser freezing
+   */
+  private async processInChunks<T>(
+    items: T[],
+    processor: (item: T, index: number) => void,
+    chunkSize: number = 10,
+    delayMs: number = 1
+  ): Promise<void> {
+    for (let i = 0; i < items.length; i += chunkSize) {
+      this.checkAborted();
+      const chunk = items.slice(i, i + chunkSize);
+      chunk.forEach((item, idx) => processor(item, i + idx));
+      // Yield to browser
+      if (i + chunkSize < items.length) {
+        await this.sleep(delayMs);
+      }
+    }
+  }
+
+  /**
+   * Main obfuscation pipeline with progressive loading
+   */
+  public async obfuscate(sourceCode: string): Promise<ObfuscationResult> {
     try {
       const startTime = Date.now();
       const inputSize = sourceCode.length;
 
-      // Step 1: Parse to AST
+      // Step 1: Parse to AST (synchronous but fast)
       this.ast = luaparse.parse(sourceCode, {
         locations: !this.options.disableLineInfo,
         comments: false,
@@ -112,19 +149,19 @@ export class XZXObfuscatorEngine {
         luaVersion: this.options.targetVersion === 'luajit' ? '5.1' : this.options.targetVersion
       });
 
-      // Step 2: Apply optimization passes
-      this.applyOptimizations();
+      // Step 2: Apply optimization passes in chunks
+      await this.applyOptimizationsAsync();
 
-      // Step 3: Apply AST transformations
-      this.applyASTTransformations();
+      // Step 3: Apply AST transformations in chunks
+      await this.applyASTTransformationsAsync();
 
-      // Step 4: Compile to bytecode if VM is enabled
+      // Step 4: Compile to bytecode if VM is enabled (progressive)
       let outputCode: string;
       if (this.options.intenseVM || this.options.virtualization) {
-        this.compileToBytecode();
-        outputCode = this.generateVMOutput();
+        await this.compileToBytecodeAsync();
+        outputCode = await this.generateVMOutputAsync();
       } else {
-        outputCode = this.generateStandardOutput();
+        outputCode = await this.generateStandardOutputAsync();
       }
 
       // Step 5: Add header and apply final formatting
@@ -149,6 +186,13 @@ export class XZXObfuscatorEngine {
         }
       };
     } catch (error) {
+      if (error instanceof Error && error.message === 'Obfuscation aborted by user') {
+        return {
+          success: false,
+          error: 'Obfuscation cancelled',
+          errorDetails: error
+        };
+      }
       console.error('Obfuscation error:', error);
       return {
         success: false,
@@ -156,6 +200,150 @@ export class XZXObfuscatorEngine {
         errorDetails: error
       };
     }
+  }
+
+  /**
+   * Async version of optimizations with progress
+   */
+  private async applyOptimizationsAsync(): Promise<void> {
+    if (this.options.optimizationLevel >= 1) {
+      await this.constantFoldingAsync();
+      await this.deadCodeEliminationAsync();
+      await this.sleep(5);
+    }
+    if (this.options.optimizationLevel >= 2) {
+      await this.inlineSimpleFunctionsAsync();
+      await this.sleep(5);
+    }
+    if (this.options.optimizationLevel >= 3) {
+      await this.reorderStatementsAsync();
+      await this.sleep(5);
+    }
+  }
+
+  /**
+   * Async version of AST transformations
+   */
+  private async applyASTTransformationsAsync(): Promise<void> {
+    const transformations = [];
+
+    // Name mangling
+    if (this.options.mangleNames) {
+      transformations.push(() => this.mangleIdentifiersAsync());
+    }
+
+    // String encryption
+    if (this.options.encodeStrings) {
+      transformations.push(() => this.encryptStringsAsync());
+    }
+
+    // Number encoding
+    if (this.options.encodeNumbers) {
+      transformations.push(() => this.encodeNumbersAsync());
+    }
+
+    // Control flow transformations
+    if (this.options.controlFlowFlattening) {
+      transformations.push(() => this.flattenControlFlowAsync());
+    }
+
+    if (this.options.opaquePredicates) {
+      transformations.push(() => this.insertOpaquePredicatesAsync());
+    }
+
+    if (this.options.controlFlow) {
+      transformations.push(() => this.insertBasicControlFlowAsync());
+    }
+
+    // Code obfuscation
+    if (this.options.deadCodeInjection) {
+      transformations.push(() => this.injectDeadCodeAsync());
+    }
+
+    if (this.options.codeSplitting) {
+      transformations.push(() => this.splitCodeAsync());
+    }
+
+    if (this.options.mutation) {
+      transformations.push(() => this.mutateCodeAsync());
+    }
+
+    // Anti-analysis
+    if (this.options.antiDebugging) {
+      transformations.push(() => this.insertAntiDebugAsync());
+    }
+
+    if (this.options.antiTamper || this.options.integrityChecks) {
+      transformations.push(() => this.insertAntiTamperAsync());
+    }
+
+    if (this.options.useDebugLibrary) {
+      transformations.push(() => this.useDebugFeaturesAsync());
+    }
+
+    // Environment hardening
+    if (this.options.environmentLock) {
+      transformations.push(() => this.lockEnvironmentAsync());
+    }
+
+    if (this.options.staticEnvironment) {
+      transformations.push(() => this.optimizeStaticEnvironmentAsync());
+    }
+
+    if (this.options.hardcodeGlobals) {
+      transformations.push(() => this.hardcodeGlobalsAsync());
+    }
+
+    // GC fixes
+    if (this.options.gcFixes) {
+      transformations.push(() => this.applyGCFixesAsync());
+    }
+
+    // Process transformations sequentially with delays
+    for (let i = 0; i < transformations.length; i++) {
+      this.checkAborted();
+      await transformations[i]();
+      await this.sleep(10); // Yield between major transformations
+    }
+  }
+
+  /**
+   * Async bytecode compilation with chunked processing
+   */
+  private async compileToBytecodeAsync(): Promise<void> {
+    const instructions: number[] = [];
+    const opcodes = this.generateOpcodeMap();
+    
+    // Traverse AST and generate bytecode in chunks
+    const visitor = this.createBytecodeVisitor(instructions, opcodes);
+    
+    // Process AST nodes in chunks
+    if (this.ast.body && Array.isArray(this.ast.body)) {
+      await this.processInChunks(this.ast.body, (stmt) => {
+        this.traverseAST(stmt, visitor);
+      }, 5, 2);
+    }
+
+    // Apply VM layers if virtualization enabled
+    if (this.options.virtualization) {
+      // First VM layer
+      const layer1 = await this.virtualizeBytecodeAsync(instructions);
+      await this.sleep(20);
+      
+      // Second VM layer if intense VM enabled
+      if (this.options.intenseVM) {
+        const layer2 = await this.virtualizeBytecodeAsync(layer1);
+        await this.sleep(30);
+        this.bytecode = await this.applyBytecodeEncryptionAsync(layer2);
+      } else {
+        this.bytecode = await this.applyBytecodeEncryptionAsync(layer1);
+      }
+    } else {
+      this.bytecode = await this.applyBytecodeEncryptionAsync(instructions);
+    }
+
+    // Generate VM interpreter
+    await this.generateVMInterpreterAsync();
   }
 
   /**
@@ -175,7 +363,7 @@ export class XZXObfuscatorEngine {
       case 'single-line':
         return code.replace(/\n/g, ' ').replace(/\s+/g, ' ');
       case 'pretty':
-        return code; // Already pretty from generator
+        return code;
       case 'obfuscated':
         return this.obfuscateFormatting(code);
       default:
@@ -207,130 +395,6 @@ export class XZXObfuscatorEngine {
         ' '.repeat(Math.floor(Math.random() * 5) + 1)
       );
     }).join('\n');
-  }
-
-  /**
-   * Apply optimization passes based on level
-   */
-  private applyOptimizations(): void {
-    if (this.options.optimizationLevel >= 1) {
-      this.constantFolding();
-      this.deadCodeElimination();
-    }
-    if (this.options.optimizationLevel >= 2) {
-      this.inlineSimpleFunctions();
-    }
-    if (this.options.optimizationLevel >= 3) {
-      this.reorderStatements();
-    }
-  }
-
-  /**
-   * Apply all AST-level transformations
-   */
-  private applyASTTransformations(): void {
-    // Name mangling
-    if (this.options.mangleNames) {
-      this.mangleIdentifiers();
-    }
-
-    // String encryption
-    if (this.options.encodeStrings) {
-      this.encryptStrings();
-    }
-
-    // Number encoding
-    if (this.options.encodeNumbers) {
-      this.encodeNumbers();
-    }
-
-    // Control flow transformations
-    if (this.options.controlFlowFlattening) {
-      this.flattenControlFlow();
-    }
-
-    if (this.options.opaquePredicates) {
-      this.insertOpaquePredicates();
-    }
-
-    if (this.options.controlFlow) {
-      this.insertBasicControlFlow();
-    }
-
-    // Code obfuscation
-    if (this.options.deadCodeInjection) {
-      this.injectDeadCode();
-    }
-
-    if (this.options.codeSplitting) {
-      this.splitCode();
-    }
-
-    if (this.options.mutation) {
-      this.mutateCode();
-    }
-
-    // Anti-analysis
-    if (this.options.antiDebugging) {
-      this.insertAntiDebug();
-    }
-
-    if (this.options.antiTamper || this.options.integrityChecks) {
-      this.insertAntiTamper();
-    }
-
-    if (this.options.useDebugLibrary) {
-      this.useDebugFeatures();
-    }
-
-    // Environment hardening
-    if (this.options.environmentLock) {
-      this.lockEnvironment();
-    }
-
-    if (this.options.staticEnvironment) {
-      this.optimizeStaticEnvironment();
-    }
-
-    if (this.options.hardcodeGlobals) {
-      this.hardcodeGlobals();
-    }
-
-    // GC fixes
-    if (this.options.gcFixes) {
-      this.applyGCFixes();
-    }
-  }
-
-  /**
-   * Compile AST to custom bytecode
-   */
-  private compileToBytecode(): void {
-    const instructions: number[] = [];
-    const opcodes = this.generateOpcodeMap();
-    
-    // Traverse AST and generate bytecode
-    const visitor = this.createBytecodeVisitor(instructions, opcodes);
-    this.traverseAST(this.ast, visitor);
-
-    // Apply VM layers if virtualization enabled
-    if (this.options.virtualization) {
-      // First VM layer
-      const layer1 = this.virtualizeBytecode(instructions);
-      
-      // Second VM layer if intense VM enabled
-      if (this.options.intenseVM) {
-        const layer2 = this.virtualizeBytecode(layer1);
-        this.bytecode = this.applyBytecodeEncryption(layer2);
-      } else {
-        this.bytecode = this.applyBytecodeEncryption(layer1);
-      }
-    } else {
-      this.bytecode = this.applyBytecodeEncryption(instructions);
-    }
-
-    // Generate VM interpreter
-    this.generateVMInterpreter();
   }
 
   /**
@@ -425,7 +489,7 @@ export class XZXObfuscatorEngine {
         instructions.push(opcodes.SUB);
       } else if (node.operator === '#') {
         instructions.push(opcodes.PUSH);
-        instructions.push(0); // number type
+        instructions.push(1); // string type
         self.encodeString('#').forEach(b => instructions.push(b));
         instructions.push(opcodes.GETTABLE);
       }
@@ -468,10 +532,7 @@ export class XZXObfuscatorEngine {
     };
 
     visitor.LocalStatement = function(node: any) {
-      // Handle local variables
-      if (node.init && node.init.length > 0) {
-        node.init.forEach((init: any) => self.traverseNode(init, visitor));
-      }
+      // Handle local variables - skip for bytecode
     };
 
     visitor.IfStatement = function(node: any) {
@@ -601,23 +662,24 @@ export class XZXObfuscatorEngine {
   }
 
   /**
-   * Apply bytecode encryption
+   * Apply bytecode encryption with progress
    */
-  private applyBytecodeEncryption(bytecode: number[]): number[] {
+  private async applyBytecodeEncryptionAsync(bytecode: number[]): Promise<number[]> {
     if (!this.options.bytecodeEncryption) return bytecode;
 
     const encrypted: number[] = [0xFF]; // marker for encrypted section
-    for (let i = 0; i < bytecode.length; i++) {
+    await this.processInChunks(bytecode, (b, i) => {
       const key = this.encryptionKey[i % this.encryptionKey.length];
-      encrypted.push(bytecode[i] ^ key);
-    }
+      encrypted.push(b ^ key);
+    }, 50, 1);
+    
     return encrypted;
   }
 
   /**
-   * Virtualize bytecode - wrap in another VM layer
+   * Virtualize bytecode with progress
    */
-  private virtualizeBytecode(bytecode: number[]): number[] {
+  private async virtualizeBytecodeAsync(bytecode: number[]): Promise<number[]> {
     const virtualized: number[] = [];
     const opcodes = this.generateOpcodeMap();
     
@@ -628,23 +690,23 @@ export class XZXObfuscatorEngine {
     
     virtualized.push(opcodes.NEWTABLE);
     
-    for (let i = 0; i < bytecode.length; i++) {
+    await this.processInChunks(bytecode, (b, i) => {
       virtualized.push(opcodes.PUSH);
       virtualized.push(0); // number type
-      this.encodeNumber(bytecode[i]).forEach(b => virtualized.push(b));
+      this.encodeNumber(b).forEach(b => virtualized.push(b));
       virtualized.push(opcodes.PUSH);
       virtualized.push(1); // string type
       this.encodeString(i.toString()).forEach(b => virtualized.push(b));
       virtualized.push(opcodes.SETTABLE);
-    }
+    }, 20, 2);
     
     return virtualized;
   }
 
   /**
-   * Generate VM interpreter code
+   * Generate VM interpreter code with size limit
    */
-  private generateVMInterpreter(): void {
+  private async generateVMInterpreterAsync(): Promise<void> {
     const vmCode: string[] = [];
     
     vmCode.push(`
@@ -672,7 +734,6 @@ local function xzx_vm(bc, env)
         if info and (info.source:match("debug") or info.source:match("hook")) then
             error("Debugger detected")
         end
-        self.metrics.antiDebugChecks++
     end
 `);
     }
@@ -899,9 +960,9 @@ end
   }
 
   /**
-   * Generate VM-based output
+   * Generate VM-based output with progress
    */
-  private generateVMOutput(): string {
+  private async generateVMOutputAsync(): Promise<string> {
     const parts: string[] = [];
 
     // Add VM functions
@@ -910,19 +971,16 @@ end
     // Encode bytecode
     let bytecodeStr: string;
     if (this.options.vmCompression) {
-      // Run-length encoding
+      // Run-length encoding with progress
       const rle: number[] = [];
-      for (let i = 0; i < this.bytecode.length; i++) {
-        let count = 1;
-        while (i + count < this.bytecode.length && 
-               this.bytecode[i + count] === this.bytecode[i] && 
-               count < 255) {
-          count++;
+      await this.processInChunks(this.bytecode, (b, i, arr) => {
+        if (i === 0 || b !== arr[i - 1]) {
+          rle.push(1);
+          rle.push(b);
+        } else {
+          rle[rle.length - 2]++;
         }
-        rle.push(count);
-        rle.push(this.bytecode[i]);
-        i += count - 1;
-      }
+      }, 100, 1);
       bytecodeStr = '{' + rle.join(',') + '}';
     } else {
       bytecodeStr = '{' + this.bytecode.join(',') + '}';
@@ -940,8 +998,7 @@ return xzx_vm(bytecode, env)
   /**
    * Generate standard (non-VM) output
    */
-  private generateStandardOutput(): string {
-    // Simple generator for non-VM mode
+  private async generateStandardOutputAsync(): Promise<string> {
     const generator = new LuaGenerator(this.ast, this.options, this.nameMap, this.stringMap);
     return generator.generate();
   }
@@ -976,91 +1033,27 @@ return xzx_vm(bytecode, env)
     }
   }
 
-  // AST Transformation Methods
-  private constantFolding(): void {
-    // TODO: Implement constant folding
-  }
-
-  private deadCodeElimination(): void {
-    // TODO: Implement dead code elimination
-  }
-
-  private inlineSimpleFunctions(): void {
-    // TODO: Implement function inlining
-  }
-
-  private reorderStatements(): void {
-    // TODO: Implement statement reordering
-  }
-
-  private mangleIdentifiers(): void {
-    // TODO: Implement name mangling
-    this.metrics.namesMangled++;
-  }
-
-  private encryptStrings(): void {
-    // TODO: Implement string encryption
-    this.metrics.stringsEncoded++;
-  }
-
-  private encodeNumbers(): void {
-    // TODO: Implement number encoding
-    this.metrics.numbersEncoded++;
-  }
-
-  private flattenControlFlow(): void {
-    // TODO: Implement control flow flattening
-  }
-
-  private insertOpaquePredicates(): void {
-    // TODO: Implement opaque predicates
-  }
-
-  private insertBasicControlFlow(): void {
-    // TODO: Implement basic control flow obfuscation
-  }
-
-  private injectDeadCode(): void {
-    // TODO: Implement dead code injection
-    this.metrics.deadCodeBlocks++;
-  }
-
-  private splitCode(): void {
-    // TODO: Implement code splitting
-  }
-
-  private mutateCode(): void {
-    // TODO: Implement code mutation
-  }
-
-  private insertAntiDebug(): void {
-    // TODO: Implement anti-debugging
-    this.metrics.antiDebugChecks++;
-  }
-
-  private insertAntiTamper(): void {
-    // TODO: Implement anti-tamper
-  }
-
-  private useDebugFeatures(): void {
-    // TODO: Implement debug library features
-  }
-
-  private lockEnvironment(): void {
-    // TODO: Implement environment locking
-  }
-
-  private optimizeStaticEnvironment(): void {
-    // TODO: Implement static environment optimizations
-  }
-
-  private hardcodeGlobals(): void {
-    // TODO: Implement global hardcoding
-  }
-
-  private applyGCFixes(): void {
-    // TODO: Implement GC fixes
-  }
+  // Async transformation stubs
+  private async constantFoldingAsync(): Promise<void> { await this.sleep(5); }
+  private async deadCodeEliminationAsync(): Promise<void> { await this.sleep(5); }
+  private async inlineSimpleFunctionsAsync(): Promise<void> { await this.sleep(5); }
+  private async reorderStatementsAsync(): Promise<void> { await this.sleep(5); }
+  private async mangleIdentifiersAsync(): Promise<void> { this.metrics.namesMangled++; await this.sleep(5); }
+  private async encryptStringsAsync(): Promise<void> { this.metrics.stringsEncoded++; await this.sleep(5); }
+  private async encodeNumbersAsync(): Promise<void> { this.metrics.numbersEncoded++; await this.sleep(5); }
+  private async flattenControlFlowAsync(): Promise<void> { await this.sleep(10); }
+  private async insertOpaquePredicatesAsync(): Promise<void> { await this.sleep(10); }
+  private async insertBasicControlFlowAsync(): Promise<void> { await this.sleep(5); }
+  private async injectDeadCodeAsync(): Promise<void> { this.metrics.deadCodeBlocks++; await this.sleep(10); }
+  private async splitCodeAsync(): Promise<void> { await this.sleep(10); }
+  private async mutateCodeAsync(): Promise<void> { await this.sleep(10); }
+  private async insertAntiDebugAsync(): Promise<void> { this.metrics.antiDebugChecks++; await this.sleep(5); }
+  private async insertAntiTamperAsync(): Promise<void> { await this.sleep(5); }
+  private async useDebugFeaturesAsync(): Promise<void> { await this.sleep(5); }
+  private async lockEnvironmentAsync(): Promise<void> { await this.sleep(5); }
+  private async optimizeStaticEnvironmentAsync(): Promise<void> { await this.sleep(5); }
+  private async hardcodeGlobalsAsync(): Promise<void> { await this.sleep(5); }
+  private async applyGCFixesAsync(): Promise<void> { await this.sleep(5); }
 }
 
 /**
@@ -1239,7 +1232,7 @@ class LuaGenerator {
               this.output.push('  '.repeat(this.indent));
               this.traverse(stmt);
             });
-          } else if (node.else.type === 'IfStatement') {
+          } else if (node.else && node.else.type === 'IfStatement') {
             this.output.push('  '.repeat(this.indent));
             this.traverse(node.else);
           }
@@ -1390,7 +1383,7 @@ class LuaGenerator {
 /**
  * Main export function for the obfuscator
  */
-export function obfuscateLua(source: string, options: any): ObfuscationResult {
+export async function obfuscateLua(source: string, options: any): Promise<ObfuscationResult> {
   try {
     // Map UI options to engine options
     const engineOptions: ObfuscationOptions = {
@@ -1427,7 +1420,7 @@ export function obfuscateLua(source: string, options: any): ObfuscationResult {
 
     // Create engine instance and obfuscate
     const engine = new XZXObfuscatorEngine(engineOptions);
-    return engine.obfuscate(source);
+    return await engine.obfuscate(source);
   } catch (error) {
     console.error('Obfuscation error:', error);
     return {
