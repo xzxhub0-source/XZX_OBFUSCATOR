@@ -5,11 +5,9 @@ name = "xzx-obfuscator"
 nixPkgs = ["nodejs-18_x", "nodePackages.npm"]
 
 [phases.install]
-cmds = [
-  "cd web && npm install"
-]
+cmds = ["cd web && npm install"]
 
 [phases.build]
-cmds = [
-  "cd web && npm run build"
-]
+cmds = ["cd web && npm run build"]
+
+# No start command needed for static sites!
