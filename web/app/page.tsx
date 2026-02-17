@@ -28,7 +28,6 @@ import {
 	Eye,
 	Bug,
 	Layers,
-	ShieldAlert,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { obfuscateLua, type ObfuscationResult } from "@/lib/obfuscator-simple";
@@ -53,6 +52,7 @@ import type { ObfuscationMetrics } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DEFAULT_LUA_CODE = "";
+const OUTPUT_HEADER = "--[[ PROTECTED BY v2.0.0 XZX HUB OBFUSCATOR https://discord.gg/5q5bEKmYqF ]]\n\n";
 
 interface ObfuscatorSettings {
 	mangleNames: boolean;
@@ -233,7 +233,9 @@ export default function Home() {
 			const duration = Date.now() - startTime;
 
 			if (result.success && result.code) {
-				setOutputCode(result.code);
+				// Prepend the header comment
+				const finalCode = OUTPUT_HEADER + result.code;
+				setOutputCode(finalCode);
 				setError(null);
 				setInputError(undefined);
 				setMetrics(result.metrics || null);
@@ -242,7 +244,7 @@ export default function Home() {
 				setObfuscationCount(newCount);
 
 				trackObfuscation({
-					obfuscationType: settings.intenseVM ? "military" : "standard",
+					obfuscationType: settings.intenseVM ? "advanced" : "standard",
 					codeSize: inputCode.length,
 					protectionLevel: settings.compressionLevel,
 				}).catch(err => console.error("Analytics tracking failed:", err));
@@ -314,28 +316,10 @@ export default function Home() {
 		if (settings.compressionLevel < 40) return "low";
 		if (settings.compressionLevel < 70) return "medium";
 		if (settings.compressionLevel < 90) return "high";
-		return "military";
+		return "maximum";
 	};
 
 	const protectionStrength = getProtectionStrength();
-
-	const getActiveMilitaryCount = () => {
-		let count = 0;
-		if (settings.intenseVM) count++;
-		if (settings.opaquePredicates) count++;
-		if (settings.virtualization) count++;
-		if (settings.bytecodeEncryption) count++;
-		if (settings.antiTamper) count++;
-		if (settings.selfModifying) count++;
-		if (settings.mutation) count++;
-		if (settings.codeSplitting) count++;
-		if (settings.environmentLock) count++;
-		if (settings.integrityChecks) count++;
-		if (settings.controlFlowFlattening) count++;
-		if (settings.deadCodeInjection) count++;
-		if (settings.antiDebugging) count++;
-		return count;
-	};
 
 	return (
 		<>
@@ -359,7 +343,7 @@ export default function Home() {
 								className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#8b5cf6] via-[#a855f7] to-[#ec4899] flex items-center justify-center shadow-2xl shadow-purple-500/30 ring-2 ring-white/20 backdrop-blur-sm transform group-hover:scale-105 transition-all duration-300"
 								aria-hidden="true"
 							>
-								<ShieldAlert className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
+								<Lock className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
 							</div>
 						</div>
 						<div>
@@ -367,17 +351,12 @@ export default function Home() {
 								<span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400">
 									XZX
 								</span>
-								<span className="text-white ml-2">Military Obfuscator</span>
+								<span className="text-white ml-2">Obfuscator</span>
 							</h1>
 							<div className="flex items-center gap-2 mt-1">
 								<p className="text-xs sm:text-sm text-gray-300/90 font-medium">
-									v2.0.0 | Military Grade Protection
+									v2.0.0 | Advanced Protection
 								</p>
-								{getActiveMilitaryCount() > 0 && (
-									<div className="px-2 py-0.5 bg-red-500/20 border border-red-500/30 rounded-full text-[10px] text-red-300">
-										{getActiveMilitaryCount()} Active
-									</div>
-								)}
 							</div>
 						</div>
 					</div>
@@ -426,8 +405,8 @@ export default function Home() {
 								<Shield className="w-5 h-5 text-white animate-pulse" />
 							</div>
 							<div>
-								<p className="text-white font-bold text-sm">Military Grade Protection!</p>
-								<p className="text-purple-50 text-xs">Your code is now XZX protected</p>
+								<p className="text-white font-bold text-sm">Obfuscation Complete!</p>
+								<p className="text-purple-50 text-xs">Your code is now protected</p>
 							</div>
 						</div>
 					</div>
@@ -521,7 +500,7 @@ export default function Home() {
 											</div>
 											<div>
 												<h2 id="output-code-heading" className="text-sm font-bold text-white tracking-wide">
-													Military Output
+													Obfuscated Output
 												</h2>
 												<p className="text-xs text-gray-400 font-medium">Protected by XZX</p>
 											</div>
@@ -563,9 +542,9 @@ export default function Home() {
 										</div>
 										<div>
 											<h2 id="metrics-heading" className="text-sm font-bold text-white tracking-wide">
-												Military Metrics
+												Protection Metrics
 											</h2>
-											<p className="text-xs text-gray-400 font-medium">Protection statistics</p>
+											<p className="text-xs text-gray-400 font-medium">Transformation statistics</p>
 										</div>
 									</div>
 
@@ -674,7 +653,7 @@ export default function Home() {
 								</div>
 								<div className="flex-1">
 									<h2 id="settings-heading" className="text-lg sm:text-xl font-bold text-white tracking-tight">
-										Military Settings
+										Obfuscation Settings
 									</h2>
 									<p className="text-xs text-gray-400 font-medium mt-0.5">Configure protection level</p>
 								</div>
@@ -791,14 +770,13 @@ export default function Home() {
 								<div className="space-y-4 pt-6 border-t border-purple-500/30">
 									<Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
 										<div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-										<Cpu className="w-4 h-4 mr-1" /> VM & Core Military Features
+										<Cpu className="w-4 h-4 mr-1" /> VM & Core Features
 									</Label>
 
 									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
 										<Label htmlFor="intenseVM" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Intense VM Structure</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.intenseVM && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -822,7 +800,6 @@ export default function Home() {
 										<Label htmlFor="virtualization" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Virtualization</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.virtualization && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -846,7 +823,6 @@ export default function Home() {
 										<Label htmlFor="bytecodeEncryption" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Bytecode Encryption</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.bytecodeEncryption && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -924,7 +900,6 @@ export default function Home() {
 										<Label htmlFor="antiDebugging" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Anti-Debugging</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.antiDebugging && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -948,7 +923,6 @@ export default function Home() {
 										<Label htmlFor="antiTamper" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Anti-Tamper</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.antiTamper && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -972,7 +946,6 @@ export default function Home() {
 										<Label htmlFor="selfModifying" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Self-Modifying Code</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.selfModifying && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -996,7 +969,6 @@ export default function Home() {
 										<Label htmlFor="integrityChecks" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Integrity Checks</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.integrityChecks && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -1050,7 +1022,6 @@ export default function Home() {
 										<Label htmlFor="controlFlowFlattening" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Control Flow Flattening</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.controlFlowFlattening && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -1074,7 +1045,6 @@ export default function Home() {
 										<Label htmlFor="opaquePredicates" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Opaque Predicates</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.opaquePredicates && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -1098,7 +1068,6 @@ export default function Home() {
 										<Label htmlFor="mutation" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Mutation</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.mutation && <Zap className="w-3.5 h-3.5 text-green-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -1122,7 +1091,6 @@ export default function Home() {
 										<Label htmlFor="codeSplitting" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Code Splitting</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.codeSplitting && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -1176,7 +1144,6 @@ export default function Home() {
 										<Label htmlFor="deadCodeInjection" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Dead Code Injection</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.deadCodeInjection && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -1277,7 +1244,6 @@ export default function Home() {
 										<Label htmlFor="environmentLock" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
 											<div className="flex items-center gap-2">
 												<span>Environment Lock</span>
-												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
 												{settings.environmentLock && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
 											</div>
 											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
@@ -1369,7 +1335,7 @@ export default function Home() {
 												<SelectItem value="0">Level 0 (No optimization)</SelectItem>
 												<SelectItem value="1">Level 1 (Basic)</SelectItem>
 												<SelectItem value="2">Level 2 (Aggressive)</SelectItem>
-												<SelectItem value="3">Level 3 (Maximum - may change behavior)</SelectItem>
+												<SelectItem value="3">Level 3 (Maximum)</SelectItem>
 											</SelectContent>
 										</Select>
 									</div>
@@ -1418,7 +1384,7 @@ export default function Home() {
 													protectionStrength === "low" && "bg-purple-500/20 border-purple-500/30 text-purple-300",
 													protectionStrength === "medium" && "bg-pink-500/20 border-pink-500/30 text-pink-300",
 													protectionStrength === "high" && "bg-orange-500/20 border-orange-500/30 text-orange-300",
-													protectionStrength === "military" && "bg-red-500/20 border-red-500/30 text-red-300 animate-pulse"
+													protectionStrength === "maximum" && "bg-red-500/20 border-red-500/30 text-red-300 animate-pulse"
 												)}
 											>
 												{settings.compressionLevel}%
@@ -1468,14 +1434,14 @@ export default function Home() {
 											protectionStrength === "low" && "bg-purple-500/10 border-purple-500/20 text-purple-200",
 											protectionStrength === "medium" && "bg-pink-500/10 border-pink-500/20 text-pink-200",
 											protectionStrength === "high" && "bg-orange-500/10 border-orange-500/20 text-orange-200",
-											protectionStrength === "military" && "bg-red-500/10 border-red-500/20 text-red-200"
+											protectionStrength === "maximum" && "bg-red-500/10 border-red-500/20 text-red-200"
 										)}
 									>
 										{settings.compressionLevel < 30 && "Standard Protection"}
 										{settings.compressionLevel >= 30 && settings.compressionLevel < 60 && "Enhanced Protection"}
 										{settings.compressionLevel >= 60 && settings.compressionLevel < 80 && "Advanced Protection"}
-										{settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Military Grade"}
-										{settings.compressionLevel >= 95 && "Maximum Military Grade - May Impact Performance"}
+										{settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Maximum Protection"}
+										{settings.compressionLevel >= 95 && "Extreme Protection - May Impact Performance"}
 									</div>
 								</div>
 
@@ -1496,17 +1462,6 @@ export default function Home() {
 											<p className="text-xs text-yellow-200/90">
 												<strong className="font-bold block mb-1">⚠️ Security Warning</strong>
 												Hardcode Globals exposes global names
-											</p>
-										</div>
-									</div>
-								)}
-
-								{(settings.virtualization || settings.intenseVM) && (
-									<div className="pt-2">
-										<div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-											<p className="text-xs text-purple-200/90">
-												<strong className="font-bold block mb-1">💪 Military Grade Active</strong>
-												Maximum protection enabled - code is virtualized
 											</p>
 										</div>
 									</div>
