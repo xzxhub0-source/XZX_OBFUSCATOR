@@ -477,7 +477,7 @@ export default function Home() {
 					className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-6 min-h-0 overflow-y-auto animate-in fade-in slide-in-from-bottom duration-700"
 					aria-label="Code editor workspace"
 				>
-					{/* Code Editors */}
+					{/* Code Editors - Side by Side on Desktop, Stacked on Mobile */}
 					<div className="lg:col-span-8 flex flex-col lg:grid lg:grid-cols-2 gap-4 lg:min-h-0">
 						{/* Input Editor */}
 						<section
@@ -615,6 +615,7 @@ export default function Home() {
 									</div>
 
 									<div className="space-y-4">
+										{/* Size metrics */}
 										<div className="space-y-2">
 											<div className="flex justify-between items-center">
 												<span className="text-xs text-gray-400">Input Size</span>
@@ -644,27 +645,54 @@ export default function Home() {
 										<div className="border-t border-purple-500/30 pt-4">
 											<div className="flex justify-between items-center mb-3">
 												<span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-													Military Features
+													Transformations
 												</span>
 											</div>
-											<div className="grid grid-cols-2 gap-2">
-												{settings.intenseVM && (
-													<div className="text-xs text-purple-300 bg-purple-500/10 px-2 py-1 rounded">Intense VM</div>
+											<div className="space-y-2">
+												{metrics.transformations.namesMangled > 0 && (
+													<div className="flex justify-between items-center">
+														<span className="text-xs text-gray-400">Names Mangled</span>
+														<span className="text-sm font-semibold text-purple-400">
+															{metrics.transformations.namesMangled}
+														</span>
+													</div>
 												)}
-												{settings.virtualization && (
-													<div className="text-xs text-pink-300 bg-pink-500/10 px-2 py-1 rounded">Virtualization</div>
+												{metrics.transformations.stringsEncoded > 0 && (
+													<div className="flex justify-between items-center">
+														<span className="text-xs text-gray-400">
+															Strings Encrypted{" "}
+															{metrics.encryptionAlgorithm && metrics.encryptionAlgorithm !== "none" && (
+																<span className="text-[10px] text-pink-400">({metrics.encryptionAlgorithm})</span>
+															)}
+														</span>
+														<span className="text-sm font-semibold text-pink-400">
+															{metrics.transformations.stringsEncoded}
+														</span>
+													</div>
 												)}
-												{settings.bytecodeEncryption && (
-													<div className="text-xs text-blue-300 bg-blue-500/10 px-2 py-1 rounded">Bytecode Encryption</div>
+												{metrics.transformations.numbersEncoded > 0 && (
+													<div className="flex justify-between items-center">
+														<span className="text-xs text-gray-400">Numbers Encoded</span>
+														<span className="text-sm font-semibold text-green-400">
+															{metrics.transformations.numbersEncoded}
+														</span>
+													</div>
 												)}
-												{settings.antiTamper && (
-													<div className="text-xs text-red-300 bg-red-500/10 px-2 py-1 rounded">Anti-Tamper</div>
+												{metrics.transformations.deadCodeBlocks > 0 && (
+													<div className="flex justify-between items-center">
+														<span className="text-xs text-gray-400">Dead Code Blocks</span>
+														<span className="text-sm font-semibold text-orange-400">
+															{metrics.transformations.deadCodeBlocks}
+														</span>
+													</div>
 												)}
-												{settings.selfModifying && (
-													<div className="text-xs text-yellow-300 bg-yellow-500/10 px-2 py-1 rounded">Self-Modifying</div>
-												)}
-												{settings.mutation && (
-													<div className="text-xs text-green-300 bg-green-500/10 px-2 py-1 rounded">Mutation</div>
+												{metrics.transformations.antiDebugChecks > 0 && (
+													<div className="flex justify-between items-center">
+														<span className="text-xs text-gray-400">Anti-Debug Checks</span>
+														<span className="text-sm font-semibold text-red-400">
+															{metrics.transformations.antiDebugChecks}
+														</span>
+													</div>
 												)}
 											</div>
 										</div>
@@ -707,9 +735,77 @@ export default function Home() {
 										Basic Obfuscation
 									</Label>
 
-									{renderSwitch("Mangle Names", "mangleNames", "Replace variable and function names with hexadecimal identifiers", settings, setSettings, "purple")}
-									{renderSwitch("Encode Strings", "encodeStrings", "Convert strings to byte arrays using string.char()", settings, setSettings, "pink")}
-									{renderSwitch("Minify Code", "minify", "Remove comments and whitespace", settings, setSettings, "purple")}
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="mangle-names" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Mangle Names</span>
+												{settings.mangleNames && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Replace variable and function names with hexadecimal identifiers
+											</p>
+										</Label>
+										<Switch
+											id="mangle-names"
+											checked={settings.mangleNames}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, mangleNames: checked });
+												trackSettingsChange({ setting: "mangleNames", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label
+											htmlFor="encode-strings"
+											className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
+										>
+											<div className="flex items-center gap-2">
+												<span>Encode Strings</span>
+												{settings.encodeStrings && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Convert strings to byte arrays using string.char()
+											</p>
+										</Label>
+										<Switch
+											id="encode-strings"
+											checked={settings.encodeStrings}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, encodeStrings: checked });
+												trackSettingsChange({ setting: "encodeStrings", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-pink-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="minify" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Minify Code</span>
+												{settings.minify && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Remove comments and whitespace
+											</p>
+										</Label>
+										<Switch
+											id="minify"
+											checked={settings.minify}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, minify: checked });
+												trackSettingsChange({ setting: "minify", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
 								</div>
 
 								{/* Target Version */}
@@ -748,11 +844,124 @@ export default function Home() {
 										<Cpu className="w-4 h-4 mr-1" /> VM & Core Military Features
 									</Label>
 
-									{renderSwitch("Intense VM Structure", "intenseVM", "Adds extra layers of processing to the VM for maximum security", settings, setSettings, "purple", true)}
-									{renderSwitch("Virtualization", "virtualization", "Complete code virtualization - runs in custom VM", settings, setSettings, "pink", true)}
-									{renderSwitch("Bytecode Encryption", "bytecodeEncryption", "Encrypts the VM bytecode with AES-256", settings, setSettings, "blue", true)}
-									{renderSwitch("VM Compression", "vmCompression", "Strong compression for smaller file size (requires loadstring)", settings, setSettings, "purple")}
-									{renderSwitch("GC Fixes", "gcFixes", "Fixes garbage collection issues (heavy performance cost)", settings, setSettings, "yellow", true)}
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="intenseVM" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Intense VM Structure</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.intenseVM && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Adds extra layers of processing to the VM for maximum security
+											</p>
+										</Label>
+										<Switch
+											id="intenseVM"
+											checked={settings.intenseVM}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, intenseVM: checked });
+												trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="virtualization" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Virtualization</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.virtualization && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Complete code virtualization - runs in custom VM
+											</p>
+										</Label>
+										<Switch
+											id="virtualization"
+											checked={settings.virtualization}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, virtualization: checked });
+												trackSettingsChange({ setting: "virtualization", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-pink-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="bytecodeEncryption" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Bytecode Encryption</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.bytecodeEncryption && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Encrypts the VM bytecode with AES-256
+											</p>
+										</Label>
+										<Switch
+											id="bytecodeEncryption"
+											checked={settings.bytecodeEncryption}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, bytecodeEncryption: checked });
+												trackSettingsChange({ setting: "bytecodeEncryption", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-blue-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="vmCompression" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>VM Compression</span>
+												{settings.vmCompression && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Strong compression for smaller file size (requires loadstring)
+											</p>
+										</Label>
+										<Switch
+											id="vmCompression"
+											checked={settings.vmCompression}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, vmCompression: checked });
+												trackSettingsChange({ setting: "vmCompression", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="gcFixes" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>GC Fixes</span>
+												<span className="text-[10px] text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded">Heavy</span>
+												{settings.gcFixes && <Zap className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Fixes garbage collection issues (heavy performance cost)
+											</p>
+										</Label>
+										<Switch
+											id="gcFixes"
+											checked={settings.gcFixes}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, gcFixes: checked });
+												trackSettingsChange({ setting: "gcFixes", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-yellow-600"
+										/>
+									</div>
 								</div>
 
 								{/* Anti-Analysis Features */}
@@ -762,11 +971,124 @@ export default function Home() {
 										<Bug className="w-4 h-4 mr-1" /> Anti-Analysis
 									</Label>
 
-									{renderSwitch("Anti-Debugging", "antiDebugging", "Runtime checks to detect debuggers", settings, setSettings, "red", true)}
-									{renderSwitch("Anti-Tamper", "antiTamper", "Detects code modification and integrity violations", settings, setSettings, "red", true)}
-									{renderSwitch("Self-Modifying Code", "selfModifying", "Code that modifies itself at runtime", settings, setSettings, "orange", true)}
-									{renderSwitch("Integrity Checks", "integrityChecks", "Cryptographic hash verification of code sections", settings, setSettings, "red", true)}
-									{renderSwitch("Use Debug Library", "useDebugLibrary", "Extra security using Lua's debug library", settings, setSettings, "purple")}
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="antiDebugging" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Anti-Debugging</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.antiDebugging && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Runtime checks to detect debuggers
+											</p>
+										</Label>
+										<Switch
+											id="antiDebugging"
+											checked={settings.antiDebugging}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, antiDebugging: checked });
+												trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-red-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="antiTamper" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Anti-Tamper</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.antiTamper && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Detects code modification and integrity violations
+											</p>
+										</Label>
+										<Switch
+											id="antiTamper"
+											checked={settings.antiTamper}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, antiTamper: checked });
+												trackSettingsChange({ setting: "antiTamper", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-red-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="selfModifying" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Self-Modifying Code</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.selfModifying && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Code that modifies itself at runtime
+											</p>
+										</Label>
+										<Switch
+											id="selfModifying"
+											checked={settings.selfModifying}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, selfModifying: checked });
+												trackSettingsChange({ setting: "selfModifying", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-orange-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="integrityChecks" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Integrity Checks</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.integrityChecks && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Cryptographic hash verification of code sections
+											</p>
+										</Label>
+										<Switch
+											id="integrityChecks"
+											checked={settings.integrityChecks}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, integrityChecks: checked });
+												trackSettingsChange({ setting: "integrityChecks", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-red-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="useDebugLibrary" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Use Debug Library</span>
+												{settings.useDebugLibrary && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Extra security using Lua's debug library
+											</p>
+										</Label>
+										<Switch
+											id="useDebugLibrary"
+											checked={settings.useDebugLibrary}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, useDebugLibrary: checked });
+												trackSettingsChange({ setting: "useDebugLibrary", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
 								</div>
 
 								{/* Control Flow Features */}
@@ -776,11 +1098,124 @@ export default function Home() {
 										<Shuffle className="w-4 h-4 mr-1" /> Control Flow
 									</Label>
 
-									{renderSwitch("Control Flow Flattening", "controlFlowFlattening", "Transform code into state machine patterns (CPU intensive)", settings, setSettings, "orange", true)}
-									{renderSwitch("Opaque Predicates", "opaquePredicates", "Insert complex always-true/false conditions", settings, setSettings, "purple", true)}
-									{renderSwitch("Mutation", "mutation", "Constant code structure mutation", settings, setSettings, "green", true)}
-									{renderSwitch("Code Splitting", "codeSplitting", "Split code into many small fragments", settings, setSettings, "blue", true)}
-									{renderSwitch("Control Flow (Basic)", "controlFlow", "Add opaque predicates to complicate analysis", settings, setSettings, "purple")}
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="controlFlowFlattening" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Control Flow Flattening</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.controlFlowFlattening && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Transform code into state machine patterns (CPU intensive)
+											</p>
+										</Label>
+										<Switch
+											id="controlFlowFlattening"
+											checked={settings.controlFlowFlattening}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, controlFlowFlattening: checked });
+												trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-orange-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="opaquePredicates" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Opaque Predicates</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.opaquePredicates && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Insert complex always-true/false conditions
+											</p>
+										</Label>
+										<Switch
+											id="opaquePredicates"
+											checked={settings.opaquePredicates}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, opaquePredicates: checked });
+												trackSettingsChange({ setting: "opaquePredicates", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="mutation" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Mutation</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.mutation && <Zap className="w-3.5 h-3.5 text-green-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Constant code structure mutation
+											</p>
+										</Label>
+										<Switch
+											id="mutation"
+											checked={settings.mutation}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, mutation: checked });
+												trackSettingsChange({ setting: "mutation", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-green-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="codeSplitting" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Code Splitting</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.codeSplitting && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Split code into many small fragments
+											</p>
+										</Label>
+										<Switch
+											id="codeSplitting"
+											checked={settings.codeSplitting}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, codeSplitting: checked });
+												trackSettingsChange({ setting: "codeSplitting", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-blue-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="controlFlow" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Control Flow (Basic)</span>
+												{settings.controlFlow && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Add opaque predicates to complicate analysis
+											</p>
+										</Label>
+										<Switch
+											id="controlFlow"
+											checked={settings.controlFlow}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, controlFlow: checked });
+												trackSettingsChange({ setting: "controlFlow", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
 								</div>
 
 								{/* Code Obfuscation */}
@@ -790,9 +1225,76 @@ export default function Home() {
 										<Code className="w-4 h-4 mr-1" /> Code Obfuscation
 									</Label>
 
-									{renderSwitch("Dead Code Injection", "deadCodeInjection", "Inject unreachable code blocks", settings, setSettings, "orange", true)}
-									{renderSwitch("Encode Numbers", "encodeNumbers", "Transform numeric literals into mathematical expressions", settings, setSettings, "purple")}
-									{renderSwitch("Hardcode Globals", "hardcodeGlobals", "Hardcodes global accesses for performance (exposes global names)", settings, setSettings, "yellow")}
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="deadCodeInjection" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Dead Code Injection</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.deadCodeInjection && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Inject unreachable code blocks
+											</p>
+										</Label>
+										<Switch
+											id="deadCodeInjection"
+											checked={settings.deadCodeInjection}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, deadCodeInjection: checked });
+												trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-orange-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="encodeNumbers" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Encode Numbers</span>
+												{settings.encodeNumbers && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Transform numeric literals into mathematical expressions
+											</p>
+										</Label>
+										<Switch
+											id="encodeNumbers"
+											checked={settings.encodeNumbers}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, encodeNumbers: checked });
+												trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="hardcodeGlobals" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Hardcode Globals</span>
+												<span className="text-[10px] text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded">Exposes Names</span>
+												{settings.hardcodeGlobals && <Zap className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Hardcodes global accesses for performance (exposes global names)
+											</p>
+										</Label>
+										<Switch
+											id="hardcodeGlobals"
+											checked={settings.hardcodeGlobals}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, hardcodeGlobals: checked });
+												trackSettingsChange({ setting: "hardcodeGlobals", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-yellow-600"
+										/>
+									</div>
 								</div>
 
 								{/* Environment & Optimization */}
@@ -802,9 +1304,75 @@ export default function Home() {
 										<HardDrive className="w-4 h-4 mr-1" /> Environment & Optimization
 									</Label>
 
-									{renderSwitch("Static Environment", "staticEnvironment", "Optimizes assuming environment never changes", settings, setSettings, "purple")}
-									{renderSwitch("Environment Lock", "environmentLock", "Locks script to specific environment", settings, setSettings, "blue", true)}
-									{renderSwitch("Disable Line Info", "disableLineInfo", "Removes line information for better performance", settings, setSettings, "purple")}
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="staticEnvironment" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Static Environment</span>
+												{settings.staticEnvironment && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Optimizes assuming environment never changes
+											</p>
+										</Label>
+										<Switch
+											id="staticEnvironment"
+											checked={settings.staticEnvironment}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, staticEnvironment: checked });
+												trackSettingsChange({ setting: "staticEnvironment", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="environmentLock" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Environment Lock</span>
+												<span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>
+												{settings.environmentLock && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Locks script to specific environment
+											</p>
+										</Label>
+										<Switch
+											id="environmentLock"
+											checked={settings.environmentLock}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, environmentLock: checked });
+												trackSettingsChange({ setting: "environmentLock", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-blue-600"
+										/>
+									</div>
+
+									<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+										<Label htmlFor="disableLineInfo" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+											<div className="flex items-center gap-2">
+												<span>Disable Line Info</span>
+												{settings.disableLineInfo && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+											</div>
+											<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
+												Removes line information for better performance
+											</p>
+										</Label>
+										<Switch
+											id="disableLineInfo"
+											checked={settings.disableLineInfo}
+											onCheckedChange={checked => {
+												setSettings({ ...settings, disableLineInfo: checked });
+												trackSettingsChange({ setting: "disableLineInfo", value: checked }).catch(err =>
+													console.error("Analytics tracking failed:", err)
+												);
+											}}
+											className="data-[state=checked]:bg-purple-600"
+										/>
+									</div>
 								</div>
 
 								{/* Encryption Algorithm */}
@@ -1031,6 +1599,16 @@ export default function Home() {
 					</aside>
 				)}
 
+				{/* SEO-Optimized Content Section - Screen reader accessible */}
+				<section className="sr-only">
+					<h2>About XZX Lua Obfuscator</h2>
+					<p>
+						XZX Lua Obfuscator v2.0.0 is a professional, free online tool for protecting Lua source code through advanced
+						obfuscation techniques. Whether you're developing Roblox scripts, FiveM resources, Garry's Mod addons, World
+						of Warcraft addons, or any other Lua-based application, this tool helps secure your intellectual property.
+					</p>
+				</section>
+
 				{/* Footer with Discord Link */}
 				<footer
 					className="mt-auto pt-8 pb-4 text-center"
@@ -1075,50 +1653,5 @@ export default function Home() {
 				}
 			`}</style>
 		</>
-	);
-}
-
-// Helper function to render switches
-function renderSwitch(
-	label: string,
-	key: keyof ObfuscatorSettings,
-	description: string,
-	settings: ObfuscatorSettings,
-	setSettings: React.Dispatch<React.SetStateAction<ObfuscatorSettings>>,
-	color: string = "purple",
-	military: boolean = false
-) {
-	const colors: Record<string, string> = {
-		purple: "data-[state=checked]:bg-purple-600",
-		pink: "data-[state=checked]:bg-pink-600",
-		blue: "data-[state=checked]:bg-blue-600",
-		red: "data-[state=checked]:bg-red-600",
-		orange: "data-[state=checked]:bg-orange-600",
-		green: "data-[state=checked]:bg-green-600",
-		yellow: "data-[state=checked]:bg-yellow-600",
-	};
-
-	return (
-		<div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-			<Label htmlFor={key} className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-				<div className="flex items-center gap-2">
-					<span>{label}</span>
-					{military && <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">Military</span>}
-					{settings[key] as boolean && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-				</div>
-				<p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">{description}</p>
-			</Label>
-			<Switch
-				id={key}
-				checked={settings[key] as boolean}
-				onCheckedChange={checked => {
-					setSettings({ ...settings, [key]: checked });
-					trackSettingsChange({ setting: key, value: checked }).catch(err =>
-						console.error("Analytics tracking failed:", err)
-					);
-				}}
-				className={colors[color] || colors.purple}
-			/>
-		</div>
 	);
 }
