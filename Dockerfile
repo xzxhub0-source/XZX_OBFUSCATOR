@@ -3,11 +3,11 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy web package files
+# Copy package files
 COPY web/package*.json ./web/
 
-# Install dependencies
-RUN cd web && npm ci
+# Use npm install instead of npm ci - this ignores the lock file and installs fresh
+RUN cd web && npm install
 
 # Copy source code
 COPY web/ ./web/
@@ -20,9 +20,6 @@ FROM nginx:alpine
 
 # Copy built static files from builder
 COPY --from=builder /app/web/out /usr/share/nginx/html
-
-# Copy custom nginx config if needed (optional)
-# COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 
