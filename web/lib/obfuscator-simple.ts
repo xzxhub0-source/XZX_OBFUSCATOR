@@ -418,14 +418,26 @@ export class XZXObfuscatorEngine {
       self.traverseNode(node.argument, visitor);
       if (node.operator === 'not') {
         instructions.push(opcodes.NOT);
+      } else if (node.operator === '-') {
+        instructions.push(opcodes.PUSH);
+        instructions.push(0); // number type
+        self.encodeNumber(0).forEach(b => instructions.push(b));
+        instructions.push(opcodes.SUB);
+      } else if (node.operator === '#') {
+        instructions.push(opcodes.PUSH);
+        instructions.push(0); // number type
+        self.encodeString('#').forEach(b => instructions.push(b));
+        instructions.push(opcodes.GETTABLE);
       }
     };
 
     visitor.CallExpression = function(node: any) {
       self.traverseNode(node.base, visitor);
-      node.arguments.forEach((arg: any) => self.traverseNode(arg, visitor));
+      if (node.arguments && node.arguments.length > 0) {
+        node.arguments.forEach((arg: any) => self.traverseNode(arg, visitor));
+      }
       instructions.push(opcodes.CALL);
-      instructions.push(node.arguments.length);
+      instructions.push(node.arguments ? node.arguments.length : 0);
     };
 
     visitor.Identifier = function(node: any) {
@@ -437,9 +449,29 @@ export class XZXObfuscatorEngine {
     };
 
     visitor.AssignmentStatement = function(node: any) {
-      node.init.forEach((init: any) => self.traverseNode(init, visitor));
-      node.variables.forEach((var_: any) => self.traverseNode(var_, visitor));
+      if (node.init && node.init.length > 0) {
+        node.init.forEach((init: any) => self.traverseNode(init, visitor));
+      }
+      if (node.variables && node.variables.length > 0) {
+        node.variables.forEach((var_: any) => {
+          if (var_.type === 'Identifier') {
+            const name = self.nameMap.get(var_.name) || var_.name;
+            instructions.push(opcodes.PUSH);
+            instructions.push(1); // string type
+            self.encodeString(name).forEach(b => instructions.push(b));
+          } else {
+            self.traverseNode(var_, visitor);
+          }
+        });
+      }
       instructions.push(opcodes.SETGLOBAL);
+    };
+
+    visitor.LocalStatement = function(node: any) {
+      // Handle local variables
+      if (node.init && node.init.length > 0) {
+        node.init.forEach((init: any) => self.traverseNode(init, visitor));
+      }
     };
 
     visitor.IfStatement = function(node: any) {
@@ -448,9 +480,11 @@ export class XZXObfuscatorEngine {
       const jifPos = instructions.length;
       instructions.push(0); // placeholder
       
-      node.then.forEach((stmt: any) => self.traverseNode(stmt, visitor));
+      if (node.then && Array.isArray(node.then)) {
+        node.then.forEach((stmt: any) => self.traverseNode(stmt, visitor));
+      }
       
-      if (node.else) {
+      if (node.else && node.else.length > 0) {
         instructions.push(opcodes.JMP);
         const jmpPos = instructions.length;
         instructions.push(0); // placeholder
@@ -458,7 +492,11 @@ export class XZXObfuscatorEngine {
         // Update JIF offset
         instructions[jifPos] = instructions.length - jifPos - 1;
         
-        node.else.forEach((stmt: any) => self.traverseNode(stmt, visitor));
+        if (Array.isArray(node.else)) {
+          node.else.forEach((stmt: any) => self.traverseNode(stmt, visitor));
+        } else if (node.else && node.else.type === 'IfStatement') {
+          self.traverseNode(node.else, visitor);
+        }
         
         // Update JMP offset
         instructions[jmpPos] = instructions.length - jmpPos - 1;
@@ -474,7 +512,9 @@ export class XZXObfuscatorEngine {
       const jifPos = instructions.length;
       instructions.push(0); // placeholder
       
-      node.body.forEach((stmt: any) => self.traverseNode(stmt, visitor));
+      if (node.body && Array.isArray(node.body)) {
+        node.body.forEach((stmt: any) => self.traverseNode(stmt, visitor));
+      }
       
       instructions.push(opcodes.JMP);
       instructions.push(loopStart - instructions.length - 1);
@@ -482,9 +522,49 @@ export class XZXObfuscatorEngine {
       instructions[jifPos] = instructions.length - jifPos - 1;
     };
 
+    visitor.RepeatStatement = function(node: any) {
+      const loopStart = instructions.length;
+      
+      if (node.body && Array.isArray(node.body)) {
+        node.body.forEach((stmt: any) => self.traverseNode(stmt, visitor));
+      }
+      
+      self.traverseNode(node.condition, visitor);
+      instructions.push(opcodes.JIF);
+      instructions.push(loopStart - instructions.length - 1);
+    };
+
     visitor.ReturnStatement = function(node: any) {
-      node.arguments.forEach((arg: any) => self.traverseNode(arg, visitor));
+      if (node.arguments && node.arguments.length > 0) {
+        node.arguments.forEach((arg: any) => self.traverseNode(arg, visitor));
+      }
       instructions.push(opcodes.RET);
+    };
+
+    visitor.FunctionDeclaration = function(node: any) {
+      // Skip function bodies for now
+    };
+
+    visitor.TableConstructorExpression = function(node: any) {
+      instructions.push(opcodes.NEWTABLE);
+      if (node.fields && node.fields.length > 0) {
+        node.fields.forEach((field: any) => {
+          if (field.key) {
+            self.traverseNode(field.key, visitor);
+          } else {
+            instructions.push(opcodes.PUSH);
+            instructions.push(3); // nil
+          }
+          self.traverseNode(field.value, visitor);
+          instructions.push(opcodes.SETTABLE);
+        });
+      }
+    };
+
+    visitor.MemberExpression = function(node: any) {
+      self.traverseNode(node.base, visitor);
+      self.traverseNode(node.indexer === '.' ? node.identifier : node.index, visitor);
+      instructions.push(node.indexer === '.' ? opcodes.GETTABLE : opcodes.GETTABLE);
     };
 
     return visitor;
@@ -869,11 +949,15 @@ return xzx_vm(bytecode, env)
   // AST traversal helpers
   private traverseAST(node: any, visitor: any): void {
     if (!node || typeof node !== 'object') return;
+    
+    // Call visitor for this node type
     if (visitor[node.type]) {
       visitor[node.type](node);
     }
+    
+    // Recursively traverse all properties
     for (const key in node) {
-      if (key !== 'type' && key !== 'loc' && typeof node[key] === 'object') {
+      if (node.hasOwnProperty(key) && key !== 'type' && key !== 'loc' && typeof node[key] === 'object') {
         this.traverseNode(node[key], visitor);
       }
     }
@@ -881,7 +965,12 @@ return xzx_vm(bytecode, env)
 
   private traverseNode(node: any, visitor: any): void {
     if (Array.isArray(node)) {
-      node.forEach(n => this.traverseAST(n, visitor));
+      // Traverse each item in the array
+      for (let i = 0; i < node.length; i++) {
+        if (node[i] && typeof node[i] === 'object') {
+          this.traverseAST(node[i], visitor);
+        }
+      }
     } else if (node && typeof node === 'object') {
       this.traverseAST(node, visitor);
     }
@@ -990,7 +1079,7 @@ class LuaGenerator {
 
   generate(): string {
     this.traverse(this.ast);
-    return this.output.join('\n');
+    return this.output.join('');
   }
 
   private traverse(node: any): void {
@@ -998,22 +1087,36 @@ class LuaGenerator {
     
     switch (node.type) {
       case 'Chunk':
-        node.body.forEach((stmt: any) => this.traverse(stmt));
+        if (node.body && Array.isArray(node.body)) {
+          node.body.forEach((stmt: any) => this.traverse(stmt));
+        }
         break;
         
       case 'AssignmentStatement':
-        node.variables.forEach((v: any) => this.traverse(v));
-        this.output.push(' = ');
-        node.init.forEach((i: any) => this.traverse(i));
-        this.output.push(';\n');
+        if (node.variables && node.variables.length > 0) {
+          node.variables.forEach((v: any, i: number) => {
+            if (i > 0) this.output.push(', ');
+            this.traverse(v);
+          });
+          this.output.push(' = ');
+          if (node.init && node.init.length > 0) {
+            node.init.forEach((i: any, idx: number) => {
+              if (idx > 0) this.output.push(', ');
+              this.traverse(i);
+            });
+          }
+          this.output.push(';\n');
+        }
         break;
         
       case 'LocalStatement':
         this.output.push('local ');
-        node.variables.forEach((v: any, i: number) => {
-          if (i > 0) this.output.push(', ');
-          this.output.push(this.getName(v.name));
-        });
+        if (node.variables && node.variables.length > 0) {
+          node.variables.forEach((v: any, i: number) => {
+            if (i > 0) this.output.push(', ');
+            this.output.push(this.getName(v.name));
+          });
+        }
         if (node.init && node.init.length > 0) {
           this.output.push(' = ');
           node.init.forEach((i: any, idx: number) => {
@@ -1025,33 +1128,43 @@ class LuaGenerator {
         break;
         
       case 'CallStatement':
-        this.traverse(node.expression);
-        this.output.push(';\n');
+        if (node.expression) {
+          this.traverse(node.expression);
+          this.output.push(';\n');
+        }
         break;
         
       case 'CallExpression':
-        this.traverse(node.base);
-        this.output.push('(');
-        node.arguments.forEach((arg: any, i: number) => {
-          if (i > 0) this.output.push(', ');
-          this.traverse(arg);
-        });
-        this.output.push(')');
+        if (node.base) {
+          this.traverse(node.base);
+          this.output.push('(');
+          if (node.arguments && node.arguments.length > 0) {
+            node.arguments.forEach((arg: any, i: number) => {
+              if (i > 0) this.output.push(', ');
+              this.traverse(arg);
+            });
+          }
+          this.output.push(')');
+        }
         break;
         
       case 'StringLiteral':
-        if (this.options.encodeStrings && this.stringMap.has(node.raw)) {
-          this.output.push(this.stringMap.get(node.raw)!);
-        } else {
-          this.output.push(node.raw);
+        if (node.raw) {
+          if (this.options.encodeStrings && this.stringMap.has(node.raw)) {
+            this.output.push(this.stringMap.get(node.raw)!);
+          } else {
+            this.output.push(node.raw);
+          }
         }
         break;
         
       case 'NumericLiteral':
-        if (this.options.encodeNumbers) {
-          this.output.push('(0x' + Math.floor(node.value * 1000).toString(16) + '/1000)');
-        } else {
-          this.output.push(node.value.toString());
+        if (node.value !== undefined) {
+          if (this.options.encodeNumbers) {
+            this.output.push('(0x' + Math.floor(node.value * 1000).toString(16) + '/1000)');
+          } else {
+            this.output.push(node.value.toString());
+          }
         }
         break;
         
@@ -1064,20 +1177,22 @@ class LuaGenerator {
         break;
         
       case 'Identifier':
-        this.output.push(this.getName(node.name));
+        if (node.name) {
+          this.output.push(this.getName(node.name));
+        }
         break;
         
       case 'BinaryExpression':
         this.output.push('(');
-        this.traverse(node.left);
-        this.output.push(' ' + node.operator + ' ');
-        this.traverse(node.right);
+        if (node.left) this.traverse(node.left);
+        this.output.push(' ' + (node.operator || '') + ' ');
+        if (node.right) this.traverse(node.right);
         this.output.push(')');
         break;
         
       case 'UnaryExpression':
-        this.output.push(node.operator);
-        this.traverse(node.argument);
+        if (node.operator) this.output.push(node.operator);
+        if (node.argument) this.traverse(node.argument);
         break;
         
       case 'FunctionDeclaration':
@@ -1086,37 +1201,48 @@ class LuaGenerator {
           this.traverse(node.identifier);
         }
         this.output.push('(');
-        node.parameters.forEach((p: any, i: number) => {
-          if (i > 0) this.output.push(', ');
-          this.output.push(this.getName(p.name));
-        });
+        if (node.parameters && node.parameters.length > 0) {
+          node.parameters.forEach((p: any, i: number) => {
+            if (i > 0) this.output.push(', ');
+            if (p.name) this.output.push(this.getName(p.name));
+          });
+        }
         this.output.push(')\n');
         this.indent++;
-        node.body.forEach((stmt: any) => {
-          this.output.push('  '.repeat(this.indent));
-          this.traverse(stmt);
-        });
+        if (node.body && Array.isArray(node.body)) {
+          node.body.forEach((stmt: any) => {
+            this.output.push('  '.repeat(this.indent));
+            this.traverse(stmt);
+          });
+        }
         this.indent--;
         this.output.push('  '.repeat(this.indent) + 'end\n');
         break;
         
       case 'IfStatement':
         this.output.push('if ');
-        this.traverse(node.condition);
+        if (node.condition) this.traverse(node.condition);
         this.output.push(' then\n');
         this.indent++;
-        node.then.forEach((stmt: any) => {
-          this.output.push('  '.repeat(this.indent));
-          this.traverse(stmt);
-        });
-        this.indent--;
-        if (node.else) {
-          this.output.push('  '.repeat(this.indent) + 'else\n');
-          this.indent++;
-          node.else.forEach((stmt: any) => {
+        if (node.then && Array.isArray(node.then)) {
+          node.then.forEach((stmt: any) => {
             this.output.push('  '.repeat(this.indent));
             this.traverse(stmt);
           });
+        }
+        this.indent--;
+        if (node.else && node.else.length > 0) {
+          this.output.push('  '.repeat(this.indent) + 'else\n');
+          this.indent++;
+          if (Array.isArray(node.else)) {
+            node.else.forEach((stmt: any) => {
+              this.output.push('  '.repeat(this.indent));
+              this.traverse(stmt);
+            });
+          } else if (node.else.type === 'IfStatement') {
+            this.output.push('  '.repeat(this.indent));
+            this.traverse(node.else);
+          }
           this.indent--;
         }
         this.output.push('  '.repeat(this.indent) + 'end\n');
@@ -1124,13 +1250,15 @@ class LuaGenerator {
         
       case 'WhileStatement':
         this.output.push('while ');
-        this.traverse(node.condition);
+        if (node.condition) this.traverse(node.condition);
         this.output.push(' do\n');
         this.indent++;
-        node.body.forEach((stmt: any) => {
-          this.output.push('  '.repeat(this.indent));
-          this.traverse(stmt);
-        });
+        if (node.body && Array.isArray(node.body)) {
+          node.body.forEach((stmt: any) => {
+            this.output.push('  '.repeat(this.indent));
+            this.traverse(stmt);
+          });
+        }
         this.indent--;
         this.output.push('  '.repeat(this.indent) + 'end\n');
         break;
@@ -1138,88 +1266,119 @@ class LuaGenerator {
       case 'RepeatStatement':
         this.output.push('repeat\n');
         this.indent++;
-        node.body.forEach((stmt: any) => {
-          this.output.push('  '.repeat(this.indent));
-          this.traverse(stmt);
-        });
+        if (node.body && Array.isArray(node.body)) {
+          node.body.forEach((stmt: any) => {
+            this.output.push('  '.repeat(this.indent));
+            this.traverse(stmt);
+          });
+        }
         this.indent--;
         this.output.push('  '.repeat(this.indent) + 'until ');
-        this.traverse(node.condition);
+        if (node.condition) this.traverse(node.condition);
         this.output.push(';\n');
         break;
         
       case 'ForGenericStatement':
         this.output.push('for ');
-        node.variables.forEach((v: any, i: number) => {
-          if (i > 0) this.output.push(', ');
-          this.output.push(this.getName(v.name));
-        });
+        if (node.variables && node.variables.length > 0) {
+          node.variables.forEach((v: any, i: number) => {
+            if (i > 0) this.output.push(', ');
+            if (v.name) this.output.push(this.getName(v.name));
+          });
+        }
         this.output.push(' in ');
-        node.iterators.forEach((it: any, i: number) => {
-          if (i > 0) this.output.push(', ');
-          this.traverse(it);
-        });
+        if (node.iterators && node.iterators.length > 0) {
+          node.iterators.forEach((it: any, i: number) => {
+            if (i > 0) this.output.push(', ');
+            this.traverse(it);
+          });
+        }
         this.output.push(' do\n');
         this.indent++;
-        node.body.forEach((stmt: any) => {
-          this.output.push('  '.repeat(this.indent));
-          this.traverse(stmt);
-        });
+        if (node.body && Array.isArray(node.body)) {
+          node.body.forEach((stmt: any) => {
+            this.output.push('  '.repeat(this.indent));
+            this.traverse(stmt);
+          });
+        }
         this.indent--;
         this.output.push('  '.repeat(this.indent) + 'end\n');
         break;
         
       case 'ForNumericStatement':
         this.output.push('for ');
-        this.output.push(this.getName(node.variable.name));
+        if (node.variable && node.variable.name) {
+          this.output.push(this.getName(node.variable.name));
+        }
         this.output.push(' = ');
-        this.traverse(node.start);
+        if (node.start) this.traverse(node.start);
         this.output.push(', ');
-        this.traverse(node.end);
+        if (node.end) this.traverse(node.end);
         if (node.step) {
           this.output.push(', ');
           this.traverse(node.step);
         }
         this.output.push(' do\n');
         this.indent++;
-        node.body.forEach((stmt: any) => {
-          this.output.push('  '.repeat(this.indent));
-          this.traverse(stmt);
-        });
+        if (node.body && Array.isArray(node.body)) {
+          node.body.forEach((stmt: any) => {
+            this.output.push('  '.repeat(this.indent));
+            this.traverse(stmt);
+          });
+        }
         this.indent--;
         this.output.push('  '.repeat(this.indent) + 'end\n');
         break;
         
       case 'ReturnStatement':
         this.output.push('return ');
-        node.arguments.forEach((arg: any, i: number) => {
-          if (i > 0) this.output.push(', ');
-          this.traverse(arg);
-        });
+        if (node.arguments && node.arguments.length > 0) {
+          node.arguments.forEach((arg: any, i: number) => {
+            if (i > 0) this.output.push(', ');
+            this.traverse(arg);
+          });
+        }
         this.output.push(';\n');
         break;
         
       case 'TableConstructorExpression':
         this.output.push('{');
-        node.fields.forEach((field: any, i: number) => {
-          if (i > 0) this.output.push(', ');
-          if (field.key) {
-            if (field.key.type === 'Identifier') {
-              this.output.push(this.getName(field.key.name));
-            } else {
-              this.output.push('[');
-              this.traverse(field.key);
-              this.output.push(']');
+        if (node.fields && node.fields.length > 0) {
+          node.fields.forEach((field: any, i: number) => {
+            if (i > 0) this.output.push(', ');
+            if (field.key) {
+              if (field.key.type === 'Identifier') {
+                if (field.key.name) this.output.push(this.getName(field.key.name));
+              } else {
+                this.output.push('[');
+                this.traverse(field.key);
+                this.output.push(']');
+              }
+              this.output.push(' = ');
             }
-            this.output.push(' = ');
-          }
-          this.traverse(field.value);
-        });
+            if (field.value) this.traverse(field.value);
+          });
+        }
         this.output.push('}');
         break;
         
+      case 'MemberExpression':
+        if (node.base) this.traverse(node.base);
+        if (node.indexer === '.') {
+          this.output.push('.');
+          if (node.identifier && node.identifier.name) {
+            this.output.push(this.getName(node.identifier.name));
+          }
+        } else {
+          this.output.push('[');
+          if (node.index) this.traverse(node.index);
+          this.output.push(']');
+        }
+        break;
+        
       default:
-        console.warn('Unhandled node type:', node.type);
+        // Skip unhandled nodes
+        break;
     }
   }
 
@@ -1232,42 +1391,51 @@ class LuaGenerator {
  * Main export function for the obfuscator
  */
 export function obfuscateLua(source: string, options: any): ObfuscationResult {
-  // Map UI options to engine options
-  const engineOptions: ObfuscationOptions = {
-    mangleNames: options.mangleNames || false,
-    encodeStrings: options.encodeStrings || false,
-    encodeNumbers: options.encodeNumbers || false,
-    controlFlow: options.controlFlow || false,
-    minify: options.minify || false,
-    protectionLevel: options.protectionLevel || 0,
-    encryptionAlgorithm: options.encryptionAlgorithm || 'none',
-    controlFlowFlattening: options.controlFlowFlattening || false,
-    deadCodeInjection: options.deadCodeInjection || false,
-    antiDebugging: options.antiDebugging || false,
-    formattingStyle: options.formattingStyle || 'minified',
-    intenseVM: options.intenseVM || false,
-    gcFixes: options.gcFixes || false,
-    targetVersion: options.targetVersion || '5.1',
-    hardcodeGlobals: options.hardcodeGlobals || false,
-    optimizationLevel: options.optimizationLevel || 1,
-    staticEnvironment: options.staticEnvironment || false,
-    vmCompression: options.vmCompression || false,
-    disableLineInfo: options.disableLineInfo || false,
-    useDebugLibrary: options.useDebugLibrary || false,
-    opaquePredicates: options.opaquePredicates || false,
-    virtualization: options.virtualization || false,
-    bytecodeEncryption: options.bytecodeEncryption || false,
-    antiTamper: options.antiTamper || false,
-    selfModifying: options.selfModifying || false,
-    mutation: options.mutation || false,
-    codeSplitting: options.codeSplitting || false,
-    environmentLock: options.environmentLock || false,
-    integrityChecks: options.integrityChecks || false
-  };
+  try {
+    // Map UI options to engine options
+    const engineOptions: ObfuscationOptions = {
+      mangleNames: options.mangleNames || false,
+      encodeStrings: options.encodeStrings || false,
+      encodeNumbers: options.encodeNumbers || false,
+      controlFlow: options.controlFlow || false,
+      minify: options.minify || false,
+      protectionLevel: options.protectionLevel || 0,
+      encryptionAlgorithm: options.encryptionAlgorithm || 'none',
+      controlFlowFlattening: options.controlFlowFlattening || false,
+      deadCodeInjection: options.deadCodeInjection || false,
+      antiDebugging: options.antiDebugging || false,
+      formattingStyle: options.formattingStyle || 'minified',
+      intenseVM: options.intenseVM || false,
+      gcFixes: options.gcFixes || false,
+      targetVersion: options.targetVersion || '5.1',
+      hardcodeGlobals: options.hardcodeGlobals || false,
+      optimizationLevel: options.optimizationLevel || 1,
+      staticEnvironment: options.staticEnvironment || false,
+      vmCompression: options.vmCompression || false,
+      disableLineInfo: options.disableLineInfo || false,
+      useDebugLibrary: options.useDebugLibrary || false,
+      opaquePredicates: options.opaquePredicates || false,
+      virtualization: options.virtualization || false,
+      bytecodeEncryption: options.bytecodeEncryption || false,
+      antiTamper: options.antiTamper || false,
+      selfModifying: options.selfModifying || false,
+      mutation: options.mutation || false,
+      codeSplitting: options.codeSplitting || false,
+      environmentLock: options.environmentLock || false,
+      integrityChecks: options.integrityChecks || false
+    };
 
-  // Create engine instance and obfuscate
-  const engine = new XZXObfuscatorEngine(engineOptions);
-  return engine.obfuscate(source);
+    // Create engine instance and obfuscate
+    const engine = new XZXObfuscatorEngine(engineOptions);
+    return engine.obfuscate(source);
+  } catch (error) {
+    console.error('Obfuscation error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      errorDetails: error
+    };
+  }
 }
 
 export default obfuscateLua;
