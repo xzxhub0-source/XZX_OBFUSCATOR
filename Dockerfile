@@ -3,16 +3,16 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files first (better layer caching)
+# Copy package files
 COPY web/package*.json ./web/
 
-# Install ALL dependencies including dev dependencies
-RUN cd web && npm install --include=dev
+# Install ALL dependencies including Radix UI
+RUN cd web && npm install --include=dev && npm install @radix-ui/react-progress
 
 # Copy source code
 COPY web/ ./web/
 
-# Set environment variables for build
+# Set environment variables
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -22,11 +22,8 @@ RUN cd web && npm run build
 # Production stage
 FROM nginx:alpine
 
-# Copy built static files from builder
+# Copy built static files
 COPY --from=builder /app/web/out /usr/share/nginx/html
-
-# Copy custom nginx config for SPA support (optional)
-COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 
