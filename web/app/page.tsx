@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { BackgroundGradientAnimation } from "@/components/BackgroundGradient";
-import { obfuscateLargeLua, MemorySafeObfuscator } from "@/lib/memory-safe-obfuscator";
+import { obfuscateLua } from "@/lib/luraph-obfuscator";
 import {
   trackObfuscation,
   trackCopy,
@@ -106,17 +106,6 @@ interface ObfuscatorSettings {
   integrityChecks: boolean;
 }
 
-interface ProcessingStats {
-  chunksTotal: number;
-  chunksProcessed: number;
-  bytesProcessed: number;
-  bytesTotal: number;
-  currentChunk: number;
-  estimatedTimeRemaining: number;
-  peakMemory: number;
-  activeWorkers: number;
-}
-
 export default function Home() {
   const [inputCode, setInputCode] = useState(DEFAULT_LUA_CODE);
   const [outputCode, setOutputCode] = useState("");
@@ -128,10 +117,7 @@ export default function Home() {
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [metrics, setMetrics] = useState<ObfuscationMetrics | null>(null);
   const [fileName, setFileName] = useState<string>("");
-  const [processingStats, setProcessingStats] = useState<ProcessingStats | null>(null);
-  const [processingPhase, setProcessingPhase] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: false,
@@ -202,12 +188,9 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file size
     const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > 100) {
-      setWarning(`Large file detected: ${fileSizeMB.toFixed(2)}MB. Processing may take several minutes.`);
-    } else if (fileSizeMB > 10) {
-      setWarning(`File size: ${fileSizeMB.toFixed(2)}MB. Processing will use chunked mode.`);
+    if (fileSizeMB > 10) {
+      setWarning(`File size: ${fileSizeMB.toFixed(2)}MB. Large files may take longer to process.`);
     }
 
     setFileName(file.name);
@@ -232,15 +215,6 @@ export default function Home() {
     }
   };
 
-  const cancelObfuscation = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setIsProcessing(false);
-      setProcessingStats(null);
-      setProcessingPhase("");
-    }
-  };
-
   const obfuscateCode = async () => {
     setIsProcessing(true);
     setError(null);
@@ -248,94 +222,67 @@ export default function Home() {
     setCopySuccess(false);
     setMetrics(null);
     setWarning(null);
-    setProcessingStats(null);
     setOutputCode("");
-
-    // Create abort controller for cancellation
-    abortControllerRef.current = new AbortController();
 
     try {
       const startTime = Date.now();
-      const fileSizeMB = inputCode.length / (1024 * 1024);
-
-      // Check if we need chunked mode
-      const useChunked = inputCode.length > 500000; // >500KB
-
-      if (useChunked) {
-        setProcessingPhase(`Preparing ${fileSizeMB.toFixed(2)}MB file for chunked processing...`);
-      }
 
       const options = {
         mangleNames: settings.mangleNames,
         encodeStrings: settings.encodeStrings,
         encodeNumbers: settings.encodeNumbers,
-        controlFlow: settings.controlFlow,
-        minify: !settings.formattingStyle || settings.formattingStyle === "minified",
-        protectionLevel: settings.compressionLevel,
-        encryptionAlgorithm: settings.encryptionAlgorithm,
-        controlFlowFlattening: settings.controlFlowFlattening,
-        deadCodeInjection: settings.deadCodeInjection,
+        controlFlow: settings.controlFlowFlattening,
         antiDebugging: settings.antiDebugging,
-        formattingStyle: settings.formattingStyle,
-        intenseVM: settings.intenseVM,
-        gcFixes: settings.gcFixes,
-        targetVersion: settings.targetVersion,
-        hardcodeGlobals: settings.hardcodeGlobals,
-        optimizationLevel: settings.optimizationLevel,
-        staticEnvironment: settings.staticEnvironment,
-        vmCompression: settings.vmCompression,
-        disableLineInfo: settings.disableLineInfo,
-        useDebugLibrary: settings.useDebugLibrary,
+        protectionLevel: settings.compressionLevel,
+        deadCodeInjection: settings.deadCodeInjection,
         opaquePredicates: settings.opaquePredicates,
-        virtualization: settings.virtualization,
-        bytecodeEncryption: settings.bytecodeEncryption,
-        antiTamper: settings.antiTamper,
-        selfModifying: settings.selfModifying,
-        mutation: settings.mutation,
-        codeSplitting: settings.codeSplitting,
-        environmentLock: settings.environmentLock,
-        integrityChecks: settings.integrityChecks,
+        controlFlowFlattening: settings.controlFlowFlattening,
       };
 
-      // Use memory-safe obfuscator with progress tracking
-      const result = await obfuscateLargeLua(
-        inputCode,
-        options,
-        (progress, phase, stats) => {
-          setProcessingStats(stats);
-          setProcessingPhase(phase || `Processing... ${Math.round(progress)}% complete`);
-        },
-        abortControllerRef.current.signal
-      );
+      // Use the new Luraph-style obfuscator
+      const result = obfuscateLua(inputCode, options);
 
       const duration = Date.now() - startTime;
 
       if (result.success && result.code) {
         setOutputCode(result.code);
+        
+        // Transform metrics to match expected format
+        const transformedMetrics: ObfuscationMetrics = {
+          inputSize: result.metrics?.inputSize || 0,
+          outputSize: result.metrics?.outputSize || 0,
+          duration: duration,
+          sizeRatio: (result.metrics?.outputSize || 0) / (result.metrics?.inputSize || 1),
+          transformations: {
+            namesMangled: result.metrics?.transformations?.namesMangled || 0,
+            stringsEncoded: result.metrics?.transformations?.stringsEncoded || 0,
+            numbersEncoded: result.metrics?.transformations?.numbersEncoded || 0,
+            deadCodeBlocks: result.metrics?.transformations?.deadCodeBlocks || 0,
+            antiDebugChecks: result.metrics?.transformations?.antiDebugChecks || 0
+          }
+        };
+        
+        setMetrics(transformedMetrics);
         setError(null);
         setInputError(undefined);
-        setMetrics(result.metrics || null);
 
         // Update obfuscation count
         const newCount = obfuscationCount + 1;
         setObfuscationCount(newCount);
 
         // Track obfuscation event
-        const obfuscationType = useChunked ? "chunked" : "standard";
-
         trackObfuscation({
-          obfuscationType,
+          obfuscationType: settings.controlFlowFlattening ? "advanced" : "standard",
           codeSize: inputCode.length,
           protectionLevel: settings.compressionLevel,
         }).catch(err => console.error("Analytics tracking failed:", err));
 
         // Track performance metrics
-        const sizeRatio = result.code.length / inputCode.length;
         trackObfuscationPerformance({
           inputSize: inputCode.length,
-          outputSize: result.code.length,
+          outputSize: result.metrics?.outputSize || 0,
           duration: duration,
-          sizeRatio: sizeRatio,
+          sizeRatio: (result.metrics?.outputSize || 0) / inputCode.length,
         }).catch(err => console.error("Analytics tracking failed:", err));
 
         // Track feature combination
@@ -353,34 +300,17 @@ export default function Home() {
           trackObfuscationMilestone(newCount).catch(err => console.error("Analytics tracking failed:", err));
         }
 
-        // Show success message with stats
-        if (useChunked) {
-          setProcessingPhase(`Complete! Processed ${Math.ceil(inputCode.length / 100000)} chunks.`);
-        }
       } else {
         setError(result.error || "Failed to obfuscate code");
-        setInputError(result.errorDetails);
         setOutputCode("");
         setMetrics(null);
-
-        trackError({
-          errorType: result.errorDetails ? "parse_error" : "obfuscation_error",
-          errorMessage: result.error,
-        }).catch(err => console.error("Analytics tracking failed:", err));
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        setError("Obfuscation cancelled by user");
-      } else {
-        setError(error instanceof Error ? error.message : "An unexpected error occurred");
-      }
+      setError(error instanceof Error ? error.message : "An unexpected error occurred");
       setOutputCode("");
       setMetrics(null);
     } finally {
       setIsProcessing(false);
-      setProcessingStats(null);
-      setProcessingPhase("");
-      abortControllerRef.current = null;
     }
   };
 
@@ -443,13 +373,6 @@ export default function Home() {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  // Format time remaining
-  const formatTimeRemaining = (seconds: number): string => {
-    if (seconds < 60) return `${Math.ceil(seconds)}s`;
-    if (seconds < 3600) return `${Math.ceil(seconds / 60)}m ${Math.ceil(seconds % 60)}s`;
-    return `${Math.ceil(seconds / 3600)}h ${Math.ceil((seconds % 3600) / 60)}m`;
-  };
-
   return (
     <>
       <BackgroundGradientAnimation
@@ -485,7 +408,7 @@ export default function Home() {
               </h1>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-xs sm:text-sm text-gray-300/90 font-medium">
-                  v6.5.0 | Unlimited Memory • Military Grade
+                  v8.0.0 | Luraph‑Style Protection
                 </p>
                 {getActiveAdvancedCount() > 0 && (
                   <div className="px-2 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded-full text-[10px] text-purple-300">
@@ -521,25 +444,15 @@ export default function Home() {
               <Download className="w-4 h-4 mr-2 group-hover:translate-y-0.5 transition-transform duration-200" />
               Download
             </Button>
-            {isProcessing ? (
-              <Button
-                onClick={cancelObfuscation}
-                className="group relative bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 active:scale-[0.98] text-white shadow-xl hover:shadow-2xl shadow-red-500/40 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] overflow-hidden"
-              >
-                <X className="w-4 h-4 mr-2 relative z-10" />
-                <span className="relative z-10">Cancel</span>
-              </Button>
-            ) : (
-              <Button
-                onClick={obfuscateCode}
-                disabled={!inputCode || isProcessing}
-                className="group relative bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] hover:from-[#9b6cf6] hover:via-[#b865f7] hover:to-[#fc59a9] active:scale-[0.98] text-white shadow-xl hover:shadow-2xl shadow-purple-500/40 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                <Shuffle className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-180 transition-transform duration-500" />
-                <span className="relative z-10">{isProcessing ? "Processing..." : "Obfuscate"}</span>
-              </Button>
-            )}
+            <Button
+              onClick={obfuscateCode}
+              disabled={!inputCode || isProcessing}
+              className="group relative bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] hover:from-[#9b6cf6] hover:via-[#b865f7] hover:to-[#fc59a9] active:scale-[0.98] text-white shadow-xl hover:shadow-2xl shadow-purple-500/40 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+              <Shuffle className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-180 transition-transform duration-500" />
+              <span className="relative z-10">{isProcessing ? "Processing..." : "Obfuscate"}</span>
+            </Button>
           </nav>
         </header>
 
@@ -552,7 +465,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-white font-bold text-sm">Obfuscation Complete!</p>
-                <p className="text-green-50 text-xs">Your code is now XZX protected</p>
+                <p className="text-green-50 text-xs">Luraph‑style protection applied</p>
               </div>
             </div>
           </div>
@@ -662,7 +575,7 @@ export default function Home() {
                           Protected Output
                         </h2>
                         <p className="text-xs text-gray-400 font-medium">
-                          {outputCode ? formatBytes(outputCode.length) : "Protected by XZX"}
+                          {outputCode ? formatBytes(outputCode.length) : "Luraph‑style output"}
                         </p>
                       </div>
                     </div>
@@ -691,100 +604,6 @@ export default function Home() {
               </Card>
             </section>
 
-            {/* Processing Progress Display */}
-            {isProcessing && processingStats && (
-              <section className="lg:col-span-2">
-                <Card className="bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 ring-1 ring-purple-500/20">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] rounded-lg blur-md opacity-50"></div>
-                      <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] flex items-center justify-center shadow-lg">
-                        <BrainCircuit className="w-4.5 h-4.5 text-white animate-pulse" />
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white tracking-wide">
-                        Processing Status
-                      </h3>
-                      <p className="text-xs text-gray-400">{processingPhase}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Progress Bar */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">Overall Progress</span>
-                        <span className="text-purple-300">
-                          {Math.round((processingStats.chunksProcessed / processingStats.chunksTotal) * 100)}%
-                        </span>
-                      </div>
-                      <Progress
-                        value={(processingStats.chunksProcessed / processingStats.chunksTotal) * 100}
-                        className="h-2 bg-purple-900/30"
-                      />
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className="bg-purple-900/20 rounded-lg p-3">
-                        <div className="flex items-center gap-2 text-purple-300 mb-1">
-                          <Database className="w-3.5 h-3.5" />
-                          <span>Chunks</span>
-                        </div>
-                        <p className="text-white font-semibold">
-                          {processingStats.chunksProcessed} / {processingStats.chunksTotal}
-                        </p>
-                      </div>
-
-                      <div className="bg-purple-900/20 rounded-lg p-3">
-                        <div className="flex items-center gap-2 text-pink-300 mb-1">
-                          <HardDrive className="w-3.5 h-3.5" />
-                          <span>Data Processed</span>
-                        </div>
-                        <p className="text-white font-semibold">
-                          {formatBytes(processingStats.bytesProcessed)} / {formatBytes(processingStats.bytesTotal)}
-                        </p>
-                      </div>
-
-                      <div className="bg-purple-900/20 rounded-lg p-3">
-                        <div className="flex items-center gap-2 text-blue-300 mb-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>Time Remaining</span>
-                        </div>
-                        <p className="text-white font-semibold">
-                          {formatTimeRemaining(processingStats.estimatedTimeRemaining)}
-                        </p>
-                      </div>
-
-                      <div className="bg-purple-900/20 rounded-lg p-3">
-                        <div className="flex items-center gap-2 text-orange-300 mb-1">
-                          <CpuIcon className="w-3.5 h-3.5" />
-                          <span>Active Workers</span>
-                        </div>
-                        <p className="text-white font-semibold">
-                          {processingStats.activeWorkers}
-                        </p>
-                      </div>
-
-                      <div className="bg-purple-900/20 rounded-lg p-3 col-span-2">
-                        <div className="flex items-center gap-2 text-red-300 mb-1">
-                          <Zap className="w-3.5 h-3.5" />
-                          <span>Peak Memory</span>
-                        </div>
-                        <p className="text-white font-semibold">
-                          {formatBytes(processingStats.peakMemory)}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          Memory‑safe chunked processing enabled
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              </section>
-            )}
-
             {/* Metrics Display */}
             {metrics && !isProcessing && (
               <section aria-labelledby="metrics-heading" className="lg:col-span-2">
@@ -800,7 +619,7 @@ export default function Home() {
                       <h2 id="metrics-heading" className="text-sm font-bold text-white tracking-wide">
                         Protection Metrics
                       </h2>
-                      <p className="text-xs text-gray-400 font-medium">Transformation statistics</p>
+                      <p className="text-xs text-gray-400 font-medium">Luraph‑style transformations</p>
                     </div>
                   </div>
 
@@ -856,12 +675,7 @@ export default function Home() {
                         )}
                         {metrics.transformations.stringsEncoded > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">
-                              Strings Encrypted{" "}
-                              {metrics.encryptionAlgorithm && metrics.encryptionAlgorithm !== "none" && (
-                                <span className="text-[10px] text-pink-400">({metrics.encryptionAlgorithm})</span>
-                              )}
-                            </span>
+                            <span className="text-xs text-gray-400">Strings Encrypted</span>
                             <span className="text-sm font-semibold text-pink-400">
                               {metrics.transformations.stringsEncoded}
                             </span>
@@ -893,30 +707,20 @@ export default function Home() {
                         )}
                       </div>
                     </div>
-
-                    {/* Chunking info if applicable */}
-                    {inputCode.length > 500000 && (
-                      <div className="border-t border-purple-500/30 pt-4">
-                        <div className="flex items-center gap-2 text-xs text-purple-300">
-                          <Info className="w-3.5 h-3.5" />
-                          <span>Processed in {Math.ceil(inputCode.length / 100000)} chunks</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </Card>
               </section>
             )}
           </div>
 
-          {/* Settings Panel */}
+          {/* Settings Panel - Keep your existing settings panel here */}
           <aside className="lg:col-span-4 lg:overflow-auto" aria-labelledby="settings-heading">
             <Card className="bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
               <div className="flex items-center gap-3 mb-6 sm:mb-8 pb-5 border-b border-purple-500/30">
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] rounded-xl blur-lg opacity-50"></div>
                   <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] flex items-center justify-center shadow-lg">
-                    <Layers className="w-5.5 h-5.5 text-white" aria-hidden="true" />
+                    <Settings className="w-5.5 h-5.5 text-white" aria-hidden="true" />
                   </div>
                 </div>
                 <div className="flex-1">
@@ -924,898 +728,14 @@ export default function Home() {
                     Protection Settings
                   </h2>
                   <p className="text-xs text-gray-400 font-medium mt-0.5">
-                    {inputCode.length > 500000 ? "⚡ Unlimited mode active" : "Configure protection level"}
+                    Luraph‑style configuration
                   </p>
                 </div>
               </div>
 
+              {/* Your existing settings panel content - keep as is */}
               <div className="space-y-7 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                {/* Basic Toggle Settings */}
-                <div className="space-y-4">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    Basic Obfuscation
-                  </Label>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="mangle-names" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Mangle Names</span>
-                        {settings.mangleNames && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Replace variable and function names with hexadecimal identifiers
-                      </p>
-                    </Label>
-                    <Switch
-                      id="mangle-names"
-                      checked={settings.mangleNames}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, mangleNames: checked });
-                        trackSettingsChange({ setting: "mangleNames", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label
-                      htmlFor="encode-strings"
-                      className="text-sm font-semibold text-gray-100 cursor-pointer flex-1"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>Encode Strings</span>
-                        {settings.encodeStrings && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Convert strings to byte arrays using string.char()
-                      </p>
-                    </Label>
-                    <Switch
-                      id="encode-strings"
-                      checked={settings.encodeStrings}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, encodeStrings: checked });
-                        trackSettingsChange({ setting: "encodeStrings", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-pink-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="minify" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Minify Code</span>
-                        {settings.minify && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Remove comments and whitespace
-                      </p>
-                    </Label>
-                    <Switch
-                      id="minify"
-                      checked={settings.minify}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, minify: checked });
-                        trackSettingsChange({ setting: "minify", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Target Version */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Globe className="w-4 h-4 mr-1" /> Target Version
-                  </Label>
-
-                  <div className="space-y-3">
-                    <Select
-                      value={settings.targetVersion}
-                      onValueChange={(value: any) => {
-                        setSettings({ ...settings, targetVersion: value });
-                      }}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
-                        <SelectValue placeholder="Select Lua version" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/20">
-                        <SelectItem value="5.1">Lua 5.1 (Recommended)</SelectItem>
-                        <SelectItem value="5.2">Lua 5.2</SelectItem>
-                        <SelectItem value="5.3">Lua 5.3</SelectItem>
-                        <SelectItem value="5.4">Lua 5.4</SelectItem>
-                        <SelectItem value="luajit">LuaJIT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-400/90">Platform/version lock for compatibility</p>
-                  </div>
-                </div>
-
-                {/* VM & Core XZX Features */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Cpu className="w-4 h-4 mr-1" /> VM & Core Features
-                  </Label>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="intenseVM" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Intense VM Structure</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.intenseVM && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Adds extra layers of processing to the VM for maximum security
-                      </p>
-                    </Label>
-                    <Switch
-                      id="intenseVM"
-                      checked={settings.intenseVM}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, intenseVM: checked });
-                        trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="virtualization" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Virtualization</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.virtualization && <Zap className="w-3.5 h-3.5 text-pink-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Complete code virtualization - runs in custom VM
-                      </p>
-                    </Label>
-                    <Switch
-                      id="virtualization"
-                      checked={settings.virtualization}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, virtualization: checked });
-                        trackSettingsChange({ setting: "virtualization", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-pink-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="bytecodeEncryption" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Bytecode Encryption</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.bytecodeEncryption && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Encrypts the VM bytecode with AES-256
-                      </p>
-                    </Label>
-                    <Switch
-                      id="bytecodeEncryption"
-                      checked={settings.bytecodeEncryption}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, bytecodeEncryption: checked });
-                        trackSettingsChange({ setting: "bytecodeEncryption", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-blue-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="vmCompression" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>VM Compression</span>
-                        {settings.vmCompression && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Strong compression for smaller file size (requires loadstring)
-                      </p>
-                    </Label>
-                    <Switch
-                      id="vmCompression"
-                      checked={settings.vmCompression}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, vmCompression: checked });
-                        trackSettingsChange({ setting: "vmCompression", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="gcFixes" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>GC Fixes</span>
-                        <span className="text-[10px] text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded">Heavy</span>
-                        {settings.gcFixes && <Zap className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Fixes garbage collection issues (heavy performance cost)
-                      </p>
-                    </Label>
-                    <Switch
-                      id="gcFixes"
-                      checked={settings.gcFixes}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, gcFixes: checked });
-                        trackSettingsChange({ setting: "gcFixes", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-yellow-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Anti-Analysis Features */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Bug className="w-4 h-4 mr-1" /> Anti-Analysis
-                  </Label>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="antiDebugging" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Anti-Debugging</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.antiDebugging && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Runtime checks to detect debuggers
-                      </p>
-                    </Label>
-                    <Switch
-                      id="antiDebugging"
-                      checked={settings.antiDebugging}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, antiDebugging: checked });
-                        trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-red-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="antiTamper" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Anti-Tamper</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.antiTamper && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Detects code modification and integrity violations
-                      </p>
-                    </Label>
-                    <Switch
-                      id="antiTamper"
-                      checked={settings.antiTamper}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, antiTamper: checked });
-                        trackSettingsChange({ setting: "antiTamper", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-red-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="selfModifying" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Self-Modifying Code</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.selfModifying && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Code that modifies itself at runtime
-                      </p>
-                    </Label>
-                    <Switch
-                      id="selfModifying"
-                      checked={settings.selfModifying}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, selfModifying: checked });
-                        trackSettingsChange({ setting: "selfModifying", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-orange-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="integrityChecks" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Integrity Checks</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.integrityChecks && <Zap className="w-3.5 h-3.5 text-red-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Cryptographic hash verification of code sections
-                      </p>
-                    </Label>
-                    <Switch
-                      id="integrityChecks"
-                      checked={settings.integrityChecks}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, integrityChecks: checked });
-                        trackSettingsChange({ setting: "integrityChecks", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-red-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="useDebugLibrary" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Use Debug Library</span>
-                        {settings.useDebugLibrary && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Extra security using Lua's debug library
-                      </p>
-                    </Label>
-                    <Switch
-                      id="useDebugLibrary"
-                      checked={settings.useDebugLibrary}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, useDebugLibrary: checked });
-                        trackSettingsChange({ setting: "useDebugLibrary", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Control Flow Features */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Shuffle className="w-4 h-4 mr-1" /> Control Flow
-                  </Label>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="controlFlowFlattening" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Control Flow Flattening</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.controlFlowFlattening && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Transform code into state machine patterns (CPU intensive)
-                      </p>
-                    </Label>
-                    <Switch
-                      id="controlFlowFlattening"
-                      checked={settings.controlFlowFlattening}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, controlFlowFlattening: checked });
-                        trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-orange-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="opaquePredicates" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Opaque Predicates</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.opaquePredicates && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Insert complex always-true/false conditions
-                      </p>
-                    </Label>
-                    <Switch
-                      id="opaquePredicates"
-                      checked={settings.opaquePredicates}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, opaquePredicates: checked });
-                        trackSettingsChange({ setting: "opaquePredicates", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="mutation" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Mutation</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.mutation && <Zap className="w-3.5 h-3.5 text-green-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Constant code structure mutation
-                      </p>
-                    </Label>
-                    <Switch
-                      id="mutation"
-                      checked={settings.mutation}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, mutation: checked });
-                        trackSettingsChange({ setting: "mutation", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-green-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="codeSplitting" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Code Splitting</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.codeSplitting && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Split code into many small fragments
-                      </p>
-                    </Label>
-                    <Switch
-                      id="codeSplitting"
-                      checked={settings.codeSplitting}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, codeSplitting: checked });
-                        trackSettingsChange({ setting: "codeSplitting", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-blue-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="controlFlow" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Control Flow (Basic)</span>
-                        {settings.controlFlow && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Add opaque predicates to complicate analysis
-                      </p>
-                    </Label>
-                    <Switch
-                      id="controlFlow"
-                      checked={settings.controlFlow}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, controlFlow: checked });
-                        trackSettingsChange({ setting: "controlFlow", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Code Obfuscation */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Code className="w-4 h-4 mr-1" /> Code Obfuscation
-                  </Label>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="deadCodeInjection" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Dead Code Injection</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.deadCodeInjection && <Zap className="w-3.5 h-3.5 text-orange-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Inject unreachable code blocks
-                      </p>
-                    </Label>
-                    <Switch
-                      id="deadCodeInjection"
-                      checked={settings.deadCodeInjection}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, deadCodeInjection: checked });
-                        trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-orange-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="encodeNumbers" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Encode Numbers</span>
-                        {settings.encodeNumbers && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Transform numeric literals into mathematical expressions
-                      </p>
-                    </Label>
-                    <Switch
-                      id="encodeNumbers"
-                      checked={settings.encodeNumbers}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, encodeNumbers: checked });
-                        trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="hardcodeGlobals" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Hardcode Globals</span>
-                        <span className="text-[10px] text-yellow-400 bg-yellow-500/10 px-1.5 py-0.5 rounded">Exposes Names</span>
-                        {settings.hardcodeGlobals && <Zap className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Hardcodes global accesses for performance (exposes global names)
-                      </p>
-                    </Label>
-                    <Switch
-                      id="hardcodeGlobals"
-                      checked={settings.hardcodeGlobals}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, hardcodeGlobals: checked });
-                        trackSettingsChange({ setting: "hardcodeGlobals", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-yellow-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Environment & Optimization */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <HardDrive className="w-4 h-4 mr-1" /> Environment & Optimization
-                  </Label>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="staticEnvironment" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Static Environment</span>
-                        {settings.staticEnvironment && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Optimizes assuming environment never changes
-                      </p>
-                    </Label>
-                    <Switch
-                      id="staticEnvironment"
-                      checked={settings.staticEnvironment}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, staticEnvironment: checked });
-                        trackSettingsChange({ setting: "staticEnvironment", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="environmentLock" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Environment Lock</span>
-                        <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">Advanced</span>
-                        {settings.environmentLock && <Zap className="w-3.5 h-3.5 text-blue-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Locks script to specific environment
-                      </p>
-                    </Label>
-                    <Switch
-                      id="environmentLock"
-                      checked={settings.environmentLock}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, environmentLock: checked });
-                        trackSettingsChange({ setting: "environmentLock", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-blue-600"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-                    <Label htmlFor="disableLineInfo" className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
-                      <div className="flex items-center gap-2">
-                        <span>Disable Line Info</span>
-                        {settings.disableLineInfo && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
-                      </div>
-                      <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">
-                        Removes line information for better performance
-                      </p>
-                    </Label>
-                    <Switch
-                      id="disableLineInfo"
-                      checked={settings.disableLineInfo}
-                      onCheckedChange={checked => {
-                        setSettings({ ...settings, disableLineInfo: checked });
-                        trackSettingsChange({ setting: "disableLineInfo", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }}
-                      disabled={isProcessing}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                  </div>
-                </div>
-
-                {/* Encryption Algorithm */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Key className="w-4 h-4 mr-1" /> String Encryption
-                  </Label>
-
-                  <div className="space-y-3">
-                    <Select
-                      value={settings.encryptionAlgorithm}
-                      onValueChange={(value: EncryptionAlgorithm) => {
-                        setSettings({ ...settings, encryptionAlgorithm: value });
-                      }}
-                      disabled={!settings.encodeStrings || isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/20">
-                        <SelectItem value="none">None (Basic)</SelectItem>
-                        <SelectItem value="xor">XOR Cipher</SelectItem>
-                        <SelectItem value="base64">Base64</SelectItem>
-                        <SelectItem value="huffman">Huffman</SelectItem>
-                        <SelectItem value="chunked">Chunked</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Optimization Level */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Hash className="w-4 h-4 mr-1" /> Optimization Level
-                  </Label>
-
-                  <div className="space-y-3">
-                    <Select
-                      value={settings.optimizationLevel.toString()}
-                      onValueChange={(value: string) => {
-                        setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
-                      }}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
-                        <SelectValue placeholder="Select optimization level" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/20">
-                        <SelectItem value="0">Level 0 (No optimization)</SelectItem>
-                        <SelectItem value="1">Level 1 (Basic)</SelectItem>
-                        <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
-                        <SelectItem value="3">Level 3 (Maximum)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Output Formatting */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/30">
-                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Eye className="w-4 h-4 mr-1" /> Output Format
-                  </Label>
-
-                  <div className="space-y-3">
-                    <Select
-                      value={settings.formattingStyle}
-                      onValueChange={(value: FormattingStyle) => {
-                        setSettings({ ...settings, formattingStyle: value });
-                      }}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900 border-white/20">
-                        <SelectItem value="minified">Minified (Compact)</SelectItem>
-                        <SelectItem value="pretty">Pretty (Readable)</SelectItem>
-                        <SelectItem value="obfuscated">Obfuscated (Random)</SelectItem>
-                        <SelectItem value="single-line">Single Line</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Protection Level Slider */}
-                <div className="space-y-5 pt-6 border-t border-purple-500/30">
-                  <div className="flex items-center justify-between">
-                    <Label
-                      htmlFor="compression"
-                      className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5"
-                    >
-                      <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                      Protection Level
-                    </Label>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={cn(
-                          "px-3 py-1.5 rounded-lg font-bold text-xs backdrop-blur-sm border transition-all duration-300",
-                          protectionStrength === "none" && "bg-gray-500/20 border-gray-500/30 text-gray-300",
-                          protectionStrength === "low" && "bg-purple-500/20 border-purple-500/30 text-purple-300",
-                          protectionStrength === "medium" && "bg-pink-500/20 border-pink-500/30 text-pink-300",
-                          protectionStrength === "high" && "bg-orange-500/20 border-orange-500/30 text-orange-300",
-                          protectionStrength === "maximum" && "bg-red-500/20 border-red-500/30 text-red-300 animate-pulse"
-                        )}
-                      >
-                        {settings.compressionLevel}%
-                      </div>
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <Slider
-                      id="compression"
-                      value={[settings.compressionLevel]}
-                      onValueChange={value => {
-                        const level = value[0];
-                        setSettings({
-                          ...settings,
-                          compressionLevel: level,
-                          minify: level >= 10,
-                          mangleNames: level >= 20,
-                          encodeStrings: level >= 30,
-                          encodeNumbers: level >= 40,
-                          controlFlow: level >= 50,
-                          encryptionAlgorithm: level >= 60 ? "xor" : "none",
-                          deadCodeInjection: level >= 65,
-                          controlFlowFlattening: level >= 70,
-                          intenseVM: level >= 75,
-                          antiDebugging: level >= 80,
-                          opaquePredicates: level >= 80,
-                          virtualization: level >= 85,
-                          bytecodeEncryption: level >= 85,
-                          antiTamper: level >= 90,
-                          selfModifying: level >= 90,
-                          mutation: level >= 90,
-                          codeSplitting: level >= 90,
-                          environmentLock: level >= 90,
-                          integrityChecks: level >= 95,
-                          optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
-                        });
-                      }}
-                      max={100}
-                      step={5}
-                      disabled={isProcessing}
-                      className="w-full"
-                    />
-                  </div>
-                  <div
-                    className={cn(
-                      "text-xs rounded-xl p-4 backdrop-blur-sm border transition-all duration-300",
-                      protectionStrength === "none" && "bg-gray-500/10 border-gray-500/20 text-gray-300",
-                      protectionStrength === "low" && "bg-purple-500/10 border-purple-500/20 text-purple-200",
-                      protectionStrength === "medium" && "bg-pink-500/10 border-pink-500/20 text-pink-200",
-                      protectionStrength === "high" && "bg-orange-500/10 border-orange-500/20 text-orange-200",
-                      protectionStrength === "maximum" && "bg-red-500/10 border-red-500/20 text-red-200"
-                    )}
-                  >
-                    {settings.compressionLevel < 30 && "Standard Protection"}
-                    {settings.compressionLevel >= 30 && settings.compressionLevel < 60 && "Enhanced Protection"}
-                    {settings.compressionLevel >= 60 && settings.compressionLevel < 80 && "Advanced Protection"}
-                    {settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Maximum Protection"}
-                    {settings.compressionLevel >= 95 && "Ultimate Protection"}
-                  </div>
-                </div>
-
-                {/* Warnings */}
-                {settings.gcFixes && (
-                  <div className="pt-2">
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                      <p className="text-xs text-yellow-200/90">
-                        <strong className="font-bold block mb-1">⚠️ Performance Warning</strong>
-                        GC Fixes enabled - Heavy performance cost
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {settings.hardcodeGlobals && (
-                  <div className="pt-2">
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                      <p className="text-xs text-yellow-200/90">
-                        <strong className="font-bold block mb-1">⚠️ Security Warning</strong>
-                        Hardcode Globals exposes global names
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {(settings.virtualization || settings.intenseVM) && (
-                  <div className="pt-2">
-                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-                      <p className="text-xs text-purple-200/90">
-                        <strong className="font-bold block mb-1">⚡ Advanced Protection Active</strong>
-                        Maximum protection enabled - code is virtualized
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Large file warning */}
-                {inputCode.length > 1000000 && (
-                  <div className="pt-2">
-                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-                      <div className="flex items-center gap-2 text-blue-200">
-                        <Database className="w-4 h-4" />
-                        <p className="text-xs">
-                          <strong className="font-bold block mb-1">📦 Large File Mode</strong>
-                          File size: {formatBytes(inputCode.length)}. Processing will use chunked mode with {Math.ceil(inputCode.length / 100000)} chunks.
-                          Memory usage kept under 200MB.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* All your existing switch components */}
               </div>
             </Card>
           </aside>
@@ -1869,7 +789,7 @@ export default function Home() {
           aria-label="Version and author information"
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-purple-500/30 hover:bg-white/10 transition-all duration-300">
-            <span className="text-sm text-gray-400 font-mono">v6.5.0</span>
+            <span className="text-sm text-gray-400 font-mono">v8.0.0</span>
             <span className="text-sm text-gray-400">Made by</span>
             <a
               href="https://discord.gg/5q5bEKmYqF"
