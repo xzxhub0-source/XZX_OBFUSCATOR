@@ -395,6 +395,47 @@ export default function Home() {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
+  // Render a switch with label
+  const renderSwitch = (
+    id: string,
+    label: string,
+    description: string,
+    checked: boolean,
+    onChange: (checked: boolean) => void,
+    color: string = "purple",
+    badge?: string
+  ) => {
+    const colors = {
+      purple: "data-[state=checked]:bg-purple-600",
+      pink: "data-[state=checked]:bg-pink-600",
+      blue: "data-[state=checked]:bg-blue-600",
+      red: "data-[state=checked]:bg-red-600",
+      orange: "data-[state=checked]:bg-orange-600",
+      green: "data-[state=checked]:bg-green-600",
+      yellow: "data-[state=checked]:bg-yellow-600",
+    };
+
+    return (
+      <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+        <Label htmlFor={id} className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+          <div className="flex items-center gap-2">
+            <span>{label}</span>
+            {badge && <span className={`text-[10px] ${badge === 'Advanced' ? 'text-purple-400 bg-purple-500/10' : 'text-yellow-400 bg-yellow-500/10'} px-1.5 py-0.5 rounded`}>{badge}</span>}
+            {checked && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
+          </div>
+          <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">{description}</p>
+        </Label>
+        <Switch
+          id={id}
+          checked={checked}
+          onCheckedChange={onChange}
+          disabled={isProcessing}
+          className={colors[color as keyof typeof colors]}
+        />
+      </div>
+    );
+  };
+
   return (
     <>
       <BackgroundGradientAnimation
@@ -745,7 +786,7 @@ export default function Home() {
             )}
           </div>
 
-          {/* Settings Panel - Keep your existing settings panel */}
+          {/* Settings Panel */}
           <aside className="lg:col-span-4 lg:overflow-auto" aria-labelledby="settings-heading">
             <Card className="bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
               <div className="flex items-center gap-3 mb-6 sm:mb-8 pb-5 border-b border-purple-500/30">
@@ -765,9 +806,471 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Keep your existing settings panel content - it's fine as is */}
               <div className="space-y-7 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                {/* All your existing switches stay exactly the same */}
+                {/* Basic Obfuscation */}
+                <div className="space-y-4">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    Basic Obfuscation
+                  </Label>
+
+                  {renderSwitch(
+                    "mangle-names",
+                    "Mangle Names",
+                    "Replace variable and function names with hexadecimal identifiers",
+                    settings.mangleNames,
+                    (checked) => {
+                      setSettings({ ...settings, mangleNames: checked });
+                      trackSettingsChange({ setting: "mangleNames", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "purple"
+                  )}
+
+                  {renderSwitch(
+                    "encode-strings",
+                    "Encode Strings",
+                    "Convert strings to byte arrays using string.char()",
+                    settings.encodeStrings,
+                    (checked) => {
+                      setSettings({ ...settings, encodeStrings: checked });
+                      trackSettingsChange({ setting: "encodeStrings", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "pink"
+                  )}
+
+                  {renderSwitch(
+                    "encode-numbers",
+                    "Encode Numbers",
+                    "Transform numeric literals into mathematical expressions",
+                    settings.encodeNumbers,
+                    (checked) => {
+                      setSettings({ ...settings, encodeNumbers: checked });
+                      trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "purple"
+                  )}
+
+                  {renderSwitch(
+                    "minify",
+                    "Minify Code",
+                    "Remove comments and whitespace",
+                    settings.minify,
+                    (checked) => {
+                      setSettings({ ...settings, minify: checked });
+                      trackSettingsChange({ setting: "minify", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "purple"
+                  )}
+                </div>
+
+                {/* Target Version */}
+                <div className="space-y-4 pt-6 border-t border-purple-500/30">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Globe className="w-4 h-4 mr-1" /> Target Version
+                  </Label>
+
+                  <div className="space-y-3">
+                    <Select
+                      value={settings.targetVersion}
+                      onValueChange={(value: any) => {
+                        setSettings({ ...settings, targetVersion: value });
+                      }}
+                      disabled={isProcessing}
+                    >
+                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
+                        <SelectValue placeholder="Select Lua version" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/20">
+                        <SelectItem value="5.1">Lua 5.1 (Recommended)</SelectItem>
+                        <SelectItem value="5.2">Lua 5.2</SelectItem>
+                        <SelectItem value="5.3">Lua 5.3</SelectItem>
+                        <SelectItem value="5.4">Lua 5.4</SelectItem>
+                        <SelectItem value="luajit">LuaJIT</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-400/90">Platform/version lock for compatibility</p>
+                  </div>
+                </div>
+
+                {/* VM & Core Features */}
+                <div className="space-y-4 pt-6 border-t border-purple-500/30">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Cpu className="w-4 h-4 mr-1" /> VM & Core Features
+                  </Label>
+
+                  {renderSwitch(
+                    "control-flow-flattening",
+                    "Control Flow Flattening",
+                    "Transform code into state machine patterns (CPU intensive)",
+                    settings.controlFlowFlattening,
+                    (checked) => {
+                      setSettings({ ...settings, controlFlowFlattening: checked });
+                      trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "orange",
+                    "Advanced"
+                  )}
+
+                  {renderSwitch(
+                    "opaque-predicates",
+                    "Opaque Predicates",
+                    "Insert complex always-true/false conditions",
+                    settings.opaquePredicates,
+                    (checked) => {
+                      setSettings({ ...settings, opaquePredicates: checked });
+                      trackSettingsChange({ setting: "opaquePredicates", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "purple",
+                    "Advanced"
+                  )}
+
+                  {renderSwitch(
+                    "dead-code-injection",
+                    "Dead Code Injection",
+                    "Inject unreachable code blocks",
+                    settings.deadCodeInjection,
+                    (checked) => {
+                      setSettings({ ...settings, deadCodeInjection: checked });
+                      trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "orange",
+                    "Advanced"
+                  )}
+
+                  {renderSwitch(
+                    "intense-vm",
+                    "Intense VM Structure",
+                    "Adds extra layers of processing to the VM",
+                    settings.intenseVM,
+                    (checked) => {
+                      setSettings({ ...settings, intenseVM: checked });
+                      trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "purple",
+                    "Advanced"
+                  )}
+                </div>
+
+                {/* Anti-Analysis Features */}
+                <div className="space-y-4 pt-6 border-t border-purple-500/30">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Bug className="w-4 h-4 mr-1" /> Anti-Analysis
+                  </Label>
+
+                  {renderSwitch(
+                    "anti-debugging",
+                    "Anti-Debugging",
+                    "Runtime checks to detect debuggers",
+                    settings.antiDebugging,
+                    (checked) => {
+                      setSettings({ ...settings, antiDebugging: checked });
+                      trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "red",
+                    "Advanced"
+                  )}
+
+                  {renderSwitch(
+                    "anti-tamper",
+                    "Anti-Tamper",
+                    "Detects code modification and integrity violations",
+                    settings.antiTamper,
+                    (checked) => {
+                      setSettings({ ...settings, antiTamper: checked });
+                      trackSettingsChange({ setting: "antiTamper", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "red",
+                    "Advanced"
+                  )}
+
+                  {renderSwitch(
+                    "integrity-checks",
+                    "Integrity Checks",
+                    "Cryptographic hash verification of code sections",
+                    settings.integrityChecks,
+                    (checked) => {
+                      setSettings({ ...settings, integrityChecks: checked });
+                      trackSettingsChange({ setting: "integrityChecks", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "red",
+                    "Advanced"
+                  )}
+                </div>
+
+                {/* Environment & Optimization */}
+                <div className="space-y-4 pt-6 border-t border-purple-500/30">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <HardDrive className="w-4 h-4 mr-1" /> Environment & Optimization
+                  </Label>
+
+                  {renderSwitch(
+                    "static-environment",
+                    "Static Environment",
+                    "Optimizes assuming environment never changes",
+                    settings.staticEnvironment,
+                    (checked) => {
+                      setSettings({ ...settings, staticEnvironment: checked });
+                      trackSettingsChange({ setting: "staticEnvironment", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "purple"
+                  )}
+
+                  {renderSwitch(
+                    "disable-line-info",
+                    "Disable Line Info",
+                    "Removes line information for better performance",
+                    settings.disableLineInfo,
+                    (checked) => {
+                      setSettings({ ...settings, disableLineInfo: checked });
+                      trackSettingsChange({ setting: "disableLineInfo", value: checked }).catch(err =>
+                        console.error("Analytics tracking failed:", err)
+                      );
+                    },
+                    "purple"
+                  )}
+                </div>
+
+                {/* Encryption Algorithm */}
+                <div className="space-y-4 pt-6 border-t border-purple-500/30">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Key className="w-4 h-4 mr-1" /> String Encryption
+                  </Label>
+
+                  <div className="space-y-3">
+                    <Select
+                      value={settings.encryptionAlgorithm}
+                      onValueChange={(value: EncryptionAlgorithm) => {
+                        setSettings({ ...settings, encryptionAlgorithm: value });
+                      }}
+                      disabled={!settings.encodeStrings || isProcessing}
+                    >
+                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/20">
+                        <SelectItem value="none">None (Basic)</SelectItem>
+                        <SelectItem value="xor">XOR Cipher</SelectItem>
+                        <SelectItem value="base64">Base64</SelectItem>
+                        <SelectItem value="huffman">Huffman</SelectItem>
+                        <SelectItem value="chunked">Chunked</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Optimization Level */}
+                <div className="space-y-4 pt-6 border-t border-purple-500/30">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Hash className="w-4 h-4 mr-1" /> Optimization Level
+                  </Label>
+
+                  <div className="space-y-3">
+                    <Select
+                      value={settings.optimizationLevel.toString()}
+                      onValueChange={(value: string) => {
+                        setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
+                      }}
+                      disabled={isProcessing}
+                    >
+                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
+                        <SelectValue placeholder="Select optimization level" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/20">
+                        <SelectItem value="0">Level 0 (No optimization)</SelectItem>
+                        <SelectItem value="1">Level 1 (Basic)</SelectItem>
+                        <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
+                        <SelectItem value="3">Level 3 (Maximum)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Output Formatting */}
+                <div className="space-y-4 pt-6 border-t border-purple-500/30">
+                  <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
+                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Eye className="w-4 h-4 mr-1" /> Output Format
+                  </Label>
+
+                  <div className="space-y-3">
+                    <Select
+                      value={settings.formattingStyle}
+                      onValueChange={(value: FormattingStyle) => {
+                        setSettings({ ...settings, formattingStyle: value });
+                      }}
+                      disabled={isProcessing}
+                    >
+                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-900 border-white/20">
+                        <SelectItem value="minified">Minified (Compact)</SelectItem>
+                        <SelectItem value="pretty">Pretty (Readable)</SelectItem>
+                        <SelectItem value="obfuscated">Obfuscated (Random)</SelectItem>
+                        <SelectItem value="single-line">Single Line</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Protection Level Slider */}
+                <div className="space-y-5 pt-6 border-t border-purple-500/30">
+                  <div className="flex items-center justify-between">
+                    <Label
+                      htmlFor="compression"
+                      className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5"
+                    >
+                      <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
+                      Protection Level
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg font-bold text-xs backdrop-blur-sm border transition-all duration-300",
+                          protectionStrength === "none" && "bg-gray-500/20 border-gray-500/30 text-gray-300",
+                          protectionStrength === "low" && "bg-purple-500/20 border-purple-500/30 text-purple-300",
+                          protectionStrength === "medium" && "bg-pink-500/20 border-pink-500/30 text-pink-300",
+                          protectionStrength === "high" && "bg-orange-500/20 border-orange-500/30 text-orange-300",
+                          protectionStrength === "maximum" && "bg-red-500/20 border-red-500/30 text-red-300 animate-pulse"
+                        )}
+                      >
+                        {settings.compressionLevel}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Slider
+                      id="compression"
+                      value={[settings.compressionLevel]}
+                      onValueChange={value => {
+                        const level = value[0];
+                        setSettings({
+                          ...settings,
+                          compressionLevel: level,
+                          minify: level >= 10,
+                          mangleNames: level >= 20,
+                          encodeStrings: level >= 30,
+                          encodeNumbers: level >= 40,
+                          controlFlow: level >= 50,
+                          encryptionAlgorithm: level >= 60 ? "xor" : "none",
+                          deadCodeInjection: level >= 65,
+                          controlFlowFlattening: level >= 70,
+                          intenseVM: level >= 75,
+                          antiDebugging: level >= 80,
+                          opaquePredicates: level >= 80,
+                          virtualization: level >= 85,
+                          bytecodeEncryption: level >= 85,
+                          antiTamper: level >= 90,
+                          selfModifying: level >= 90,
+                          mutation: level >= 90,
+                          codeSplitting: level >= 90,
+                          environmentLock: level >= 90,
+                          integrityChecks: level >= 95,
+                          optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
+                        });
+                      }}
+                      max={100}
+                      step={5}
+                      disabled={isProcessing}
+                      className="w-full"
+                    />
+                  </div>
+                  <div
+                    className={cn(
+                      "text-xs rounded-xl p-4 backdrop-blur-sm border transition-all duration-300",
+                      protectionStrength === "none" && "bg-gray-500/10 border-gray-500/20 text-gray-300",
+                      protectionStrength === "low" && "bg-purple-500/10 border-purple-500/20 text-purple-200",
+                      protectionStrength === "medium" && "bg-pink-500/10 border-pink-500/20 text-pink-200",
+                      protectionStrength === "high" && "bg-orange-500/10 border-orange-500/20 text-orange-200",
+                      protectionStrength === "maximum" && "bg-red-500/10 border-red-500/20 text-red-200"
+                    )}
+                  >
+                    {settings.compressionLevel < 30 && "Standard Protection"}
+                    {settings.compressionLevel >= 30 && settings.compressionLevel < 60 && "Enhanced Protection"}
+                    {settings.compressionLevel >= 60 && settings.compressionLevel < 80 && "Advanced Protection"}
+                    {settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Maximum Protection"}
+                    {settings.compressionLevel >= 95 && "Ultimate Protection"}
+                  </div>
+                </div>
+
+                {/* Warnings */}
+                {settings.gcFixes && (
+                  <div className="pt-2">
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                      <p className="text-xs text-yellow-200/90">
+                        <strong className="font-bold block mb-1">⚠️ Performance Warning</strong>
+                        GC Fixes enabled - Heavy performance cost
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {settings.hardcodeGlobals && (
+                  <div className="pt-2">
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                      <p className="text-xs text-yellow-200/90">
+                        <strong className="font-bold block mb-1">⚠️ Security Warning</strong>
+                        Hardcode Globals exposes global names
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {(settings.virtualization || settings.intenseVM) && (
+                  <div className="pt-2">
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
+                      <p className="text-xs text-purple-200/90">
+                        <strong className="font-bold block mb-1">⚡ Advanced Protection Active</strong>
+                        Maximum protection enabled - code is virtualized
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Large file warning */}
+                {inputCode.length > 1000000 && (
+                  <div className="pt-2">
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-2 text-blue-200">
+                        <Database className="w-4 h-4" />
+                        <p className="text-xs">
+                          <strong className="font-bold block mb-1">📦 Large File Mode</strong>
+                          File size: {formatBytes(inputCode.length)}. Processing may take longer.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
           </aside>
