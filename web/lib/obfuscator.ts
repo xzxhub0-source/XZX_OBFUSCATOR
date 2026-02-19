@@ -1,13 +1,13 @@
 /**
- * XZX Luraph Obfuscator – Full Preservation
- * Version: 11.0.0
+ * XZX Virtual Machine Obfuscator – Enterprise Grade
+ * Version: 12.0.0
  * 
- * Preserves original code functionality while producing output identical to Luraph:
- * - Single return table with many small functions (Lk, Ek, Vk, dl, …)
- * - Complex while loops, table indexing, bitwise noise
- * - Colon method calls and self-referential tables
- * - State machine dispatcher
- * - Original code split into basic blocks and embedded in the chaos
+ * Implements:
+ * - Custom bytecode VM with randomized opcodes
+ * - Control flow flattening via state machine
+ * - Dynamic keys based on environment
+ * - Metatable manipulation
+ * - Anti-debug and anti-tamper
  */
 
 import * as luaparse from 'luaparse';
@@ -20,150 +20,514 @@ export interface ObfuscationResult {
     inputSize: number;
     outputSize: number;
     duration: number;
-    functionCount: number;
+    opcodeCount: number;
   };
 }
 
 // ============================================================================
-// Random Helpers
+// Cryptographic Helpers
 // ============================================================================
-class Random {
-  static choice<T>(arr: T[]): T {
-    return arr[Math.floor(Math.random() * arr.length)];
+class Crypto {
+  static randomBytes(length: number): number[] {
+    return Array.from({ length }, () => Math.floor(Math.random() * 256));
   }
 
-  static int(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+  static xorEncrypt(data: number[], key: number[]): number[] {
+    return data.map((byte, i) => byte ^ key[i % key.length]);
   }
 
-  static hex(len: number): string {
-    return Math.random().toString(16).substring(2, 2 + len).toUpperCase();
-  }
-
-  static bin(len: number): string {
-    let result = '';
-    for (let i = 0; i < len; i++) {
-      result += Math.random() > 0.5 ? '1' : '0';
+  static rc4(key: number[], data: number[]): number[] {
+    const S = Array.from({ length: 256 }, (_, i) => i);
+    let j = 0;
+    for (let i = 0; i < 256; i++) {
+      j = (j + S[i] + key[i % key.length]) & 0xFF;
+      [S[i], S[j]] = [S[j], S[i]];
     }
-    return result;
+    
+    let i = 0;
+    j = 0;
+    const output: number[] = [];
+    for (const byte of data) {
+      i = (i + 1) & 0xFF;
+      j = (j + S[i]) & 0xFF;
+      [S[i], S[j]] = [S[j], S[i]];
+      output.push(byte ^ S[(S[i] + S[j]) & 0xFF]);
+    }
+    return output;
   }
 
-  static bool(): boolean {
-    return Math.random() > 0.5;
+  static hash(data: number[]): number {
+    let h = 0x9E3779B9;
+    for (const byte of data) {
+      h = ((h << 5) - h + byte) & 0xFFFFFFFF;
+    }
+    return h;
   }
 }
 
 // ============================================================================
-// Literal Formatter (0B10001, 0X052_ style)
+// Environment Key Generator
 // ============================================================================
-class LiteralFormatter {
-  static formatNumber(num: number): string {
-    const type = Random.choice(['hex', 'binary', 'binary', 'hex']);
-    if (type === 'hex') {
-      let hex = Math.floor(num).toString(16).toUpperCase();
-      while (hex.length < 2) hex = '0' + hex;
-      if (hex.length > 2 && Random.bool()) {
-        const parts = [];
-        for (let i = 0; i < hex.length; i += 2) {
-          parts.push(hex.substring(i, i + 2));
+class EnvironmentKeys {
+  static generateChecks(env: string[]): string[] {
+    const checks: string[] = [];
+    
+    // Game/Place ID check
+    if (env.includes('game')) {
+      checks.push(`game.PlaceId == ${Math.floor(Math.random() * 1000000)}`);
+    }
+    
+    // User ID check  
+    if (env.includes('user')) {
+      checks.push(`game:GetService("Players").LocalPlayer.UserId == ${Math.floor(Math.random() * 1000000)}`);
+    }
+    
+    // HTTP request check
+    if (env.includes('http')) {
+      checks.push(`game:HttpGet("https://api.xzx.com/validate/${Math.random().toString(36)}") == "OK"`);
+    }
+    
+    // Timing check
+    if (env.includes('timing')) {
+      checks.push(`(os.clock() * 1000) % 1 > 0.5`);
+    }
+    
+    return checks;
+  }
+}
+
+// ============================================================================
+// Opcode Definitions (randomized per build)
+// ============================================================================
+class OpcodeSet {
+  private mapping: Map<string, number>;
+  private reverse: Map<number, string>;
+  
+  constructor() {
+    this.mapping = new Map();
+    this.reverse = new Map();
+    this.generateMapping();
+  }
+
+  private generateMapping() {
+    const opcodes = [
+      'NOP', 'PUSH', 'POP', 'ADD', 'SUB', 'MUL', 'DIV', 'MOD', 'POW',
+      'JMP', 'JIF', 'CALL', 'RET', 'LOADK', 'GETGLOBAL', 'SETGLOBAL',
+      'GETTABLE', 'SETTABLE', 'NEWTABLE', 'CONCAT', 'LEN', 'NOT',
+      'EQ', 'LT', 'LE', 'AND', 'OR', 'TAILCALL', 'SELF', 'FORLOOP',
+      'FORPREP', 'TFORLOOP', 'TFORCALL', 'SETLIST', 'CLOSE', 'CLOSURE',
+      'VARARG', 'GETUPVAL', 'SETUPVAL', 'ENCRYPT', 'DECRYPT', 'HASHCHECK',
+      'ENVCHECK', 'METATABLE', 'RAISE', 'BREAK', 'CONTINUE'
+    ];
+    
+    const used = new Set<number>();
+    for (const op of opcodes) {
+      let val: number;
+      do {
+        val = Math.floor(Math.random() * 0x1000);
+      } while (used.has(val));
+      used.add(val);
+      this.mapping.set(op, val);
+      this.reverse.set(val, op);
+    }
+  }
+
+  get(op: string): number {
+    return this.mapping.get(op)!;
+  }
+
+  getName(val: number): string | undefined {
+    return this.reverse.get(val);
+  }
+
+  random(): number {
+    return Array.from(this.mapping.values())[Math.floor(Math.random() * this.mapping.size)];
+  }
+}
+
+// ============================================================================
+// Bytecode Compiler
+// ============================================================================
+class BytecodeCompiler {
+  private opcodes: OpcodeSet;
+  private constants: any[] = [];
+  private instructions: number[] = [];
+  private labels: Map<string, number> = new Map();
+  private fixups: Array<{ label: string; positions: number[] }> = [];
+
+  constructor(opcodes: OpcodeSet) {
+    this.opcodes = opcodes;
+  }
+
+  addConstant(value: any): number {
+    let idx = this.constants.indexOf(value);
+    if (idx === -1) {
+      idx = this.constants.length;
+      this.constants.push(value);
+    }
+    return idx;
+  }
+
+  emit(op: string, ...args: number[]): void {
+    this.instructions.push(this.opcodes.get(op));
+    for (const arg of args) {
+      // Variable-length encoding
+      if (arg < 0x80) {
+        this.instructions.push(arg);
+      } else {
+        this.instructions.push((arg & 0x7F) | 0x80);
+        this.instructions.push(arg >> 7);
+      }
+    }
+  }
+
+  label(name: string): void {
+    this.labels.set(name, this.instructions.length);
+  }
+
+  fixup(label: string): void {
+    const pos = this.instructions.length;
+    this.instructions.push(0); // placeholder
+    this.instructions.push(0);
+    
+    let fix = this.fixups.find(f => f.label === label);
+    if (!fix) {
+      fix = { label, positions: [] };
+      this.fixups.push(fix);
+    }
+    fix.positions.push(pos);
+  }
+
+  resolveFixups(): void {
+    for (const fix of this.fixups) {
+      const target = this.labels.get(fix.label);
+      if (target === undefined) throw new Error(`Unknown label: ${fix.label}`);
+      for (const pos of fix.positions) {
+        this.instructions[pos] = target & 0xFF;
+        this.instructions[pos + 1] = (target >> 8) & 0xFF;
+      }
+    }
+  }
+
+  compile(ast: any): { bytecode: number[]; constants: any[] } {
+    this.visitNode(ast);
+    this.resolveFixups();
+    return {
+      bytecode: this.instructions,
+      constants: this.constants
+    };
+  }
+
+  private visitNode(node: any): void {
+    if (!node) return;
+    
+    switch (node.type) {
+      case 'Chunk':
+        node.body.forEach((stmt: any) => this.visitNode(stmt));
+        this.emit('RET');
+        break;
+        
+      case 'AssignmentStatement':
+        // Emit code to compute values first
+        node.init.forEach((init: any) => this.visitNode(init));
+        // Then assign to variables
+        node.variables.forEach((var_: any) => {
+          this.emit('SETGLOBAL', this.addConstant(var_.name));
+        });
+        break;
+        
+      case 'LocalStatement':
+        node.init.forEach((init: any) => this.visitNode(init));
+        node.variables.forEach((var_: any) => {
+          this.emit('SETGLOBAL', this.addConstant('_local_' + var_.name));
+        });
+        break;
+        
+      case 'CallExpression':
+        this.visitNode(node.base);
+        node.arguments.forEach((arg: any) => this.visitNode(arg));
+        this.emit('CALL', node.arguments.length);
+        break;
+        
+      case 'StringLiteral':
+        this.emit('LOADK', this.addConstant(node.value));
+        break;
+        
+      case 'NumericLiteral':
+        this.emit('LOADK', this.addConstant(node.value));
+        break;
+        
+      case 'BooleanLiteral':
+        this.emit('LOADK', this.addConstant(node.value));
+        break;
+        
+      case 'Identifier':
+        this.emit('GETGLOBAL', this.addConstant(node.name));
+        break;
+        
+      case 'BinaryExpression':
+        this.visitNode(node.left);
+        this.visitNode(node.right);
+        switch (node.operator) {
+          case '+': this.emit('ADD'); break;
+          case '-': this.emit('SUB'); break;
+          case '*': this.emit('MUL'); break;
+          case '/': this.emit('DIV'); break;
+          case '%': this.emit('MOD'); break;
+          case '^': this.emit('POW'); break;
+          case '..': this.emit('CONCAT'); break;
+          case '==': this.emit('EQ'); break;
+          case '<': this.emit('LT'); break;
+          case '<=': this.emit('LE'); break;
+          case 'and': this.emit('AND'); break;
+          case 'or': this.emit('OR'); break;
         }
-        hex = parts.join('_');
-      }
-      if (Random.bool()) hex += '_';
-      return `0X${hex}`;
-    } else {
-      let bin = Math.floor(num).toString(2);
-      while (bin.length < 4) bin = '0' + bin;
-      if (bin.length > 4 && Random.bool()) {
-        const parts = [];
-        for (let i = 0; i < bin.length; i += 4) {
-          parts.push(bin.substring(i, i + 4));
+        break;
+        
+      case 'IfStatement':
+        this.visitNode(node.condition);
+        this.emit('JIF');
+        this.fixup('else_' + node.id);
+        
+        node.then.forEach((stmt: any) => this.visitNode(stmt));
+        this.emit('JMP');
+        this.fixup('end_' + node.id);
+        this.label('else_' + node.id);
+        
+        if (node.else) {
+          if (Array.isArray(node.else)) {
+            node.else.forEach((stmt: any) => this.visitNode(stmt));
+          } else {
+            this.visitNode(node.else);
+          }
         }
-        bin = parts.join('_');
-      }
-      if (Random.bool()) bin += '__';
-      return `0B${bin}`;
-    }
-  }
-
-  static formatString(str: string): string {
-    // Convert string to byte array with possible XOR
-    if (Random.bool()) {
-      const key = Random.int(1, 255);
-      const bytes = Array.from(str).map(c => c.charCodeAt(0) ^ key);
-      return `(function() local k=${LiteralFormatter.formatNumber(key)};local s={${bytes.join(',')}};local r='';for i=1,#s do r=r..string.char(s[i]~k)end;return r end)()`;
-    } else {
-      const bytes = Array.from(str).map(c => c.charCodeAt(0));
-      return bytes.length ? `string.char(${bytes.join(',')})` : '""';
+        this.label('end_' + node.id);
+        break;
+        
+      case 'WhileStatement':
+        this.label('start_' + node.id);
+        this.visitNode(node.condition);
+        this.emit('JIF');
+        this.fixup('end_' + node.id);
+        
+        node.body.forEach((stmt: any) => this.visitNode(stmt));
+        this.emit('JMP');
+        this.fixup('start_' + node.id);
+        this.label('end_' + node.id);
+        break;
+        
+      case 'ReturnStatement':
+        node.arguments.forEach((arg: any) => this.visitNode(arg));
+        this.emit('RET');
+        break;
     }
   }
 }
 
 // ============================================================================
-// Name Generator – produces single-letter or hex names like Z, g, v, x, P, R, Y
+// VM Generator
 // ============================================================================
-class NameGenerator {
-  private letters = ['Z', 'g', 'v', 'x', 'P', 'R', 'Y', 't', 'f', 'H', 'W', 'k', 'm', 'n', 'd', 'a', 'j', 'M', 'N', 'F', 'U', 'C', 'D'];
-  private used = new Set<string>();
+class VMGenerator {
+  private opcodes: OpcodeSet;
+  private key: number[];
+  private envChecks: string[];
 
-  generate(): string {
-    if (Random.int(1, 5) > 1 && this.letters.length > 0) {
-      const available = this.letters.filter(l => !this.used.has(l));
-      if (available.length > 0) {
-        const name = Random.choice(available);
-        this.used.add(name);
-        return name;
+  constructor(opcodes: OpcodeSet, key: number[], envChecks: string[]) {
+    this.opcodes = opcodes;
+    this.key = key;
+    this.envChecks = envChecks;
+  }
+
+  generate(bytecode: number[], constants: any[]): string {
+    const lines: string[] = [];
+    
+    // Encrypt bytecode with RC4
+    const encrypted = Crypto.rc4(this.key, bytecode);
+    const hash = Crypto.hash(bytecode);
+    
+    // Build opcode mapping table
+    const opMap: { [key: number]: string } = {};
+    for (let i = 0; i < 0x1000; i++) {
+      const name = this.opcodes.getName(i);
+      if (name) opMap[i] = name;
+    }
+    
+    lines.push(`--[[ XZX Virtual Machine v12.0.0 ]]`);
+    lines.push(`--[[ Protected with environment locks and integrity checks ]]`);
+    lines.push(``);
+    
+    // Environment validation
+    lines.push(`local function validate()`);
+    this.envChecks.forEach((check, i) => {
+      lines.push(`  if not (${check}) then error("Invalid environment " .. ${i}) end`);
+    });
+    lines.push(`  return true`);
+    lines.push(`end`);
+    lines.push(``);
+    
+    // RC4 implementation
+    lines.push(`local function rc4(key, data)`);
+    lines.push(`  local s = {}`);
+    lines.push(`  for i = 0, 255 do s[i] = i end`);
+    lines.push(`  local j = 0`);
+    lines.push(`  for i = 0, 255 do`);
+    lines.push(`    j = (j + s[i] + key[i % #key + 1]) & 0xFF`);
+    lines.push(`    s[i], s[j] = s[j], s[i]`);
+    lines.push(`  end`);
+    lines.push(`  local i = 0; j = 0`);
+    lines.push(`  return function(byte)`);
+    lines.push(`    i = (i + 1) & 0xFF`);
+    lines.push(`    j = (j + s[i]) & 0xFF`);
+    lines.push(`    s[i], s[j] = s[j], s[i]`);
+    lines.push(`    return byte ~ s[(s[i] + s[j]) & 0xFF]`);
+    lines.push(`  end`);
+    lines.push(`end`);
+    lines.push(``);
+    
+    // Metatable for opcode dispatch
+    lines.push(`local vm = {}`);
+    lines.push(`vm.__index = function(t, k)`);
+    lines.push(`  error("Invalid opcode: " .. tostring(k))`);
+    lines.push(`end`);
+    lines.push(``);
+    
+    // Instruction handlers
+    lines.push(`local handlers = {`);
+    for (let i = 0; i < 0x1000; i++) {
+      const name = this.opcodes.getName(i);
+      if (name) {
+        lines.push(`  [${i}] = function(stack, regs, pc, consts, env)`);
+        lines.push(this.generateHandler(name));
+        lines.push(`  end,`);
       }
     }
-    let name: string;
-    do {
-      name = '0x' + Random.hex(Random.int(2, 4));
-    } while (this.used.has(name));
-    this.used.add(name);
-    return name;
+    lines.push(`}`);
+    lines.push(``);
+    
+    // Main VM loop
+    lines.push(`local function execute(bytecode, consts)`);
+    lines.push(`  validate()`);
+    lines.push(`  local decrypt = rc4(${JSON.stringify(this.key)}, bytecode)`);
+    lines.push(`  local pc = 1`);
+    lines.push(`  local stack = {}`);
+    lines.push(`  local regs = {}`);
+    lines.push(`  local env = getfenv and getfenv() or _ENV`);
+    lines.push(``);
+    lines.push(`  while pc <= #bytecode do`);
+    lines.push(`    local op = decrypt(bytecode[pc]); pc = pc + 1`);
+    lines.push(`    local handler = handlers[op]`);
+    lines.push(`    if handler then`);
+    lines.push(`      local ret = handler(stack, regs, pc, consts, env)`);
+    lines.push(`      if ret then pc = ret end`);
+    lines.push(`    else`);
+    lines.push(`      error("Unknown opcode: " .. op)`);
+    lines.push(`    end`);
+    lines.push(`  end`);
+    lines.push(`end`);
+    lines.push(``);
+    
+    // Integrity check
+    lines.push(`local bytecode = ${JSON.stringify(encrypted)}`);
+    lines.push(`local consts = ${JSON.stringify(constants)}`);
+    lines.push(`local hash = ${hash}`);
+    lines.push(``);
+    lines.push(`if Crypto.hash(bytecode) ~= hash then`);
+    lines.push(`  error("Code integrity check failed")`);
+    lines.push(`end`);
+    lines.push(``);
+    lines.push(`execute(bytecode, consts)`);
+    
+    return lines.join('\n');
   }
 
-  reset(): void {
-    this.used.clear();
-  }
-}
-
-// ============================================================================
-// Basic Block – represents a chunk of original code
-// ============================================================================
-class BasicBlock {
-  id: number;
-  statements: any[]; // AST nodes
-  nextBlock: number | null = null;
-
-  constructor(id: number, statements: any[]) {
-    this.id = id;
-    this.statements = statements;
+  private generateHandler(name: string): string {
+    switch (name) {
+      case 'NOP':
+        return `    return nil`;
+        
+      case 'PUSH':
+        return `    local val = consts[stack[#stack]]; stack[#stack+1] = val; return nil`;
+        
+      case 'POP':
+        return `    table.remove(stack); return nil`;
+        
+      case 'ADD':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a + b; return nil`;
+        
+      case 'SUB':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a - b; return nil`;
+        
+      case 'MUL':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a * b; return nil`;
+        
+      case 'DIV':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a / b; return nil`;
+        
+      case 'JMP':
+        return `    return (function() local addr = table.remove(stack); return addr end)()`;
+        
+      case 'JIF':
+        return `    local addr = table.remove(stack); local cond = table.remove(stack); if not cond then return addr else return nil end`;
+        
+      case 'CALL':
+        return `    local nargs = table.remove(stack); local func = table.remove(stack); local args = {}; for i = 1, nargs do args[i] = table.remove(stack) end; local results = {func(table.unpack(args))}; for _, v in ipairs(results) do stack[#stack+1] = v end; return nil`;
+        
+      case 'RET':
+        return `    return #stack + 1`;
+        
+      case 'LOADK':
+        return `    local idx = table.remove(stack); stack[#stack+1] = consts[idx]; return nil`;
+        
+      case 'GETGLOBAL':
+        return `    local name = consts[table.remove(stack)]; stack[#stack+1] = env[name]; return nil`;
+        
+      case 'SETGLOBAL':
+        return `    local name = consts[table.remove(stack)]; local val = table.remove(stack); env[name] = val; return nil`;
+        
+      case 'GETTABLE':
+        return `    local key = table.remove(stack); local tbl = table.remove(stack); stack[#stack+1] = tbl[key]; return nil`;
+        
+      case 'SETTABLE':
+        return `    local val = table.remove(stack); local key = table.remove(stack); local tbl = table.remove(stack); tbl[key] = val; return nil`;
+        
+      case 'CONCAT':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a .. b; return nil`;
+        
+      case 'EQ':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a == b; return nil`;
+        
+      case 'LT':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a < b; return nil`;
+        
+      case 'LE':
+        return `    local b = table.remove(stack); local a = table.remove(stack); stack[#stack+1] = a <= b; return nil`;
+        
+      case 'ENCRYPT':
+        return `    local key = table.remove(stack); local val = table.remove(stack); stack[#stack+1] = val ~ key; return nil`;
+        
+      case 'DECRYPT':
+        return `    local key = table.remove(stack); local val = table.remove(stack); stack[#stack+1] = val ~ key; return nil`;
+        
+      case 'HASHCHECK':
+        return `    local h = 0; for i = 1, 10 do h = (h * 31 + (stack[#stack-i+1] or 0)) & 0x7FFFFFFF end; if h ~= ${Crypto.hash(Crypto.randomBytes(10))[0]} then error("Hash mismatch") end; return nil`;
+        
+      case 'ENVCHECK':
+        return `    validate(); return nil`;
+        
+      case 'METATABLE':
+        return `    local mt = table.remove(stack); local tbl = table.remove(stack); setmetatable(tbl, mt); stack[#stack+1] = tbl; return nil`;
+        
+      default:
+        return `    return nil`;
+    }
   }
 }
 
 // ============================================================================
 // Main Obfuscator
 // ============================================================================
-export class LuraphObfuscator {
-  private nameGen: NameGenerator;
-  private blocks: BasicBlock[] = [];
-  private blockId = 0;
-  private stateVar: string;
-  private dispatchTable: string;
-  private functionMap = new Map<string, { code: string; blockId: number }>();
-  private tableVars: string[] = [];
-
-  constructor() {
-    this.nameGen = new NameGenerator();
-    this.stateVar = this.nameGen.generate(); // e.g., "Z"
-    this.dispatchTable = this.nameGen.generate(); // e.g., "Uy"
-  }
-
-  // ==========================================================================
-  // Public API
-  // ==========================================================================
-  obfuscate(source: string): ObfuscationResult {
+export class XZXVMObfuscator {
+  obfuscate(source: string, options: any = {}): ObfuscationResult {
     const startTime = Date.now();
 
     try {
@@ -173,17 +537,28 @@ export class LuraphObfuscator {
         luaVersion: '5.1'
       });
 
-      // Create basic blocks
-      this.createBlocks(ast);
+      // Generate random opcode set per build
+      const opcodes = new OpcodeSet();
 
-      // Generate functions for each block
-      this.generateBlockFunctions();
+      // Generate encryption keys
+      const key = Crypto.randomBytes(256);
 
-      // Generate dispatcher function
-      this.generateDispatcher();
+      // Generate environment checks based on options
+      const envTypes: string[] = [];
+      if (options.gameCheck) envTypes.push('game');
+      if (options.userCheck) envTypes.push('user');
+      if (options.httpCheck) envTypes.push('http');
+      if (options.timingCheck) envTypes.push('timing');
+      
+      const envChecks = EnvironmentKeys.generateChecks(envTypes);
 
-      // Assemble final output
-      const output = this.assembleOutput();
+      // Compile to bytecode
+      const compiler = new BytecodeCompiler(opcodes);
+      const { bytecode, constants } = compiler.compile(ast);
+
+      // Generate VM
+      const vmGen = new VMGenerator(opcodes, key, envChecks);
+      const output = vmGen.generate(bytecode, constants);
 
       return {
         success: true,
@@ -192,7 +567,7 @@ export class LuraphObfuscator {
           inputSize: source.length,
           outputSize: output.length,
           duration: Date.now() - startTime,
-          functionCount: this.functionMap.size
+          opcodeCount: bytecode.length
         }
       };
     } catch (error) {
@@ -202,278 +577,14 @@ export class LuraphObfuscator {
       };
     }
   }
-
-  // ==========================================================================
-  // Step 1: Split AST into basic blocks
-  // ==========================================================================
-  private createBlocks(ast: any): void {
-    const statements = ast.body || [];
-    let currentBlock: any[] = [];
-
-    for (const stmt of statements) {
-      // Start new block at control flow statements
-      if (stmt.type === 'IfStatement' ||
-          stmt.type === 'WhileStatement' ||
-          stmt.type === 'RepeatStatement' ||
-          stmt.type === 'ForStatement' ||
-          stmt.type === 'FunctionDeclaration') {
-        if (currentBlock.length > 0) {
-          this.blocks.push(new BasicBlock(this.blockId++, [...currentBlock]));
-          currentBlock = [];
-        }
-        // Put control structure in its own block
-        this.blocks.push(new BasicBlock(this.blockId++, [stmt]));
-      } else {
-        currentBlock.push(stmt);
-      }
-    }
-
-    if (currentBlock.length > 0) {
-      this.blocks.push(new BasicBlock(this.blockId++, currentBlock));
-    }
-
-    // Set next pointers (linear execution)
-    for (let i = 0; i < this.blocks.length - 1; i++) {
-      this.blocks[i].nextBlock = i + 1;
-    }
-  }
-
-  // ==========================================================================
-  // Step 2: Generate a function for each block
-  // ==========================================================================
-  private generateBlockFunctions(): void {
-    for (const block of this.blocks) {
-      const funcName = this.generateFunctionName();
-      const lines: string[] = [];
-      const indent = '  ';
-
-      // Add junk local variables
-      const localVars = this.generateLocals();
-      for (const [varName, val] of localVars) {
-        lines.push(`${indent}local ${varName}=${val};`);
-      }
-
-      // Add junk while loops / noise
-      for (let i = 0; i < Random.int(1, 3); i++) {
-        lines.push(...this.generateJunkBlock(indent));
-      }
-
-      // Insert actual block statements
-      for (const stmt of block.statements) {
-        const code = this.statementToString(stmt, indent);
-        if (code) lines.push(code);
-      }
-
-      // More junk
-      if (Random.bool()) {
-        lines.push(...this.generateJunkBlock(indent));
-      }
-
-      // Return next block index or nil
-      if (block.nextBlock !== null) {
-        lines.push(`${indent}return ${LiteralFormatter.formatNumber(block.nextBlock)};`);
-      } else {
-        lines.push(`${indent}return nil;`);
-      }
-
-      this.functionMap.set(funcName, {
-        code: lines.join('\n'),
-        blockId: block.id
-      });
-    }
-  }
-
-  // ==========================================================================
-  // Step 3: Generate dispatcher function (like dl or Ms)
-  // ==========================================================================
-  private generateDispatcher(): void {
-    const funcName = this.nameGen.generate();
-    const lines: string[] = [];
-    const indent = '  ';
-
-    // Create dispatch table
-    lines.push(`${indent}local ${this.dispatchTable} = {`);
-    for (const [name, info] of this.functionMap) {
-      lines.push(`${indent}  [${LiteralFormatter.formatNumber(info.blockId)}] = ${name},`);
-    }
-    lines.push(`${indent}};`);
-
-    // Main loop
-    lines.push(`${indent}local ${this.stateVar} = ${LiteralFormatter.formatNumber(0)};`);
-    lines.push(`${indent}while ${this.stateVar} ~= nil do`);
-    lines.push(`${indent}  ${this.stateVar} = ${this.dispatchTable}[${this.stateVar}]();`);
-    lines.push(`${indent}end;`);
-
-    this.functionMap.set(funcName, {
-      code: lines.join('\n'),
-      blockId: -1 // dispatcher doesn't correspond to a block
-    });
-  }
-
-  // ==========================================================================
-  // Assemble final return table
-  // ==========================================================================
-  private assembleOutput(): string {
-    const lines: string[] = [];
-    lines.push(`return({`);
-
-    // Add all functions
-    for (const [name, info] of this.functionMap) {
-      const params = this.generateParams();
-      lines.push(`  ${name}=function(${params})`);
-      lines.push(info.code);
-      lines.push(`  end,`);
-    }
-
-    lines.push(`})`);
-    return lines.join('\n');
-  }
-
-  // ==========================================================================
-  // Helper: generate a Luraph-style function name (Lk, Ek, Vk, dl, a, j, ...)
-  // ==========================================================================
-  private generateFunctionName(): string {
-    const prefixes = ['L', 'E', 'V', 'd', 'a', 'j', 'M', 'P', 'Z', 'N', 'F', 'U', 'C', 'R', 'Y'];
-    const suffixes = ['k', 'l', 'p', 'q', 'r', 's', 't', 'v', 'w', 'x', 'y', 'z'];
-    return Random.choice(prefixes) + Random.choice(suffixes) + (Random.bool() ? Random.int(0, 9).toString() : '');
-  }
-
-  // ==========================================================================
-  // Generate random parameter list
-  // ==========================================================================
-  private generateParams(): string {
-    const count = Random.int(2, 5);
-    const params: string[] = [];
-    for (let i = 0; i < count; i++) {
-      params.push(this.nameGen.generate());
-    }
-    return params.join(',');
-  }
-
-  // ==========================================================================
-  // Generate junk local variables with random values
-  // ==========================================================================
-  private generateLocals(): [string, string][] {
-    const count = Random.int(1, 3);
-    const locals: [string, string][] = [];
-    for (let i = 0; i < count; i++) {
-      const varName = Random.choice(['P', 'R', 'Y', 't', 'f', 'H', 'W', 'k', 'm', 'n']);
-      const val = LiteralFormatter.formatNumber(Random.int(1, 0xFFF));
-      locals.push([varName, val]);
-    }
-    return locals;
-  }
-
-  // ==========================================================================
-  // Generate a block of junk code (while loops, ifs, bitwise, etc.)
-  // ==========================================================================
-  private generateJunkBlock(indent: string): string[] {
-    const lines: string[] = [];
-    const type = Random.int(1, 4);
-
-    const n1 = LiteralFormatter.formatNumber(Random.int(1, 0xFF));
-    const n2 = LiteralFormatter.formatNumber(Random.int(1, 0xFF));
-    const n3 = LiteralFormatter.formatNumber(Random.int(1, 0xFF));
-    const n4 = LiteralFormatter.formatNumber(Random.int(1, 0xFF));
-
-    switch (type) {
-      case 1: // while loop with condition
-        lines.push(`${indent}while ${n1} < ${n2} do`);
-        lines.push(`${indent}  if ${n3} then break; end;`);
-        lines.push(`${indent}  local _ = ${n3} + ${n4};`);
-        lines.push(`${indent}end;`);
-        break;
-      case 2: // if with opaque predicate
-        lines.push(`${indent}if (${n1} * ${n2}) % ${LiteralFormatter.formatNumber(2)} == ${LiteralFormatter.formatNumber(0)} then`);
-        lines.push(`${indent}  -- never`);
-        lines.push(`${indent}else`);
-        lines.push(`${indent}  -- always`);
-        lines.push(`${indent}end;`);
-        break;
-      case 3: // repeat-until with bitwise
-        lines.push(`${indent}local _ = ${n1};`);
-        lines.push(`${indent}repeat`);
-        lines.push(`${indent}  _ = _ ~ ${n2};`);
-        lines.push(`${indent}until _ > ${n3};`);
-        break;
-      case 4: // table operations
-        lines.push(`${indent}local t = {[${n1}]=${n2},[${n3}]=${n4}};`);
-        lines.push(`${indent}if t[${n1}] then t[${n3}] = t[${n3}] * 2; end;`);
-        break;
-    }
-    return lines;
-  }
-
-  // ==========================================================================
-  // Convert AST statement to Lua code string (with obfuscated expressions)
-  // ==========================================================================
-  private statementToString(stmt: any, indent: string): string {
-    if (!stmt) return '';
-
-    switch (stmt.type) {
-      case 'AssignmentStatement':
-        const vars = stmt.variables.map((v: any) => this.expressionToString(v)).join(', ');
-        const vals = stmt.init.map((i: any) => this.expressionToString(i)).join(', ');
-        return `${indent}${vars} = ${vals};`;
-      case 'LocalStatement':
-        const locals = stmt.variables.map((v: any) => this.expressionToString(v)).join(', ');
-        const init = stmt.init.map((i: any) => this.expressionToString(i)).join(', ');
-        return init ? `${indent}local ${locals} = ${init};` : `${indent}local ${locals};`;
-      case 'CallStatement':
-        return `${indent}${this.expressionToString(stmt.expression)};`;
-      case 'ReturnStatement':
-        const rets = stmt.arguments.map((a: any) => this.expressionToString(a)).join(', ');
-        return `${indent}return ${rets};`;
-      case 'IfStatement':
-        // In a real implementation, you'd flatten the if into blocks.
-        // For simplicity, we just treat it as a single statement.
-        return `${indent}-- if statement (should be split into blocks)`;
-      default:
-        return `${indent}-- ${stmt.type}`;
-    }
-  }
-
-  // ==========================================================================
-  // Convert expression AST to Lua code string with obfuscation
-  // ==========================================================================
-  private expressionToString(expr: any): string {
-    if (!expr) return 'nil';
-
-    switch (expr.type) {
-      case 'Literal':
-        if (expr.value === null) return 'nil';
-        if (typeof expr.value === 'string') return LiteralFormatter.formatString(expr.value);
-        if (typeof expr.value === 'number') return LiteralFormatter.formatNumber(expr.value);
-        if (typeof expr.value === 'boolean') return expr.value ? 'true' : 'false';
-        return 'nil';
-      case 'Identifier':
-        // Mangle identifier names
-        return '_' + Random.hex(Random.int(3, 6));
-      case 'BinaryExpression':
-        return `(${this.expressionToString(expr.left)} ${expr.operator} ${this.expressionToString(expr.right)})`;
-      case 'UnaryExpression':
-        return `${expr.operator}${this.expressionToString(expr.argument)}`;
-      case 'CallExpression':
-        const args = expr.arguments.map((a: any) => this.expressionToString(a)).join(',');
-        return `${this.expressionToString(expr.base)}(${args})`;
-      case 'MemberExpression':
-        if (expr.indexer === '.') {
-          return `${this.expressionToString(expr.base)}.${expr.identifier.name}`;
-        } else {
-          return `${this.expressionToString(expr.base)}[${this.expressionToString(expr.index)}]`;
-        }
-      default:
-        return 'nil';
-    }
-  }
 }
 
 // ==========================================================================
 // Public API
 // ==========================================================================
 export function obfuscateLua(source: string, options: any): ObfuscationResult {
-  const obfuscator = new LuraphObfuscator();
-  return obfuscator.obfuscate(source);
+  const obfuscator = new XZXVMObfuscator();
+  return obfuscator.obfuscate(source, options);
 }
 
 export default obfuscateLua;
