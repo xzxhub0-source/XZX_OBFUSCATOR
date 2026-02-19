@@ -41,6 +41,19 @@ import {
   BrainCircuit,
   FileWarning,
   CheckCheck,
+  Rocket,
+  Orbit,
+  Satellite,
+  Star,
+  Moon,
+  Sun,
+  Galaxy,
+  Meteor,
+  Comet,
+  Planet,
+  Telescope,
+  Space,
+  Stars,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { BackgroundGradientAnimation } from "@/components/BackgroundGradient";
@@ -68,22 +81,17 @@ import { Progress } from "@/components/ui/progress";
 const DEFAULT_LUA_CODE = "-- Your Lua code here\nprint('Hello World!')";
 
 interface ObfuscatorSettings {
-  // Basic options (v1.0)
   mangleNames: boolean;
   encodeStrings: boolean;
   encodeNumbers: boolean;
   controlFlow: boolean;
   minify: boolean;
   compressionLevel: number;
-
-  // Advanced options (v1.1)
   encryptionAlgorithm: EncryptionAlgorithm;
   controlFlowFlattening: boolean;
   deadCodeInjection: boolean;
   antiDebugging: boolean;
   formattingStyle: FormattingStyle;
-
-  // XZX advanced features
   intenseVM: boolean;
   gcFixes: boolean;
   targetVersion: "5.1" | "5.2" | "5.3" | "5.4" | "luajit";
@@ -93,8 +101,6 @@ interface ObfuscatorSettings {
   vmCompression: boolean;
   disableLineInfo: boolean;
   useDebugLibrary: boolean;
-
-  // Additional XZX features
   opaquePredicates: boolean;
   virtualization: boolean;
   bytecodeEncryption: boolean;
@@ -119,6 +125,7 @@ export default function Home() {
   const [fileName, setFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [stars, setStars] = useState<{ x: number; y: number; size: number; speed: number }[]>([]);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -155,18 +162,42 @@ export default function Home() {
   const [obfuscationCount, setObfuscationCount] = useState(0);
   const [pageStartTime] = useState(Date.now());
 
-  // Track session start on mount
+  // Generate stars on mount
+  useEffect(() => {
+    const newStars = [];
+    for (let i = 0; i < 200; i++) {
+      newStars.push({
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 2 + 1,
+        speed: Math.random() * 0.5 + 0.1,
+      });
+    }
+    setStars(newStars);
+  }, []);
+
+  // Star animation
+  useEffect(() => {
+    if (stars.length === 0) return;
+    
+    const interval = setInterval(() => {
+      setStars(prev => prev.map(star => ({
+        ...star,
+        y: star.y - star.speed < 0 ? 100 : star.y - star.speed
+      })));
+    }, 50);
+    
+    return () => clearInterval(interval);
+  }, [stars]);
+
   useEffect(() => {
     trackSessionStart().catch(err => console.error("Analytics tracking failed:", err));
-
-    // Track time on page on unmount
     return () => {
       const timeOnPage = Math.floor((Date.now() - pageStartTime) / 1000);
       trackTimeOnPage(timeOnPage).catch(err => console.error("Analytics tracking failed:", err));
     };
   }, [pageStartTime]);
 
-  // Success animation effect
   useEffect(() => {
     if (outputCode && !error) {
       setShowSuccessAnimation(true);
@@ -175,52 +206,33 @@ export default function Home() {
     }
   }, [outputCode, error]);
 
-  // Clear input error when user starts typing
   const handleInputChange = (newCode: string) => {
     setInputCode(newCode);
-    if (inputError) {
-      setInputError(undefined);
-    }
+    if (inputError) setInputError(undefined);
     setWarning(null);
   };
 
-  // File upload handler
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > 5) {
-      setWarning(`File size: ${fileSizeMB.toFixed(2)}MB. Large files may take longer to process.`);
-    }
-
+    if (fileSizeMB > 5) setWarning(`File size: ${fileSizeMB.toFixed(2)}MB. Large files may take longer.`);
     setFileName(file.name);
-
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setInputCode(content);
-    };
+    reader.onload = (e) => setInputCode(e.target?.result as string);
     reader.readAsText(file);
   };
 
-  const triggerFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
+  const triggerFileUpload = () => fileInputRef.current?.click();
   const clearFile = () => {
     setFileName("");
     setInputCode(DEFAULT_LUA_CODE);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const cancelObfuscation = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setIsProcessing(false);
-    }
+    abortControllerRef.current?.abort();
+    setIsProcessing(false);
   };
 
   const obfuscateCode = async () => {
@@ -232,12 +244,10 @@ export default function Home() {
     setWarning(null);
     setOutputCode("");
 
-    // Create abort controller for cancellation
     abortControllerRef.current = new AbortController();
 
     try {
       const startTime = Date.now();
-
       const options = {
         mangleNames: settings.mangleNames,
         encodeStrings: settings.encodeStrings,
@@ -252,19 +262,14 @@ export default function Home() {
         optimizationLevel: settings.optimizationLevel,
       };
 
-      // Use the Luraph-style obfuscator
       const result = await new Promise<any>((resolve) => {
-        setTimeout(() => {
-          resolve(obfuscateLua(inputCode, options));
-        }, 100);
+        setTimeout(() => resolve(obfuscateLua(inputCode, options)), 100);
       });
 
       const duration = Date.now() - startTime;
 
       if (result.success && result.code) {
         setOutputCode(result.code);
-        
-        // Transform metrics to match expected format
         const transformedMetrics: ObfuscationMetrics = {
           inputSize: result.metrics?.inputSize || inputCode.length,
           outputSize: result.metrics?.outputSize || result.code.length,
@@ -278,23 +283,19 @@ export default function Home() {
             antiDebugChecks: settings.antiDebugging ? 5 : 0
           }
         };
-        
         setMetrics(transformedMetrics);
         setError(null);
         setInputError(undefined);
 
-        // Update obfuscation count
         const newCount = obfuscationCount + 1;
         setObfuscationCount(newCount);
 
-        // Track obfuscation event
         trackObfuscation({
-          obfuscationType: settings.controlFlowFlattening ? "luraph" : "standard",
+          obfuscationType: settings.controlFlowFlattening ? "advanced" : "standard",
           codeSize: inputCode.length,
           protectionLevel: settings.compressionLevel,
         }).catch(err => console.error("Analytics tracking failed:", err));
 
-        // Track performance metrics
         trackObfuscationPerformance({
           inputSize: inputCode.length,
           outputSize: result.code.length,
@@ -302,7 +303,6 @@ export default function Home() {
           sizeRatio: result.code.length / inputCode.length,
         }).catch(err => console.error("Analytics tracking failed:", err));
 
-        // Track feature combination
         trackFeatureCombination({
           mangleNames: settings.mangleNames,
           encodeStrings: settings.encodeStrings,
@@ -312,11 +312,9 @@ export default function Home() {
           protectionLevel: settings.compressionLevel,
         }).catch(err => console.error("Analytics tracking failed:", err));
 
-        // Track milestones
         if ([1, 5, 10, 25, 50].includes(newCount)) {
           trackObfuscationMilestone(newCount).catch(err => console.error("Analytics tracking failed:", err));
         }
-
       } else {
         setError(result.error || "Failed to obfuscate code");
         setOutputCode("");
@@ -358,7 +356,6 @@ export default function Home() {
     trackDownload(outputCode.length).catch(err => console.error("Analytics tracking failed:", err));
   };
 
-  // Calculate protection strength for visual feedback
   const getProtectionStrength = () => {
     if (settings.compressionLevel === 0) return "none";
     if (settings.compressionLevel < 40) return "low";
@@ -369,7 +366,6 @@ export default function Home() {
 
   const protectionStrength = getProtectionStrength();
 
-  // Count active advanced features
   const getActiveAdvancedCount = () => {
     let count = 0;
     if (settings.intenseVM) count++;
@@ -388,14 +384,12 @@ export default function Home() {
     return count;
   };
 
-  // Format bytes to human-readable
   const formatBytes = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  // Render a switch with label
   const renderSwitch = (
     id: string,
     label: string,
@@ -438,43 +432,60 @@ export default function Home() {
 
   return (
     <>
-      <BackgroundGradientAnimation
-        gradientBackgroundStart="rgb(5, 5, 8)"
-        gradientBackgroundEnd="rgb(10, 10, 15)"
-        firstColor="139, 92, 246"
-        secondColor="168, 85, 247"
-        thirdColor="192, 38, 211"
-        fourthColor="236, 72, 153"
-        fifthColor="219, 39, 119"
-        pointerColor="139, 92, 246"
-      />
+      {/* Animated stars background */}
+      <div className="fixed inset-0 bg-gradient-to-b from-[#0a0a2a] via-[#1a1a4a] to-[#0a0a2a] overflow-hidden">
+        {stars.map((star, i) => (
+          <div
+            key={i}
+            className="absolute bg-white rounded-full animate-twinkle"
+            style={{
+              left: `${star.x}%`,
+              top: `${star.y}%`,
+              width: `${star.size}px`,
+              height: `${star.size}px`,
+              opacity: Math.random() * 0.7 + 0.3,
+              animation: `twinkle ${Math.random() * 3 + 2}s infinite`
+            }}
+          />
+        ))}
+        
+        {/* Planets */}
+        <div className="absolute top-20 right-20 w-32 h-32 rounded-full bg-gradient-to-br from-orange-500/30 to-red-500/30 blur-3xl animate-pulse" />
+        <div className="absolute bottom-40 left-20 w-48 h-48 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 blur-3xl animate-pulse" />
+        
+        {/* Shooting stars */}
+        <div className="absolute top-1/4 left-0 w-2 h-2 bg-white rounded-full animate-shooting-star" />
+        <div className="absolute top-3/4 right-0 w-2 h-2 bg-white rounded-full animate-shooting-star-delayed" />
+      </div>
 
+      {/* Main content */}
       <main className="relative z-10 flex flex-col p-4 sm:p-6 gap-4 lg:gap-6 min-h-screen">
-        {/* Header with XZX Theme */}
+        {/* Header with Space Theme */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top duration-700">
           <div className="flex items-center gap-4">
             <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] via-[#a855f7] to-[#ec4899] rounded-2xl blur-xl opacity-60 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-blue-600 to-pink-600 rounded-2xl blur-xl opacity-60 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div
-                className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#8b5cf6] via-[#a855f7] to-[#ec4899] flex items-center justify-center shadow-2xl shadow-purple-500/30 ring-2 ring-white/20 backdrop-blur-sm transform group-hover:scale-105 transition-all duration-300"
+                className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-purple-600 via-blue-600 to-pink-600 flex items-center justify-center shadow-2xl shadow-purple-500/30 ring-2 ring-white/20 backdrop-blur-sm transform group-hover:scale-105 transition-all duration-300"
                 aria-hidden="true"
               >
-                <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
+                <Rocket className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
               </div>
             </div>
             <div>
               <h1 className="text-xl sm:text-3xl font-bold tracking-tight">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-blue-400 to-pink-400">
                   XZX
                 </span>
-                <span className="text-white ml-2">Luraph Obfuscator</span>
+                <span className="text-white ml-2">Space Obfuscator</span>
               </h1>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-xs sm:text-sm text-gray-300/90 font-medium">
-                  v9.0.0 | Luraph‑Style VM Protection
+                  v19.0.0 | Galactic Protection
                 </p>
                 {getActiveAdvancedCount() > 0 && (
                   <div className="px-2 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded-full text-[10px] text-purple-300">
+                    <Orbit className="w-3 h-3 inline mr-1" />
                     {getActiveAdvancedCount()} Active
                   </div>
                 )}
@@ -519,11 +530,11 @@ export default function Home() {
               <Button
                 onClick={obfuscateCode}
                 disabled={!inputCode || isProcessing}
-                className="group relative bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] hover:from-[#9b6cf6] hover:via-[#b865f7] hover:to-[#fc59a9] active:scale-[0.98] text-white shadow-xl hover:shadow-2xl shadow-purple-500/40 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 overflow-hidden"
+                className="group relative bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 hover:from-purple-700 hover:via-blue-700 hover:to-pink-700 active:scale-[0.98] text-white shadow-xl hover:shadow-2xl shadow-purple-500/40 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                <Shuffle className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-180 transition-transform duration-500" />
-                <span className="relative z-10">{isProcessing ? "Processing..." : "Obfuscate"}</span>
+                <Rocket className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-12 transition-transform duration-500" />
+                <span className="relative z-10">{isProcessing ? "Launching..." : "Launch Obfuscation"}</span>
               </Button>
             )}
           </nav>
@@ -532,13 +543,13 @@ export default function Home() {
         {/* Success Animation Overlay */}
         {showSuccessAnimation && (
           <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top fade-in duration-300">
-            <div className="bg-gradient-to-r from-purple-500/90 to-pink-500/90 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3">
+            <div className="bg-gradient-to-r from-purple-500/90 via-blue-500/90 to-pink-500/90 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <CheckCheck className="w-5 h-5 text-white animate-pulse" />
+                <Stars className="w-5 h-5 text-white animate-pulse" />
               </div>
               <div>
-                <p className="text-white font-bold text-sm">Luraph Obfuscation Complete!</p>
-                <p className="text-purple-50 text-xs">Your code is now protected</p>
+                <p className="text-white font-bold text-sm">Obfuscation Complete!</p>
+                <p className="text-purple-50 text-xs">Your code is now protected in space</p>
               </div>
             </div>
           </div>
@@ -556,18 +567,18 @@ export default function Home() {
               aria-labelledby="input-code-heading"
               className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
             >
-              <Card className="flex-1 bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500 hover:shadow-purple-500/20">
-                <div className="p-4 border-b border-purple-500/30 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-sm">
+              <Card className="flex-1 bg-gradient-to-br from-purple-900/30 via-blue-900/20 to-pink-900/30 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500 hover:shadow-purple-500/20">
+                <div className="p-4 border-b border-purple-500/30 bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] rounded-lg blur-md opacity-50"></div>
-                      <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] flex items-center justify-center shadow-lg">
-                        <Code className="w-4.5 h-4.5 text-white" aria-hidden="true" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg blur-md opacity-50"></div>
+                      <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg">
+                        <Galaxy className="w-4.5 h-4.5 text-white" aria-hidden="true" />
                       </div>
                     </div>
                     <div>
                       <h2 id="input-code-heading" className="text-sm font-bold text-white tracking-wide">
-                        Original Lua Code
+                        Earth Code (Input)
                       </h2>
                       <p className="text-xs text-gray-400 font-medium">
                         {inputCode.length > 0 ? `${formatBytes(inputCode.length)}` : "Paste code or upload a file"}
@@ -633,22 +644,22 @@ export default function Home() {
               aria-labelledby="output-code-heading"
               className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
             >
-              <Card className="flex-1 bg-gradient-to-br from-pink-900/20 via-purple-800/10 to-purple-900/20 backdrop-blur-2xl border-pink-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-pink-500/20 hover:ring-pink-500/40 transition-all duration-500 hover:shadow-pink-500/20">
-                <div className="p-4 border-b border-pink-500/30 bg-gradient-to-r from-pink-500/20 to-purple-500/20 backdrop-blur-sm">
+              <Card className="flex-1 bg-gradient-to-br from-blue-900/30 via-pink-900/20 to-purple-900/30 backdrop-blur-xl border-blue-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-blue-500/20 hover:ring-blue-500/40 transition-all duration-500 hover:shadow-blue-500/20">
+                <div className="p-4 border-b border-blue-500/30 bg-gradient-to-r from-blue-500/20 to-pink-500/20 backdrop-blur-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-[#ec4899] to-[#8b5cf6] rounded-lg blur-md opacity-50"></div>
-                        <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[#ec4899] to-[#8b5cf6] flex items-center justify-center shadow-lg">
-                          <Shield className="w-4.5 h-4.5 text-white" aria-hidden="true" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-pink-600 rounded-lg blur-md opacity-50"></div>
+                        <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-pink-600 flex items-center justify-center shadow-lg">
+                          <Space className="w-4.5 h-4.5 text-white" aria-hidden="true" />
                         </div>
                       </div>
                       <div>
                         <h2 id="output-code-heading" className="text-sm font-bold text-white tracking-wide">
-                          Luraph Output
+                          Space Code (Output)
                         </h2>
                         <p className="text-xs text-gray-400 font-medium">
-                          {outputCode ? formatBytes(outputCode.length) : "Protected by XZX"}
+                          {outputCode ? formatBytes(outputCode.length) : "Protected in space"}
                         </p>
                       </div>
                     </div>
@@ -680,102 +691,77 @@ export default function Home() {
             {/* Metrics Display */}
             {metrics && !isProcessing && (
               <section aria-labelledby="metrics-heading" className="lg:col-span-2">
-                <Card className="bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
+                <Card className="bg-gradient-to-br from-purple-900/30 via-blue-900/20 to-pink-900/30 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
                   <div className="flex items-center gap-3 mb-5 pb-4 border-b border-purple-500/30">
                     <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] rounded-lg blur-md opacity-50"></div>
-                      <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] flex items-center justify-center shadow-lg">
-                        <Cpu className="w-4.5 h-4.5 text-white" aria-hidden="true" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg blur-md opacity-50"></div>
+                      <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg">
+                        <Telescope className="w-4.5 h-4.5 text-white" aria-hidden="true" />
                       </div>
                     </div>
                     <div>
                       <h2 id="metrics-heading" className="text-sm font-bold text-white tracking-wide">
-                        Luraph Metrics
+                        Galactic Metrics
                       </h2>
-                      <p className="text-xs text-gray-400 font-medium">VM protection statistics</p>
+                      <p className="text-xs text-gray-400 font-medium">Space protection statistics</p>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    {/* Size metrics */}
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400">Input Size</span>
-                        <span className="text-sm font-semibold text-white">
-                          {formatBytes(metrics.inputSize)}
-                        </span>
+                        <span className="text-xs text-gray-400">Earth Size (Input)</span>
+                        <span className="text-sm font-semibold text-white">{formatBytes(metrics.inputSize)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400">Output Size</span>
-                        <span className="text-sm font-semibold text-white">
-                          {formatBytes(metrics.outputSize)}
-                        </span>
+                        <span className="text-xs text-gray-400">Space Size (Output)</span>
+                        <span className="text-sm font-semibold text-white">{formatBytes(metrics.outputSize)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400">Protection Ratio</span>
-                        <span
-                          className={cn(
-                            "text-sm font-bold",
-                            metrics.sizeRatio > 3 ? "text-pink-400" : "text-purple-400"
-                          )}
-                        >
+                        <span className="text-xs text-gray-400">Space-Time Ratio</span>
+                        <span className={cn("text-sm font-bold", metrics.sizeRatio > 3 ? "text-pink-400" : "text-purple-400")}>
                           {metrics.sizeRatio.toFixed(2)}x
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400">VM Functions</span>
-                        <span className="text-sm font-semibold text-white">
-                          {metrics.transformations.namesMangled}
-                        </span>
+                        <span className="text-xs text-gray-400">Light Years (Time)</span>
+                        <span className="text-sm font-semibold text-white">{(metrics.duration / 1000).toFixed(2)}s</span>
                       </div>
                     </div>
 
-                    {/* Transformations */}
                     <div className="border-t border-purple-500/30 pt-4">
                       <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-                          Transformations
-                        </span>
+                        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Galactic Transformations</span>
                       </div>
                       <div className="space-y-2">
                         {metrics.transformations.namesMangled > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">VM Functions</span>
-                            <span className="text-sm font-semibold text-purple-400">
-                              {metrics.transformations.namesMangled}
-                            </span>
+                            <span className="text-xs text-gray-400">Stars Renamed</span>
+                            <span className="text-sm font-semibold text-purple-400">{metrics.transformations.namesMangled}</span>
                           </div>
                         )}
                         {metrics.transformations.stringsEncoded > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">Strings Encrypted</span>
-                            <span className="text-sm font-semibold text-pink-400">
-                              {metrics.transformations.stringsEncoded}
-                            </span>
+                            <span className="text-xs text-gray-400">Nebulas Encrypted</span>
+                            <span className="text-sm font-semibold text-pink-400">{metrics.transformations.stringsEncoded}</span>
                           </div>
                         )}
                         {metrics.transformations.numbersEncoded > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">Numbers Encoded</span>
-                            <span className="text-sm font-semibold text-green-400">
-                              {metrics.transformations.numbersEncoded}
-                            </span>
+                            <span className="text-xs text-gray-400">Planets Encoded</span>
+                            <span className="text-sm font-semibold text-green-400">{metrics.transformations.numbersEncoded}</span>
                           </div>
                         )}
                         {metrics.transformations.deadCodeBlocks > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">Junk Blocks</span>
-                            <span className="text-sm font-semibold text-orange-400">
-                              {metrics.transformations.deadCodeBlocks}
-                            </span>
+                            <span className="text-xs text-gray-400">Black Holes</span>
+                            <span className="text-sm font-semibold text-orange-400">{metrics.transformations.deadCodeBlocks}</span>
                           </div>
                         )}
                         {metrics.transformations.antiDebugChecks > 0 && (
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">Anti-Debug</span>
-                            <span className="text-sm font-semibold text-red-400">
-                              {metrics.transformations.antiDebugChecks}
-                            </span>
+                            <span className="text-xs text-gray-400">Space Shields</span>
+                            <span className="text-sm font-semibold text-red-400">{metrics.transformations.antiDebugChecks}</span>
                           </div>
                         )}
                       </div>
@@ -788,20 +774,20 @@ export default function Home() {
 
           {/* Settings Panel */}
           <aside className="lg:col-span-4 lg:overflow-auto" aria-labelledby="settings-heading">
-            <Card className="bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 backdrop-blur-2xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
+            <Card className="bg-gradient-to-br from-purple-900/30 via-blue-900/20 to-pink-900/30 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/40 transition-all duration-500">
               <div className="flex items-center gap-3 mb-6 sm:mb-8 pb-5 border-b border-purple-500/30">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] rounded-xl blur-lg opacity-50"></div>
-                  <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#ec4899] flex items-center justify-center shadow-lg">
-                    <Settings className="w-5.5 h-5.5 text-white" aria-hidden="true" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl blur-lg opacity-50"></div>
+                  <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg">
+                    <Planet className="w-5.5 h-5.5 text-white" aria-hidden="true" />
                   </div>
                 </div>
                 <div className="flex-1">
                   <h2 id="settings-heading" className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                    Luraph Settings
+                    Space Controls
                   </h2>
                   <p className="text-xs text-gray-400 font-medium mt-0.5">
-                    VM protection configuration
+                    Configure galactic protection
                   </p>
                 </div>
               </div>
@@ -810,14 +796,14 @@ export default function Home() {
                 {/* Basic Obfuscation */}
                 <div className="space-y-4">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    Basic Obfuscation
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Star className="w-4 h-4 mr-1" /> Basic Space Operations
                   </Label>
 
                   {renderSwitch(
                     "mangle-names",
-                    "Mangle Names",
-                    "Replace variable and function names with hexadecimal identifiers",
+                    "Rename Stars",
+                    "Replace variable and function names with constellation codes",
                     settings.mangleNames,
                     (checked) => {
                       setSettings({ ...settings, mangleNames: checked });
@@ -830,7 +816,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "encode-strings",
-                    "Encode Strings",
+                    "Encrypt Nebulas",
                     "Convert strings to byte arrays using string.char()",
                     settings.encodeStrings,
                     (checked) => {
@@ -844,7 +830,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "encode-numbers",
-                    "Encode Numbers",
+                    "Encode Planets",
                     "Transform numeric literals into mathematical expressions",
                     settings.encodeNumbers,
                     (checked) => {
@@ -858,7 +844,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "minify",
-                    "Minify Code",
+                    "Compress Space",
                     "Remove comments and whitespace",
                     settings.minify,
                     (checked) => {
@@ -874,8 +860,8 @@ export default function Home() {
                 {/* Target Version */}
                 <div className="space-y-4 pt-6 border-t border-purple-500/30">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Globe className="w-4 h-4 mr-1" /> Target Version
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Globe className="w-4 h-4 mr-1" /> Target Galaxy
                   </Label>
 
                   <div className="space-y-3">
@@ -887,31 +873,31 @@ export default function Home() {
                       disabled={isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
-                        <SelectValue placeholder="Select Lua version" />
+                        <SelectValue placeholder="Select Lua galaxy" />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-white/20">
-                        <SelectItem value="5.1">Lua 5.1 (Recommended)</SelectItem>
-                        <SelectItem value="5.2">Lua 5.2</SelectItem>
-                        <SelectItem value="5.3">Lua 5.3</SelectItem>
-                        <SelectItem value="5.4">Lua 5.4</SelectItem>
-                        <SelectItem value="luajit">LuaJIT</SelectItem>
+                        <SelectItem value="5.1">Galaxy 5.1 (Milky Way)</SelectItem>
+                        <SelectItem value="5.2">Galaxy 5.2 (Andromeda)</SelectItem>
+                        <SelectItem value="5.3">Galaxy 5.3 (Triangulum)</SelectItem>
+                        <SelectItem value="5.4">Galaxy 5.4 (Whirlpool)</SelectItem>
+                        <SelectItem value="luajit">LuaJIT (Black Hole)</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400/90">Platform/version lock for compatibility</p>
+                    <p className="text-xs text-gray-400/90">Galaxy lock for compatibility</p>
                   </div>
                 </div>
 
                 {/* VM & Core Features */}
                 <div className="space-y-4 pt-6 border-t border-purple-500/30">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Cpu className="w-4 h-4 mr-1" /> VM & Core Features
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Cpu className="w-4 h-4 mr-1" /> Space-Time Continuum
                   </Label>
 
                   {renderSwitch(
                     "control-flow-flattening",
-                    "Control Flow Flattening",
-                    "Transform code into state machine patterns (CPU intensive)",
+                    "Warp Space-Time",
+                    "Transform code into wormhole patterns (CPU intensive)",
                     settings.controlFlowFlattening,
                     (checked) => {
                       setSettings({ ...settings, controlFlowFlattening: checked });
@@ -925,7 +911,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "opaque-predicates",
-                    "Opaque Predicates",
+                    "Black Hole Logic",
                     "Insert complex always-true/false conditions",
                     settings.opaquePredicates,
                     (checked) => {
@@ -940,7 +926,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "dead-code-injection",
-                    "Dead Code Injection",
+                    "Dark Matter",
                     "Inject unreachable code blocks",
                     settings.deadCodeInjection,
                     (checked) => {
@@ -955,7 +941,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "intense-vm",
-                    "Intense VM Structure",
+                    "Wormhole VM",
                     "Adds extra layers of processing to the VM",
                     settings.intenseVM,
                     (checked) => {
@@ -972,14 +958,14 @@ export default function Home() {
                 {/* Anti-Analysis Features */}
                 <div className="space-y-4 pt-6 border-t border-purple-500/30">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Bug className="w-4 h-4 mr-1" /> Anti-Analysis
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Bug className="w-4 h-4 mr-1" /> Alien Defense
                   </Label>
 
                   {renderSwitch(
                     "anti-debugging",
-                    "Anti-Debugging",
-                    "Runtime checks to detect debuggers",
+                    "Radar Jamming",
+                    "Runtime checks to detect alien debuggers",
                     settings.antiDebugging,
                     (checked) => {
                       setSettings({ ...settings, antiDebugging: checked });
@@ -993,7 +979,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "anti-tamper",
-                    "Anti-Tamper",
+                    "Force Field",
                     "Detects code modification and integrity violations",
                     settings.antiTamper,
                     (checked) => {
@@ -1008,7 +994,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "integrity-checks",
-                    "Integrity Checks",
+                    "Quantum Entanglement",
                     "Cryptographic hash verification of code sections",
                     settings.integrityChecks,
                     (checked) => {
@@ -1025,13 +1011,13 @@ export default function Home() {
                 {/* Environment & Optimization */}
                 <div className="space-y-4 pt-6 border-t border-purple-500/30">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <HardDrive className="w-4 h-4 mr-1" /> Environment & Optimization
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <HardDrive className="w-4 h-4 mr-1" /> Space Environment
                   </Label>
 
                   {renderSwitch(
                     "static-environment",
-                    "Static Environment",
+                    "Static Universe",
                     "Optimizes assuming environment never changes",
                     settings.staticEnvironment,
                     (checked) => {
@@ -1045,7 +1031,7 @@ export default function Home() {
 
                   {renderSwitch(
                     "disable-line-info",
-                    "Disable Line Info",
+                    "Hide Coordinates",
                     "Removes line information for better performance",
                     settings.disableLineInfo,
                     (checked) => {
@@ -1061,8 +1047,8 @@ export default function Home() {
                 {/* Encryption Algorithm */}
                 <div className="space-y-4 pt-6 border-t border-purple-500/30">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Key className="w-4 h-4 mr-1" /> String Encryption
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Key className="w-4 h-4 mr-1" /> Encryption Method
                   </Label>
 
                   <div className="space-y-3">
@@ -1090,8 +1076,8 @@ export default function Home() {
                 {/* Optimization Level */}
                 <div className="space-y-4 pt-6 border-t border-purple-500/30">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Hash className="w-4 h-4 mr-1" /> Optimization Level
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Hash className="w-4 h-4 mr-1" /> Warp Speed
                   </Label>
 
                   <div className="space-y-3">
@@ -1103,13 +1089,13 @@ export default function Home() {
                       disabled={isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50">
-                        <SelectValue placeholder="Select optimization level" />
+                        <SelectValue placeholder="Select warp factor" />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-white/20">
-                        <SelectItem value="0">Level 0 (No optimization)</SelectItem>
-                        <SelectItem value="1">Level 1 (Basic)</SelectItem>
-                        <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
-                        <SelectItem value="3">Level 3 (Maximum)</SelectItem>
+                        <SelectItem value="0">Warp 0 (No optimization)</SelectItem>
+                        <SelectItem value="1">Warp 1 (Basic)</SelectItem>
+                        <SelectItem value="2">Warp 2 (Aggressive)</SelectItem>
+                        <SelectItem value="3">Warp 3 (Maximum)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1118,8 +1104,8 @@ export default function Home() {
                 {/* Output Formatting */}
                 <div className="space-y-4 pt-6 border-t border-purple-500/30">
                   <Label className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                    <Eye className="w-4 h-4 mr-1" /> Output Format
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                    <Eye className="w-4 h-4 mr-1" /> Viewing Angle
                   </Label>
 
                   <div className="space-y-3">
@@ -1134,10 +1120,10 @@ export default function Home() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-white/20">
-                        <SelectItem value="minified">Minified (Compact)</SelectItem>
-                        <SelectItem value="pretty">Pretty (Readable)</SelectItem>
-                        <SelectItem value="obfuscated">Obfuscated (Random)</SelectItem>
-                        <SelectItem value="single-line">Single Line</SelectItem>
+                        <SelectItem value="minified">Minified (Compact Star)</SelectItem>
+                        <SelectItem value="pretty">Pretty (Nebula)</SelectItem>
+                        <SelectItem value="obfuscated">Obfuscated (Black Hole)</SelectItem>
+                        <SelectItem value="single-line">Single Line (Wormhole)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1150,8 +1136,8 @@ export default function Home() {
                       htmlFor="compression"
                       className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2.5"
                     >
-                      <div className="w-1 h-5 bg-gradient-to-b from-[#8b5cf6] to-[#ec4899] rounded-full shadow-lg shadow-purple-500/50"></div>
-                      Protection Level
+                      <div className="w-1 h-5 bg-gradient-to-b from-purple-600 to-blue-600 rounded-full shadow-lg shadow-purple-500/50"></div>
+                      Galactic Protection Level
                     </Label>
                     <div className="flex items-center gap-2">
                       <div
@@ -1159,7 +1145,7 @@ export default function Home() {
                           "px-3 py-1.5 rounded-lg font-bold text-xs backdrop-blur-sm border transition-all duration-300",
                           protectionStrength === "none" && "bg-gray-500/20 border-gray-500/30 text-gray-300",
                           protectionStrength === "low" && "bg-purple-500/20 border-purple-500/30 text-purple-300",
-                          protectionStrength === "medium" && "bg-pink-500/20 border-pink-500/30 text-pink-300",
+                          protectionStrength === "medium" && "bg-blue-500/20 border-blue-500/30 text-blue-300",
                           protectionStrength === "high" && "bg-orange-500/20 border-orange-500/30 text-orange-300",
                           protectionStrength === "maximum" && "bg-red-500/20 border-red-500/30 text-red-300 animate-pulse"
                         )}
@@ -1210,16 +1196,16 @@ export default function Home() {
                       "text-xs rounded-xl p-4 backdrop-blur-sm border transition-all duration-300",
                       protectionStrength === "none" && "bg-gray-500/10 border-gray-500/20 text-gray-300",
                       protectionStrength === "low" && "bg-purple-500/10 border-purple-500/20 text-purple-200",
-                      protectionStrength === "medium" && "bg-pink-500/10 border-pink-500/20 text-pink-200",
+                      protectionStrength === "medium" && "bg-blue-500/10 border-blue-500/20 text-blue-200",
                       protectionStrength === "high" && "bg-orange-500/10 border-orange-500/20 text-orange-200",
                       protectionStrength === "maximum" && "bg-red-500/10 border-red-500/20 text-red-200"
                     )}
                   >
-                    {settings.compressionLevel < 30 && "Standard Protection"}
-                    {settings.compressionLevel >= 30 && settings.compressionLevel < 60 && "Enhanced Protection"}
-                    {settings.compressionLevel >= 60 && settings.compressionLevel < 80 && "Advanced Protection"}
-                    {settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Maximum Protection"}
-                    {settings.compressionLevel >= 95 && "Ultimate Protection"}
+                    {settings.compressionLevel < 30 && "Standard Star"}
+                    {settings.compressionLevel >= 30 && settings.compressionLevel < 60 && "Enhanced Nebula"}
+                    {settings.compressionLevel >= 60 && settings.compressionLevel < 80 && "Advanced Galaxy"}
+                    {settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Maximum Wormhole"}
+                    {settings.compressionLevel >= 95 && "Ultimate Black Hole"}
                   </div>
                 </div>
 
@@ -1228,8 +1214,8 @@ export default function Home() {
                   <div className="pt-2">
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
                       <p className="text-xs text-yellow-200/90">
-                        <strong className="font-bold block mb-1">⚠️ Performance Warning</strong>
-                        GC Fixes enabled - Heavy performance cost
+                        <strong className="font-bold block mb-1">⚠️ Space-Time Warning</strong>
+                        GC Fixes enabled - Heavy gravity cost
                       </p>
                     </div>
                   </div>
@@ -1239,8 +1225,8 @@ export default function Home() {
                   <div className="pt-2">
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
                       <p className="text-xs text-yellow-200/90">
-                        <strong className="font-bold block mb-1">⚠️ Security Warning</strong>
-                        Hardcode Globals exposes global names
+                        <strong className="font-bold block mb-1">⚠️ Cosmic Warning</strong>
+                        Hardcode Globals exposes star names
                       </p>
                     </div>
                   </div>
@@ -1250,8 +1236,8 @@ export default function Home() {
                   <div className="pt-2">
                     <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
                       <p className="text-xs text-purple-200/90">
-                        <strong className="font-bold block mb-1">⚡ Advanced Protection Active</strong>
-                        Maximum protection enabled - code is virtualized
+                        <strong className="font-bold block mb-1">⚡ Wormhole Active</strong>
+                        Maximum protection enabled - code is warped
                       </p>
                     </div>
                   </div>
@@ -1264,7 +1250,7 @@ export default function Home() {
                       <div className="flex items-center gap-2 text-blue-200">
                         <Database className="w-4 h-4" />
                         <p className="text-xs">
-                          <strong className="font-bold block mb-1">📦 Large File Mode</strong>
+                          <strong className="font-bold block mb-1">📡 Large Galaxy Detected</strong>
                           File size: {formatBytes(inputCode.length)}. Processing may take longer.
                         </p>
                       </div>
@@ -1289,8 +1275,8 @@ export default function Home() {
             </div>
             <div className="flex-1 relative">
               <h3 className="text-red-200 font-bold mb-2 text-base flex items-center gap-2">
-                Obfuscation Error
-                <span className="px-2 py-0.5 bg-red-500/20 rounded-md text-xs">Failed</span>
+                Space Disturbance
+                <span className="px-2 py-0.5 bg-red-500/20 rounded-md text-xs">Critical</span>
               </h3>
               <p className="text-red-100/90 text-sm leading-relaxed">{error}</p>
             </div>
@@ -1309,7 +1295,7 @@ export default function Home() {
             </div>
             <div className="flex-1 relative">
               <h3 className="text-yellow-200 font-bold mb-2 text-base flex items-center gap-2">
-                Notice
+                Space Weather Alert
                 <span className="px-2 py-0.5 bg-yellow-500/20 rounded-md text-xs">Info</span>
               </h3>
               <p className="text-yellow-100/90 text-sm leading-relaxed">{warning}</p>
@@ -1324,15 +1310,15 @@ export default function Home() {
           aria-label="Version and author information"
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-purple-500/30 hover:bg-white/10 transition-all duration-300">
-            <span className="text-sm text-gray-400 font-mono">v9.0.0</span>
-            <span className="text-sm text-gray-400">Made by</span>
+            <span className="text-sm text-gray-400 font-mono">v19.0.0</span>
+            <span className="text-sm text-gray-400">Launched by</span>
             <a
               href="https://discord.gg/5q5bEKmYqF"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-semibold text-purple-400 hover:text-pink-400 font-mono transition-colors duration-200 hover:underline"
             >
-              XZX HUB
+              XZX Space Command
             </a>
             <span className="text-sm text-gray-400">x</span>
             <a
@@ -1341,7 +1327,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="text-sm font-semibold text-pink-400 hover:text-purple-400 font-mono transition-colors duration-200 hover:underline"
             >
-              BillChirico
+              Mission Control
             </a>
           </div>
         </footer>
@@ -1356,8 +1342,33 @@ export default function Home() {
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(135deg, #8b5cf6, #ec4899);
+          background: linear-gradient(135deg, #8b5cf6, #3b82f6, #ec4899);
           border-radius: 10px;
+        }
+        
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 1; }
+        }
+        
+        @keyframes shooting-star {
+          0% {
+            transform: translateX(-100px) translateY(0) rotate(45deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(calc(100vw + 100px)) translateY(calc(100vh + 100px)) rotate(45deg);
+            opacity: 0;
+          }
+        }
+        
+        .animate-shooting-star {
+          animation: shooting-star 3s linear infinite;
+        }
+        
+        .animate-shooting-star-delayed {
+          animation: shooting-star 4s linear infinite;
+          animation-delay: 2s;
         }
       `}</style>
     </>
