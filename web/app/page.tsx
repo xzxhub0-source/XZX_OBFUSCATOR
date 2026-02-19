@@ -47,13 +47,17 @@ import {
   Star,
   Moon,
   Sun,
-  Galaxy,
-  Meteor,
-  Comet,
-  Planet,
   Telescope,
   Space,
-  Stars,
+  StarsIcon,
+  Globe2,
+  OrbitIcon,
+  SatelliteIcon,
+  RocketIcon,
+  StarIcon,
+  MoonIcon,
+  SunIcon,
+  TelescopeIcon,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { BackgroundGradientAnimation } from "@/components/BackgroundGradient";
@@ -437,7 +441,7 @@ export default function Home() {
         {stars.map((star, i) => (
           <div
             key={i}
-            className="absolute bg-white rounded-full animate-twinkle"
+            className="absolute bg-white rounded-full"
             style={{
               left: `${star.x}%`,
               top: `${star.y}%`,
@@ -545,7 +549,7 @@ export default function Home() {
           <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top fade-in duration-300">
             <div className="bg-gradient-to-r from-purple-500/90 via-blue-500/90 to-pink-500/90 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <Stars className="w-5 h-5 text-white animate-pulse" />
+                <StarsIcon className="w-5 h-5 text-white animate-pulse" />
               </div>
               <div>
                 <p className="text-white font-bold text-sm">Obfuscation Complete!</p>
@@ -573,7 +577,7 @@ export default function Home() {
                     <div className="relative">
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg blur-md opacity-50"></div>
                       <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg">
-                        <Galaxy className="w-4.5 h-4.5 text-white" aria-hidden="true" />
+                        <Globe2 className="w-4.5 h-4.5 text-white" aria-hidden="true" />
                       </div>
                     </div>
                     <div>
@@ -779,7 +783,7 @@ export default function Home() {
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl blur-lg opacity-50"></div>
                   <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg">
-                    <Planet className="w-5.5 h-5.5 text-white" aria-hidden="true" />
+                    <Orbit className="w-5.5 h-5.5 text-white" aria-hidden="true" />
                   </div>
                 </div>
                 <div className="flex-1">
