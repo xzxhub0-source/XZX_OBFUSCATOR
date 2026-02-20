@@ -996,6 +996,10 @@ export default function Home() {
                 © 2026 XZX HUB. All rights reserved.
               </div>
               
+              <div className="text-sm text-gray-400">
+                All modules built by Bill Chirico
+              </div>
+              
               <div className="flex items-center gap-4">
                 <a
                   href="https://discord.gg/5q5bEKmYqF"
