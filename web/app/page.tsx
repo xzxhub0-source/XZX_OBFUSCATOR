@@ -41,6 +41,23 @@ import {
   BrainCircuit,
   FileWarning,
   CheckCheck,
+  Github,
+  MessageCircle,
+  Award,
+  TrendingUp,
+  Star,
+  Users,
+  ZapIcon,
+  Menu,
+  XCircle,
+  Maximize2,
+  Minimize2,
+  ChevronRight,
+  ChevronLeft,
+  Moon,
+  Sun,
+  Heart,
+  ExternalLink,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { BackgroundGradientAnimation } from "@/components/BackgroundGradient";
@@ -112,18 +129,10 @@ export default function Home() {
   const [fileName, setFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [stars, setStars] = useState<{ 
-    x: number; 
-    y: number; 
-    size: number; 
-    speed: number; 
-    rayAngle: number; 
-    rayLength: number;
-    color: string;
-    pulseSpeed: number;
-  }[]>([]);
+  const [activeTab, setActiveTab] = useState<'input' | 'output' | 'metrics'>('input');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -160,46 +169,12 @@ export default function Home() {
   const [obfuscationCount, setObfuscationCount] = useState(0);
   const [pageStartTime] = useState(Date.now());
 
-  // Generate stars with rays on mount
-  useEffect(() => {
-    const newStars = [];
-    const colors = ['#ffffff', '#f0f0ff', '#e6e6ff', '#d9b3ff', '#c2c2ff', '#b3b3ff', '#a366ff'];
-    for (let i = 0; i < 200; i++) {
-      newStars.push({
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size: Math.random() * 3 + 1,
-        speed: Math.random() * 0.3 + 0.05,
-        rayAngle: Math.random() * 360,
-        rayLength: Math.random() * 40 + 10,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        pulseSpeed: Math.random() * 2 + 1,
-      });
-    }
-    setStars(newStars);
-  }, []);
-
-  // Star animation with parallax effect based on mouse
-  useEffect(() => {
-    if (stars.length === 0) return;
-    
-    const interval = setInterval(() => {
-      setStars(prev => prev.map(star => ({
-        ...star,
-        y: star.y - star.speed < 0 ? 100 : star.y - star.speed,
-        rayAngle: (star.rayAngle + 0.1) % 360,
-      })));
-    }, 50);
-    
-    return () => clearInterval(interval);
-  }, [stars]);
-
-  // Track mouse position for parallax and lighting effects
+  // Track mouse position for lighting effects
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({
-        x: (e.clientX / window.innerWidth) * 100,
-        y: (e.clientY / window.innerHeight) * 100,
+        x: e.clientX,
+        y: e.clientY,
       });
     };
     window.addEventListener('mousemove', handleMouseMove);
@@ -302,6 +277,7 @@ export default function Home() {
         setMetrics(transformedMetrics);
         setError(null);
         setInputError(undefined);
+        setActiveTab('output');
 
         const newCount = obfuscationCount + 1;
         setObfuscationCount(newCount);
@@ -416,24 +392,24 @@ export default function Home() {
     badge?: string
   ) => {
     const colors = {
-      purple: "data-[state=checked]:bg-purple-600/40",
-      pink: "data-[state=checked]:bg-pink-600/40",
-      blue: "data-[state=checked]:bg-blue-600/40",
-      red: "data-[state=checked]:bg-red-600/40",
-      orange: "data-[state=checked]:bg-orange-600/40",
-      green: "data-[state=checked]:bg-green-600/40",
-      yellow: "data-[state=checked]:bg-yellow-600/40",
+      purple: "data-[state=checked]:bg-purple-600",
+      pink: "data-[state=checked]:bg-pink-600",
+      blue: "data-[state=checked]:bg-blue-600",
+      red: "data-[state=checked]:bg-red-600",
+      orange: "data-[state=checked]:bg-orange-600",
+      green: "data-[state=checked]:bg-green-600",
+      yellow: "data-[state=checked]:bg-yellow-600",
     };
 
     return (
-      <div className="flex items-center justify-between group hover:bg-white/10 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer bg-black/20 backdrop-blur-sm">
+      <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
         <Label htmlFor={id} className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
           <div className="flex items-center gap-2">
             <span>{label}</span>
-            {badge && <span className={`text-[10px] ${badge === 'Advanced' ? 'text-purple-400/80 bg-purple-500/20' : 'text-yellow-400/80 bg-yellow-500/20'} px-1.5 py-0.5 rounded`}>{badge}</span>}
-            {checked && <Zap className="w-3.5 h-3.5 text-purple-400/80 animate-pulse" />}
+            {badge && <span className={`text-[10px] ${badge === 'Advanced' ? 'text-purple-400 bg-purple-500/10' : 'text-yellow-400 bg-yellow-500/10'} px-1.5 py-0.5 rounded`}>{badge}</span>}
+            {checked && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
           </div>
-          <p className="text-xs text-gray-400/70 mt-1 font-normal leading-relaxed">{description}</p>
+          <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">{description}</p>
         </Label>
         <Switch
           id={id}
@@ -446,851 +422,529 @@ export default function Home() {
     );
   };
 
-  // Calculate parallax offset based on mouse position
-  const getParallaxOffset = (depth: number) => {
-    const x = (mousePosition.x - 50) * depth * 0.02;
-    const y = (mousePosition.y - 50) * depth * 0.02;
-    return { x, y };
-  };
-
   return (
-    <>
-      {/* Parallax Galaxy Background */}
-      <div className="fixed inset-0 overflow-hidden">
-        {/* Deep radial gradients for galaxy effect */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_#1a0b2e,_#0a0a0f_70%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,_#2d1b4a,_transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#3a2a5a_0%,_transparent_50%)] opacity-30" />
+    <div className={cn(
+      "min-h-screen transition-colors duration-300",
+      theme === 'dark' ? 'bg-[#0a0a0f]' : 'bg-[#f5f5f8]'
+    )}>
+      {/* Premium gradient background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.15),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(236,72,153,0.1),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(59,130,246,0.1),transparent_50%)]" />
         
-        {/* Stars with light-emitting properties */}
-        {stars.map((star, i) => {
-          const depth = star.size / 3; // Larger stars appear closer, move more
-          const parallax = getParallaxOffset(depth);
-          const left = star.x + parallax.x;
-          const top = star.y + parallax.y;
-          
-          return (
-            <React.Fragment key={i}>
-              {/* Light ray */}
-              <div
-                className="absolute bg-gradient-to-r from-transparent via-white to-transparent"
-                style={{
-                  left: `${left}%`,
-                  top: `${top}%`,
-                  width: `${star.rayLength}px`,
-                  height: `${star.size * 0.3}px`,
-                  transform: `rotate(${star.rayAngle}deg)`,
-                  opacity: 0.2,
-                  filter: 'blur(2px)',
-                  animation: `rayPulse ${star.pulseSpeed}s infinite`,
-                  pointerEvents: 'none',
-                  mixBlendMode: 'screen',
-                  boxShadow: `0 0 10px ${star.color}`,
-                }}
-              />
-              {/* Star core with glow */}
-              <div
-                className="absolute rounded-full"
-                style={{
-                  left: `${left}%`,
-                  top: `${top}%`,
-                  width: `${star.size}px`,
-                  height: `${star.size}px`,
-                  backgroundColor: star.color,
-                  opacity: 0.7,
-                  boxShadow: `0 0 ${star.size * 4}px ${star.color}`,
-                  animation: `starPulse ${star.pulseSpeed}s infinite`,
-                  transform: `translate(-50%, -50%)`,
-                }}
-              />
-            </React.Fragment>
-          );
-        })}
+        {/* Floating orbs */}
+        <div className="absolute top-20 left-20 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-pink-600/20 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Dynamic edge lighting overlay */}
-      <div 
-        className="fixed inset-0 pointer-events-none"
-        style={{
-          background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.1) 0%, transparent 50%)`,
-          mixBlendMode: 'overlay',
-        }}
-      />
+      {/* Premium noise texture */}
+      <div className="fixed inset-0 opacity-20 pointer-events-none" style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E")`,
+      }} />
 
       {/* Main content */}
-      <main className="relative z-10 flex flex-col p-4 sm:p-6 gap-4 lg:gap-6 min-h-screen">
-        {/* Header with glass morphism */}
-        <header 
-          ref={el => { cardRefs.current[0] = el; }}
-          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top duration-700 bg-black/20 backdrop-blur-xl p-4 rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden"
-          style={{
-            boxShadow: `0 0 30px rgba(139,92,246,0.2)`,
-          }}
-        >
-          {/* Dynamic edge lighting for header */}
-          <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.2) 0%, transparent 70%)`,
-              mixBlendMode: 'overlay',
-            }}
-          />
-          
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 via-blue-600/30 to-pink-600/30 rounded-2xl blur-xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
-              <div
-                className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-purple-600/40 via-blue-600/40 to-pink-600/40 flex items-center justify-center shadow-2xl shadow-purple-500/20 ring-2 ring-white/20 backdrop-blur-sm transform group-hover:scale-105 transition-all duration-300"
-                aria-hidden="true"
-              >
-                <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-white/80 drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
-              </div>
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-3xl font-bold tracking-tight">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400/80 via-blue-400/80 to-pink-400/80">
+      <div className="relative z-10">
+        {/* Top navigation bar */}
+        <nav className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/10 bg-black/20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo and brand */}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur opacity-50"></div>
+                  <div className="relative w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
+                    <Shield className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <span className="text-xl font-bold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
                   XZX
                 </span>
-                <span className="text-white/80 ml-2">Obfuscator</span>
+                <span className="text-xs px-2 py-1 bg-purple-600/20 rounded-full text-purple-300 border border-purple-600/30">
+                  v2.0.0
+                </span>
+              </div>
+
+              {/* Navigation links */}
+              <div className="hidden md:flex items-center gap-8">
+                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Features</a>
+                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Documentation</a>
+                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Pricing</a>
+                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Blog</a>
+              </div>
+
+              {/* Right side actions */}
+              <div className="flex items-center gap-4">
+                {/* Theme toggle */}
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                </button>
+
+                {/* Discord link - prominent */}
+                <a
+                  href="https://discord.gg/5q5bEKmYqF"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752c4] rounded-lg transition-colors group"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Join Discord</span>
+                  <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                </a>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        {/* Main content area */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header with stats */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+                Lua Obfuscator
               </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs sm:text-sm text-gray-300/60 font-medium">
-                  v2 | Galactic Protection
-                </p>
-                {getActiveAdvancedCount() > 0 && (
-                  <div className="px-2 py-0.5 bg-purple-500/20 border border-purple-500/30 rounded-full text-[10px] text-purple-300/80">
-                    {getActiveAdvancedCount()} Active
-                  </div>
+              <p className="text-gray-400 mt-1">Military-grade protection for your Lua code</p>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {/* Stats cards */}
+              <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+                <Users className="w-4 h-4 text-purple-400" />
+                <span className="text-sm text-gray-300">1.2k+ users</span>
+              </div>
+              <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+                <Award className="w-4 h-4 text-pink-400" />
+                <span className="text-sm text-gray-300">99.9% protection</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Main workspace */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left column - Code editors */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Tabs */}
+              <div className="flex items-center gap-2 border-b border-white/10 pb-4">
+                <button
+                  onClick={() => setActiveTab('input')}
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                    activeTab === 'input'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  )}
+                >
+                  Input
+                </button>
+                <button
+                  onClick={() => setActiveTab('output')}
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                    activeTab === 'output'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  )}
+                >
+                  Output
+                </button>
+                {metrics && (
+                  <button
+                    onClick={() => setActiveTab('metrics')}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                      activeTab === 'metrics'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    )}
+                  >
+                    Metrics
+                  </button>
                 )}
               </div>
-            </div>
-          </div>
-          <nav className="flex flex-wrap gap-3 w-full sm:w-auto relative z-10" aria-label="Main actions">
-            <Button
-              onClick={copyToClipboard}
-              disabled={!outputCode || isProcessing}
-              className="group bg-white/10 hover:bg-white/20 active:bg-white/30 text-white/80 border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 relative overflow-hidden"
-            >
-              {/* Light reflection effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-              {copySuccess ? (
-                <>
-                  <CheckCircle className="w-4 h-4 mr-2 text-green-400/80 animate-in zoom-in duration-200" />
-                  <span className="animate-in fade-in duration-200">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                  Copy
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={downloadCode}
-              disabled={!outputCode || isProcessing}
-              className="group bg-white/10 hover:bg-white/20 active:bg-white/30 text-white/80 border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-              <Download className="w-4 h-4 mr-2 group-hover:translate-y-0.5 transition-transform duration-200" />
-              Download
-            </Button>
-            {isProcessing ? (
-              <Button
-                onClick={cancelObfuscation}
-                className="group relative bg-gradient-to-r from-red-600/30 to-pink-600/30 hover:from-red-700/40 hover:to-pink-700/40 active:scale-[0.98] text-white/80 shadow-xl hover:shadow-2xl shadow-red-500/30 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                <X className="w-4 h-4 mr-2 relative z-10" />
-                <span className="relative z-10">Cancel</span>
-              </Button>
-            ) : (
-              <Button
-                onClick={obfuscateCode}
-                disabled={!inputCode || isProcessing}
-                className="group relative bg-gradient-to-r from-purple-600/30 via-blue-600/30 to-pink-600/30 hover:from-purple-700/40 hover:via-blue-700/40 hover:to-pink-700/40 active:scale-[0.98] text-white/80 shadow-xl hover:shadow-2xl shadow-purple-500/30 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                <Shuffle className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-180 transition-transform duration-500" />
-                <span className="relative z-10">{isProcessing ? "Processing..." : "Obfuscate"}</span>
-              </Button>
-            )}
-          </nav>
-        </header>
 
-        {/* Success Animation Overlay */}
-        {showSuccessAnimation && (
-          <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top fade-in duration-300">
-            <div className="bg-gradient-to-r from-purple-500/40 via-blue-500/40 to-pink-500/40 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white/80 animate-pulse" />
-              </div>
-              <div>
-                <p className="text-white/90 font-bold text-sm">Obfuscation Complete!</p>
-                <p className="text-purple-50/80 text-xs">Your code is now protected</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Main Content */}
-        <section
-          className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-6 min-h-0 overflow-y-auto animate-in fade-in slide-in-from-bottom duration-700"
-          aria-label="Code editor workspace"
-        >
-          {/* Code Editors */}
-          <div className="lg:col-span-8 flex flex-col lg:grid lg:grid-cols-2 gap-4 lg:min-h-0">
-            {/* Input Editor */}
-            <section
-              aria-labelledby="input-code-heading"
-              className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
-            >
-              <Card 
-                ref={el => { cardRefs.current[1] = el; }}
-                className="flex-1 bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500 hover:shadow-purple-500/20 relative"
-                style={{
-                  boxShadow: `0 0 30px rgba(139,92,246,0.15)`,
-                }}
-              >
-                {/* Dynamic edge lighting */}
-                <div 
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.15) 0%, transparent 70%)`,
-                    mixBlendMode: 'overlay',
-                  }}
-                />
-                <div className="p-4 border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-blue-500/10 backdrop-blur-sm relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-lg blur-md opacity-40"></div>
-                      <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600/30 to-blue-600/30 flex items-center justify-center shadow-lg">
-                        <Code className="w-4.5 h-4.5 text-white/80" aria-hidden="true" />
-                      </div>
-                    </div>
-                    <div>
-                      <h2 id="input-code-heading" className="text-sm font-bold text-white/80 tracking-wide">
-                        Input Code
-                      </h2>
-                      <p className="text-xs text-gray-400/60 font-medium">
-                        {inputCode.length > 0 ? `${formatBytes(inputCode.length)}` : "Paste code or upload a file"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* File Upload Controls */}
-                  <div className="flex items-center gap-2 mt-3">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileUpload}
-                      accept=".lua,.txt"
-                      className="hidden"
-                    />
-                    <Button
-                      onClick={triggerFileUpload}
-                      variant="outline"
-                      size="sm"
-                      disabled={isProcessing}
-                      className="bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/30 text-white/80 disabled:opacity-30 backdrop-blur-sm relative overflow-hidden"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full hover:translate-x-full transition-transform duration-1000" />
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload File
-                    </Button>
-                    {fileName && (
-                      <div className="flex items-center gap-2 bg-purple-500/20 px-3 py-1 rounded-full">
-                        <File className="w-3 h-3 text-purple-400/60" />
-                        <span className="text-xs text-purple-300/60 max-w-[150px] truncate">{fileName}</span>
-                        <button onClick={clearFile} className="hover:text-white/80" disabled={isProcessing}>
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex-1 min-h-0 relative z-10">
-                  {isProcessing && (
-                    <div className="absolute inset-0 bg-purple-900/30 backdrop-blur-sm z-10 flex items-center justify-center">
-                      <Loader2 className="w-8 h-8 text-purple-300/80 animate-spin" />
-                    </div>
-                  )}
-                  <CodeEditor
-                    value={inputCode}
-                    onChange={handleInputChange}
-                    error={inputError}
-                    options={{
-                      readOnly: isProcessing,
-                      automaticLayout: true,
-                      wordWrap: "on",
-                      lineNumbers: "on",
-                      fontSize: 14,
-                      scrollBeyondLastLine: false,
-                    }}
-                  />
-                </div>
-              </Card>
-            </section>
-
-            {/* Output Editor */}
-            <section
-              aria-labelledby="output-code-heading"
-              className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
-            >
-              <Card 
-                ref={el => { cardRefs.current[2] = el; }}
-                className="flex-1 bg-gradient-to-br from-blue-900/20 via-pink-900/10 to-purple-900/20 backdrop-blur-xl border-blue-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-blue-500/20 hover:ring-blue-500/30 transition-all duration-500 hover:shadow-blue-500/20 relative"
-                style={{
-                  boxShadow: `0 0 30px rgba(59,130,246,0.15)`,
-                }}
-              >
-                {/* Dynamic edge lighting */}
-                <div 
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.15) 0%, transparent 70%)`,
-                    mixBlendMode: 'overlay',
-                  }}
-                />
-                <div className="p-4 border-b border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-pink-500/10 backdrop-blur-sm relative z-10">
+              {/* Input editor */}
+              {activeTab === 'input' && (
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-pink-600/20 rounded-lg blur-md opacity-40"></div>
-                        <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600/30 to-pink-600/30 flex items-center justify-center shadow-lg">
-                          <Shield className="w-4.5 h-4.5 text-white/80" aria-hidden="true" />
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-sm text-gray-400">Ready for input</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".lua,.txt"
+                        className="hidden"
+                      />
+                      <Button
+                        onClick={triggerFileUpload}
+                        variant="outline"
+                        size="sm"
+                        className="border-white/10 hover:bg-white/5"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload
+                      </Button>
+                      {fileName && (
+                        <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
+                          <File className="w-3 h-3 text-purple-400" />
+                          <span className="text-xs text-purple-300">{fileName}</span>
+                          <button onClick={clearFile} className="hover:text-white">
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
-                      </div>
-                      <div>
-                        <h2 id="output-code-heading" className="text-sm font-bold text-white/80 tracking-wide">
-                          Output Code
-                        </h2>
-                        <p className="text-xs text-gray-400/60 font-medium">
-                          {outputCode ? formatBytes(outputCode.length) : "Protected output"}
-                        </p>
-                      </div>
+                      )}
                     </div>
-                    {outputCode && !isProcessing && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 backdrop-blur-sm animate-in fade-in zoom-in duration-500">
-                        <Zap className="w-3.5 h-3.5 text-green-400/80" />
-                        <span className="text-xs font-bold text-green-300/80">Ready</span>
-                      </div>
-                    )}
                   </div>
+                  
+                  <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
+                    <CodeEditor
+                      value={inputCode}
+                      onChange={handleInputChange}
+                      error={inputError}
+                      options={{
+                        readOnly: isProcessing,
+                        automaticLayout: true,
+                        wordWrap: "on",
+                        lineNumbers: "on",
+                        fontSize: 14,
+                        scrollBeyondLastLine: false,
+                        theme: theme === 'dark' ? 'vs-dark' : 'light',
+                      }}
+                    />
+                  </Card>
                 </div>
-                <div className="flex-1 min-h-0 relative z-10">
-                  <CodeEditor
-                    value={outputCode}
-                    readOnly
-                    options={{
-                      readOnly: true,
-                      automaticLayout: true,
-                      wordWrap: "on",
-                      lineNumbers: "on",
-                      fontSize: 14,
-                      scrollBeyondLastLine: false,
-                    }}
-                  />
-                </div>
-              </Card>
-            </section>
+              )}
 
-            {/* Metrics Display */}
-            {metrics && !isProcessing && (
-              <section aria-labelledby="metrics-heading" className="lg:col-span-2">
-                <Card 
-                  ref={el => { cardRefs.current[3] = el; }}
-                  className="bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500 relative"
-                  style={{
-                    boxShadow: `0 0 30px rgba(139,92,246,0.15)`,
-                  }}
-                >
-                  {/* Dynamic edge lighting */}
-                  <div 
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                      background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.15) 0%, transparent 70%)`,
-                      mixBlendMode: 'overlay',
-                    }}
-                  />
-                  <div className="flex items-center gap-3 mb-5 pb-4 border-b border-purple-500/20 relative z-10">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-lg blur-md opacity-40"></div>
-                      <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-purple-600/30 to-blue-600/30 flex items-center justify-center shadow-lg">
-                        <Cpu className="w-4.5 h-4.5 text-white/80" aria-hidden="true" />
-                      </div>
+              {/* Output editor */}
+              {activeTab === 'output' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                      <span className="text-sm text-gray-400">Protected output</span>
                     </div>
-                    <div>
-                      <h2 id="metrics-heading" className="text-sm font-bold text-white/80 tracking-wide">
-                        Metrics
-                      </h2>
-                      <p className="text-xs text-gray-400/60 font-medium">Protection statistics</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={copyToClipboard}
+                        disabled={!outputCode}
+                        variant="outline"
+                        size="sm"
+                        className="border-white/10 hover:bg-white/5"
+                      >
+                        {copySuccess ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 mr-2 text-green-400" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4 mr-2" />
+                            Copy
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={downloadCode}
+                        disabled={!outputCode}
+                        variant="outline"
+                        size="sm"
+                        className="border-white/10 hover:bg-white/5"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </Button>
                     </div>
                   </div>
 
-                  <div className="space-y-4 relative z-10">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400/60">Input Size</span>
-                        <span className="text-sm font-semibold text-white/80">{formatBytes(metrics.inputSize)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400/60">Output Size</span>
-                        <span className="text-sm font-semibold text-white/80">{formatBytes(metrics.outputSize)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400/60">Size Ratio</span>
-                        <span className={cn("text-sm font-bold", metrics.sizeRatio > 3 ? "text-pink-400/80" : "text-purple-400/80")}>
-                          {metrics.sizeRatio.toFixed(2)}x
+                  <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
+                    <CodeEditor
+                      value={outputCode}
+                      readOnly
+                      options={{
+                        readOnly: true,
+                        automaticLayout: true,
+                        wordWrap: "on",
+                        lineNumbers: "on",
+                        fontSize: 14,
+                        scrollBeyondLastLine: false,
+                        theme: theme === 'dark' ? 'vs-dark' : 'light',
+                      }}
+                    />
+                  </Card>
+                </div>
+              )}
+
+              {/* Metrics panel */}
+              {activeTab === 'metrics' && metrics && (
+                <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-6">
+                  <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-white/5 rounded-xl">
+                      <div className="text-sm text-gray-400 mb-1">Input</div>
+                      <div className="text-xl font-bold">{formatBytes(metrics.inputSize)}</div>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-xl">
+                      <div className="text-sm text-gray-400 mb-1">Output</div>
+                      <div className="text-xl font-bold">{formatBytes(metrics.outputSize)}</div>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-xl">
+                      <div className="text-sm text-gray-400 mb-1">Ratio</div>
+                      <div className="text-xl font-bold text-purple-400">{metrics.sizeRatio.toFixed(2)}x</div>
+                    </div>
+                    <div className="p-4 bg-white/5 rounded-xl">
+                      <div className="text-sm text-gray-400 mb-1">Time</div>
+                      <div className="text-xl font-bold">{(metrics.duration / 1000).toFixed(2)}s</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-2 gap-4">
+                    {Object.entries(metrics.transformations).map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                        <span className="text-sm text-gray-400 capitalize">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
                         </span>
+                        <span className="text-sm font-semibold text-purple-400">{value}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-400/60">Processing Time</span>
-                        <span className="text-sm font-semibold text-white/80">{(metrics.duration / 1000).toFixed(2)}s</span>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-purple-500/20 pt-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-xs font-bold text-gray-300/60 uppercase tracking-wider">Transformations</span>
-                      </div>
-                      <div className="space-y-2">
-                        {metrics.transformations.namesMangled > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400/60">Names Mangled</span>
-                            <span className="text-sm font-semibold text-purple-400/80">{metrics.transformations.namesMangled}</span>
-                          </div>
-                        )}
-                        {metrics.transformations.stringsEncoded > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400/60">Strings Encrypted</span>
-                            <span className="text-sm font-semibold text-pink-400/80">{metrics.transformations.stringsEncoded}</span>
-                          </div>
-                        )}
-                        {metrics.transformations.numbersEncoded > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400/60">Numbers Encoded</span>
-                            <span className="text-sm font-semibold text-green-400/80">{metrics.transformations.numbersEncoded}</span>
-                          </div>
-                        )}
-                        {metrics.transformations.deadCodeBlocks > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400/60">Dead Code Blocks</span>
-                            <span className="text-sm font-semibold text-orange-400/80">{metrics.transformations.deadCodeBlocks}</span>
-                          </div>
-                        )}
-                        {metrics.transformations.antiDebugChecks > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400/60">Anti-Debug Checks</span>
-                            <span className="text-sm font-semibold text-red-400/80">{metrics.transformations.antiDebugChecks}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </Card>
-              </section>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Settings Panel */}
-          <aside className="lg:col-span-4 lg:overflow-auto" aria-labelledby="settings-heading">
-            <Card 
-              ref={el => { cardRefs.current[4] = el; }}
-              className="bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500 relative"
-              style={{
-                boxShadow: `0 0 30px rgba(139,92,246,0.15)`,
-              }}
-            >
-              {/* Dynamic edge lighting */}
-              <div 
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.15) 0%, transparent 70%)`,
-                  mixBlendMode: 'overlay',
-                }}
-              />
-              <div className="flex items-center gap-3 mb-6 sm:mb-8 pb-5 border-b border-purple-500/20 relative z-10">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl blur-lg opacity-40"></div>
-                  <div className="relative w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600/30 to-blue-600/30 flex items-center justify-center shadow-lg">
-                    <Settings className="w-5.5 h-5.5 text-white/80" aria-hidden="true" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <h2 id="settings-heading" className="text-lg sm:text-xl font-bold text-white/80 tracking-tight">
-                    Settings
-                  </h2>
-                  <p className="text-xs text-gray-400/60 font-medium mt-0.5">
-                    Configure protection
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-7 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar relative z-10">
-                {/* Basic Obfuscation */}
-                <div className="space-y-4">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    Basic Obfuscation
-                  </Label>
-
-                  {renderSwitch(
-                    "mangle-names",
-                    "Mangle Names",
-                    "Replace variable and function names with hexadecimal identifiers",
-                    settings.mangleNames,
-                    (checked) => {
-                      setSettings({ ...settings, mangleNames: checked });
-                      trackSettingsChange({ setting: "mangleNames", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "purple"
-                  )}
-
-                  {renderSwitch(
-                    "encode-strings",
-                    "Encode Strings",
-                    "Convert strings to byte arrays using string.char()",
-                    settings.encodeStrings,
-                    (checked) => {
-                      setSettings({ ...settings, encodeStrings: checked });
-                      trackSettingsChange({ setting: "encodeStrings", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "pink"
-                  )}
-
-                  {renderSwitch(
-                    "encode-numbers",
-                    "Encode Numbers",
-                    "Transform numeric literals into mathematical expressions",
-                    settings.encodeNumbers,
-                    (checked) => {
-                      setSettings({ ...settings, encodeNumbers: checked });
-                      trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "purple"
-                  )}
-
-                  {renderSwitch(
-                    "minify",
-                    "Minify Code",
-                    "Remove comments and whitespace",
-                    settings.minify,
-                    (checked) => {
-                      setSettings({ ...settings, minify: checked });
-                      trackSettingsChange({ setting: "minify", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "purple"
-                  )}
-                </div>
-
-                {/* Target Version */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/20">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    <Globe className="w-4 h-4 mr-1" /> Target Version
-                  </Label>
-
-                  <div className="space-y-3">
-                    <Select
-                      value={settings.targetVersion}
-                      onValueChange={(value: any) => {
-                        setSettings({ ...settings, targetVersion: value });
-                      }}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white/80 hover:bg-white/20 disabled:opacity-30 backdrop-blur-sm">
-                        <SelectValue placeholder="Select Lua version" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900/90 border-white/20">
-                        <SelectItem value="5.1">Lua 5.1 (Recommended)</SelectItem>
-                        <SelectItem value="5.2">Lua 5.2</SelectItem>
-                        <SelectItem value="5.3">Lua 5.3</SelectItem>
-                        <SelectItem value="5.4">Lua 5.4</SelectItem>
-                        <SelectItem value="luajit">LuaJIT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-400/60">Version lock for compatibility</p>
+            {/* Right column - Settings */}
+            <div className="lg:col-span-4">
+              <Card className="sticky top-24 border-white/10 bg-white/5 backdrop-blur-xl">
+                <div className="p-6 border-b border-white/10">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Protection Settings</h3>
+                    <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
+                      {getActiveAdvancedCount()} active
+                    </div>
                   </div>
                 </div>
 
-                {/* VM & Core Features */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/20">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    <Cpu className="w-4 h-4 mr-1" /> VM & Core Features
-                  </Label>
-
-                  {renderSwitch(
-                    "control-flow-flattening",
-                    "Control Flow Flattening",
-                    "Transform code into state machine patterns (CPU intensive)",
-                    settings.controlFlowFlattening,
-                    (checked) => {
-                      setSettings({ ...settings, controlFlowFlattening: checked });
-                      trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "orange",
-                    "Advanced"
-                  )}
-
-                  {renderSwitch(
-                    "opaque-predicates",
-                    "Opaque Predicates",
-                    "Insert complex always-true/false conditions",
-                    settings.opaquePredicates,
-                    (checked) => {
-                      setSettings({ ...settings, opaquePredicates: checked });
-                      trackSettingsChange({ setting: "opaquePredicates", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "purple",
-                    "Advanced"
-                  )}
-
-                  {renderSwitch(
-                    "dead-code-injection",
-                    "Dead Code Injection",
-                    "Inject unreachable code blocks",
-                    settings.deadCodeInjection,
-                    (checked) => {
-                      setSettings({ ...settings, deadCodeInjection: checked });
-                      trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "orange",
-                    "Advanced"
-                  )}
-
-                  {renderSwitch(
-                    "intense-vm",
-                    "Intense VM",
-                    "Adds extra layers of processing to the VM",
-                    settings.intenseVM,
-                    (checked) => {
-                      setSettings({ ...settings, intenseVM: checked });
-                      trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "purple",
-                    "Advanced"
-                  )}
-                </div>
-
-                {/* Anti-Analysis Features */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/20">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    <Bug className="w-4 h-4 mr-1" /> Anti-Analysis
-                  </Label>
-
-                  {renderSwitch(
-                    "anti-debugging",
-                    "Anti-Debugging",
-                    "Runtime checks to detect debuggers",
-                    settings.antiDebugging,
-                    (checked) => {
-                      setSettings({ ...settings, antiDebugging: checked });
-                      trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "red",
-                    "Advanced"
-                  )}
-
-                  {renderSwitch(
-                    "anti-tamper",
-                    "Anti-Tamper",
-                    "Detects code modification and integrity violations",
-                    settings.antiTamper,
-                    (checked) => {
-                      setSettings({ ...settings, antiTamper: checked });
-                      trackSettingsChange({ setting: "antiTamper", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "red",
-                    "Advanced"
-                  )}
-
-                  {renderSwitch(
-                    "integrity-checks",
-                    "Integrity Checks",
-                    "Cryptographic hash verification of code sections",
-                    settings.integrityChecks,
-                    (checked) => {
-                      setSettings({ ...settings, integrityChecks: checked });
-                      trackSettingsChange({ setting: "integrityChecks", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "red",
-                    "Advanced"
-                  )}
-                </div>
-
-                {/* Environment & Optimization */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/20">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    <HardDrive className="w-4 h-4 mr-1" /> Environment & Optimization
-                  </Label>
-
-                  {renderSwitch(
-                    "static-environment",
-                    "Static Environment",
-                    "Optimizes assuming environment never changes",
-                    settings.staticEnvironment,
-                    (checked) => {
-                      setSettings({ ...settings, staticEnvironment: checked });
-                      trackSettingsChange({ setting: "staticEnvironment", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "purple"
-                  )}
-
-                  {renderSwitch(
-                    "disable-line-info",
-                    "Disable Line Info",
-                    "Removes line information for better performance",
-                    settings.disableLineInfo,
-                    (checked) => {
-                      setSettings({ ...settings, disableLineInfo: checked });
-                      trackSettingsChange({ setting: "disableLineInfo", value: checked }).catch(err =>
-                        console.error("Analytics tracking failed:", err)
-                      );
-                    },
-                    "purple"
-                  )}
-                </div>
-
-                {/* Encryption Algorithm */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/20">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    <Key className="w-4 h-4 mr-1" /> String Encryption
-                  </Label>
-
-                  <div className="space-y-3">
-                    <Select
-                      value={settings.encryptionAlgorithm}
-                      onValueChange={(value: EncryptionAlgorithm) => {
-                        setSettings({ ...settings, encryptionAlgorithm: value });
-                      }}
-                      disabled={!settings.encodeStrings || isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white/80 hover:bg-white/20 disabled:opacity-30 backdrop-blur-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900/90 border-white/20">
-                        <SelectItem value="none">None (Basic)</SelectItem>
-                        <SelectItem value="xor">XOR Cipher</SelectItem>
-                        <SelectItem value="base64">Base64</SelectItem>
-                        <SelectItem value="huffman">Huffman</SelectItem>
-                        <SelectItem value="chunked">Chunked</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="p-6 max-h-[600px] overflow-y-auto custom-scrollbar">
+                  {/* Basic settings */}
+                  <div className="space-y-4 mb-8">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Basic</h4>
+                    {renderSwitch(
+                      "mangle-names",
+                      "Mangle Names",
+                      "Replace identifiers with random hex strings",
+                      settings.mangleNames,
+                      (checked) => {
+                        setSettings({ ...settings, mangleNames: checked });
+                        trackSettingsChange({ setting: "mangleNames", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      }
+                    )}
+                    {renderSwitch(
+                      "encode-strings",
+                      "Encode Strings",
+                      "Convert strings to encrypted byte arrays",
+                      settings.encodeStrings,
+                      (checked) => {
+                        setSettings({ ...settings, encodeStrings: checked });
+                        trackSettingsChange({ setting: "encodeStrings", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "pink"
+                    )}
+                    {renderSwitch(
+                      "encode-numbers",
+                      "Encode Numbers",
+                      "Transform numbers into complex expressions",
+                      settings.encodeNumbers,
+                      (checked) => {
+                        setSettings({ ...settings, encodeNumbers: checked });
+                        trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      }
+                    )}
+                    {renderSwitch(
+                      "minify",
+                      "Minify",
+                      "Remove whitespace and comments",
+                      settings.minify,
+                      (checked) => {
+                        setSettings({ ...settings, minify: checked });
+                        trackSettingsChange({ setting: "minify", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      }
+                    )}
                   </div>
-                </div>
 
-                {/* Optimization Level */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/20">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    <Hash className="w-4 h-4 mr-1" /> Optimization Level
-                  </Label>
+                  {/* Advanced settings */}
+                  <div className="space-y-4 mb-8">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Advanced</h4>
+                    {renderSwitch(
+                      "control-flow-flattening",
+                      "Control Flow Flattening",
+                      "Transform into state machine",
+                      settings.controlFlowFlattening,
+                      (checked) => {
+                        setSettings({ ...settings, controlFlowFlattening: checked });
+                        trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "orange",
+                      "Advanced"
+                    )}
+                    {renderSwitch(
+                      "opaque-predicates",
+                      "Opaque Predicates",
+                      "Insert complex always-true conditions",
+                      settings.opaquePredicates,
+                      (checked) => {
+                        setSettings({ ...settings, opaquePredicates: checked });
+                        trackSettingsChange({ setting: "opaquePredicates", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "purple",
+                      "Advanced"
+                    )}
+                    {renderSwitch(
+                      "dead-code-injection",
+                      "Dead Code Injection",
+                      "Inject unreachable code blocks",
+                      settings.deadCodeInjection,
+                      (checked) => {
+                        setSettings({ ...settings, deadCodeInjection: checked });
+                        trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "orange",
+                      "Advanced"
+                    )}
+                    {renderSwitch(
+                      "anti-debugging",
+                      "Anti-Debugging",
+                      "Runtime debugger detection",
+                      settings.antiDebugging,
+                      (checked) => {
+                        setSettings({ ...settings, antiDebugging: checked });
+                        trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "red",
+                      "Advanced"
+                    )}
+                    {renderSwitch(
+                      "anti-tamper",
+                      "Anti-Tamper",
+                      "Detect code modification",
+                      settings.antiTamper,
+                      (checked) => {
+                        setSettings({ ...settings, antiTamper: checked });
+                        trackSettingsChange({ setting: "antiTamper", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "red",
+                      "Advanced"
+                    )}
+                  </div>
 
-                  <div className="space-y-3">
+                  {/* VM settings */}
+                  <div className="space-y-4 mb-8">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Virtual Machine</h4>
+                    {renderSwitch(
+                      "intense-vm",
+                      "Intense VM",
+                      "Multi-layer VM processing",
+                      settings.intenseVM,
+                      (checked) => {
+                        setSettings({ ...settings, intenseVM: checked });
+                        trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "purple",
+                      "Advanced"
+                    )}
+                    {renderSwitch(
+                      "virtualization",
+                      "Virtualization",
+                      "Complete code virtualization",
+                      settings.virtualization,
+                      (checked) => {
+                        setSettings({ ...settings, virtualization: checked });
+                        trackSettingsChange({ setting: "virtualization", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "pink",
+                      "Advanced"
+                    )}
+                    {renderSwitch(
+                      "bytecode-encryption",
+                      "Bytecode Encryption",
+                      "Encrypt VM bytecode",
+                      settings.bytecodeEncryption,
+                      (checked) => {
+                        setSettings({ ...settings, bytecodeEncryption: checked });
+                        trackSettingsChange({ setting: "bytecodeEncryption", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "blue",
+                      "Advanced"
+                    )}
+                  </div>
+
+                  {/* Optimization level */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
                     <Select
                       value={settings.optimizationLevel.toString()}
                       onValueChange={(value: string) => {
                         setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
                       }}
-                      disabled={isProcessing}
                     >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white/80 hover:bg-white/20 disabled:opacity-30 backdrop-blur-sm">
-                        <SelectValue placeholder="Select optimization level" />
+                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                        <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-900/90 border-white/20">
-                        <SelectItem value="0">Level 0 (No optimization)</SelectItem>
+                      <SelectContent>
+                        <SelectItem value="0">Level 0 (None)</SelectItem>
                         <SelectItem value="1">Level 1 (Basic)</SelectItem>
                         <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
                         <SelectItem value="3">Level 3 (Maximum)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                {/* Output Formatting */}
-                <div className="space-y-4 pt-6 border-t border-purple-500/20">
-                  <Label className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                    <Eye className="w-4 h-4 mr-1" /> Output Format
-                  </Label>
-
-                  <div className="space-y-3">
-                    <Select
-                      value={settings.formattingStyle}
-                      onValueChange={(value: FormattingStyle) => {
-                        setSettings({ ...settings, formattingStyle: value });
-                      }}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/10 border-white/20 text-white/80 hover:bg-white/20 disabled:opacity-30 backdrop-blur-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-900/90 border-white/20">
-                        <SelectItem value="minified">Minified (Compact)</SelectItem>
-                        <SelectItem value="pretty">Pretty (Readable)</SelectItem>
-                        <SelectItem value="obfuscated">Obfuscated (Random)</SelectItem>
-                        <SelectItem value="single-line">Single Line</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Protection Level Slider */}
-                <div className="space-y-5 pt-6 border-t border-purple-500/20">
-                  <div className="flex items-center justify-between">
-                    <Label
-                      htmlFor="compression"
-                      className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2.5"
-                    >
-                      <div className="w-1 h-5 bg-gradient-to-b from-purple-600/40 to-blue-600/40 rounded-full shadow-lg shadow-purple-500/30"></div>
-                      Protection Level
-                    </Label>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={cn(
-                          "px-3 py-1.5 rounded-lg font-bold text-xs backdrop-blur-sm border transition-all duration-300",
-                          protectionStrength === "none" && "bg-gray-500/20 border-gray-500/30 text-gray-300/60",
-                          protectionStrength === "low" && "bg-purple-500/20 border-purple-500/30 text-purple-300/80",
-                          protectionStrength === "medium" && "bg-pink-500/20 border-pink-500/30 text-pink-300/80",
-                          protectionStrength === "high" && "bg-orange-500/20 border-orange-500/30 text-orange-300/80",
-                          protectionStrength === "maximum" && "bg-red-500/20 border-red-500/30 text-red-300/80 animate-pulse"
-                        )}
-                      >
+                  {/* Protection level slider */}
+                  <div className="mt-8 pt-8 border-t border-white/10">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-sm font-medium">Protection Level</span>
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-xs font-medium",
+                        protectionStrength === "none" && "bg-gray-500/20 text-gray-300",
+                        protectionStrength === "low" && "bg-purple-500/20 text-purple-300",
+                        protectionStrength === "medium" && "bg-pink-500/20 text-pink-300",
+                        protectionStrength === "high" && "bg-orange-500/20 text-orange-300",
+                        protectionStrength === "maximum" && "bg-red-500/20 text-red-300 animate-pulse"
+                      )}>
                         {settings.compressionLevel}%
-                      </div>
+                      </span>
                     </div>
-                  </div>
-                  <div className="relative">
                     <Slider
-                      id="compression"
                       value={[settings.compressionLevel]}
                       onValueChange={value => {
                         const level = value[0];
@@ -1311,167 +965,79 @@ export default function Home() {
                           virtualization: level >= 85,
                           bytecodeEncryption: level >= 85,
                           antiTamper: level >= 90,
-                          selfModifying: level >= 90,
-                          mutation: level >= 90,
-                          codeSplitting: level >= 90,
-                          environmentLock: level >= 90,
-                          integrityChecks: level >= 95,
                           optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
                         });
                       }}
                       max={100}
                       step={5}
-                      disabled={isProcessing}
                       className="w-full"
                     />
                   </div>
-                  <div
-                    className={cn(
-                      "text-xs rounded-xl p-4 backdrop-blur-sm border transition-all duration-300",
-                      protectionStrength === "none" && "bg-gray-500/10 border-gray-500/20 text-gray-300/60",
-                      protectionStrength === "low" && "bg-purple-500/10 border-purple-500/20 text-purple-200/80",
-                      protectionStrength === "medium" && "bg-pink-500/10 border-pink-500/20 text-pink-200/80",
-                      protectionStrength === "high" && "bg-orange-500/10 border-orange-500/20 text-orange-200/80",
-                      protectionStrength === "maximum" && "bg-red-500/10 border-red-500/20 text-red-200/80"
-                    )}
+
+                  {/* Obfuscate button */}
+                  <Button
+                    onClick={obfuscateCode}
+                    disabled={!inputCode || isProcessing}
+                    className="w-full mt-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-6 rounded-xl relative overflow-hidden group"
                   >
-                    {settings.compressionLevel < 30 && "Standard Protection"}
-                    {settings.compressionLevel >= 30 && settings.compressionLevel < 60 && "Enhanced Protection"}
-                    {settings.compressionLevel >= 60 && settings.compressionLevel < 80 && "Advanced Protection"}
-                    {settings.compressionLevel >= 80 && settings.compressionLevel < 95 && "Maximum Protection"}
-                    {settings.compressionLevel >= 95 && "Ultimate Protection"}
-                  </div>
-                </div>
-
-                {/* Warnings */}
-                {settings.gcFixes && (
-                  <div className="pt-2">
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                      <p className="text-xs text-yellow-200/70">
-                        <strong className="font-bold block mb-1">⚠️ Performance Warning</strong>
-                        GC Fixes enabled - Heavy performance cost
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {settings.hardcodeGlobals && (
-                  <div className="pt-2">
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                      <p className="text-xs text-yellow-200/70">
-                        <strong className="font-bold block mb-1">⚠️ Security Warning</strong>
-                        Hardcode Globals exposes global names
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {(settings.virtualization || settings.intenseVM) && (
-                  <div className="pt-2">
-                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-                      <p className="text-xs text-purple-200/70">
-                        <strong className="font-bold block mb-1">⚡ Advanced Protection Active</strong>
-                        Maximum protection enabled
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Large file warning */}
-                {inputCode.length > 1000000 && (
-                  <div className="pt-2">
-                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-                      <div className="flex items-center gap-2 text-blue-200/70">
-                        <Database className="w-4 h-4" />
-                        <p className="text-xs">
-                          <strong className="font-bold block mb-1">📦 Large File Detected</strong>
-                          File size: {formatBytes(inputCode.length)}. Processing may take longer.
-                        </p>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                    {isProcessing ? (
+                      <div className="flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Processing...
                       </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Card>
-          </aside>
-        </section>
-
-        {/* Error Display */}
-        {error && (
-          <aside
-            role="alert"
-            aria-live="assertive"
-            className="relative overflow-hidden bg-gradient-to-r from-red-900/30 via-red-800/20 to-red-900/30 border-2 border-red-500/40 rounded-2xl p-6 flex items-start gap-4 shadow-2xl shadow-red-500/20 backdrop-blur-xl ring-1 ring-red-500/30 animate-in slide-in-from-bottom fade-in duration-500"
-          >
-            <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-red-500/10 to-transparent rounded-full blur-3xl"></div>
-            <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-red-500/30 to-red-600/30 flex items-center justify-center flex-shrink-0 shadow-lg backdrop-blur-sm border border-red-500/30">
-              <AlertCircle className="w-6 h-6 text-red-300/80 animate-pulse" aria-hidden="true" />
+                    ) : (
+                      <div className="flex items-center justify-center">
+                        <Shield className="w-5 h-5 mr-2" />
+                        Obfuscate Code
+                      </div>
+                    )}
+                  </Button>
+                </div>
+              </Card>
             </div>
-            <div className="flex-1 relative">
-              <h3 className="text-red-200/80 font-bold mb-2 text-base flex items-center gap-2">
-                Obfuscation Error
-                <span className="px-2 py-0.5 bg-red-500/20 rounded-md text-xs">Failed</span>
-              </h3>
-              <p className="text-red-100/70 text-sm leading-relaxed">{error}</p>
-            </div>
-          </aside>
-        )}
-
-        {/* Warning Display */}
-        {warning && !error && (
-          <aside
-            role="alert"
-            className="relative overflow-hidden bg-gradient-to-r from-yellow-900/30 via-yellow-800/20 to-yellow-900/30 border-2 border-yellow-500/40 rounded-2xl p-6 flex items-start gap-4 shadow-2xl shadow-yellow-500/20 backdrop-blur-xl ring-1 ring-yellow-500/30 animate-in slide-in-from-bottom fade-in duration-500"
-          >
-            <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-yellow-500/10 to-transparent rounded-full blur-3xl"></div>
-            <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500/30 to-yellow-600/30 flex items-center justify-center flex-shrink-0 shadow-lg backdrop-blur-sm border border-yellow-500/30">
-              <AlertTriangle className="w-6 h-6 text-yellow-300/80 animate-pulse" aria-hidden="true" />
-            </div>
-            <div className="flex-1 relative">
-              <h3 className="text-yellow-200/80 font-bold mb-2 text-base flex items-center gap-2">
-                Notice
-                <span className="px-2 py-0.5 bg-yellow-500/20 rounded-md text-xs">Info</span>
-              </h3>
-              <p className="text-yellow-100/70 text-sm leading-relaxed">{warning}</p>
-            </div>
-          </aside>
-        )}
-
-        {/* Footer with updated copyright */}
-        <footer
-          className="mt-auto pt-8 pb-4 text-center"
-          role="contentinfo"
-          aria-label="Copyright information"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-purple-500/30 hover:bg-white/20 transition-all duration-300">
-            <span className="text-sm text-gray-400/60">© 2026 XZX HUB</span>
           </div>
-        </footer>
-      </main>
+
+          {/* Footer */}
+          <footer className="mt-12 pt-8 border-t border-white/10">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-6">
+                <span className="text-sm text-gray-400">© 2026 XZX HUB</span>
+                <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Terms</a>
+                <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Privacy</a>
+                <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Contact</a>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <a
+                  href="https://discord.gg/5q5bEKmYqF"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#5865F2]/10 hover:bg-[#5865F2]/20 rounded-lg transition-colors group"
+                >
+                  <MessageCircle className="w-4 h-4 text-[#5865F2]" />
+                  <span className="text-sm">Join our Discord</span>
+                  <Heart className="w-3 h-3 text-pink-400 group-hover:scale-110 transition-transform" />
+                </a>
+              </div>
+            </div>
+          </footer>
+        </div>
+      </div>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(139, 92, 246, 0.1);
+          background: rgba(255, 255, 255, 0.05);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(135deg, rgba(139,92,246,0.4), rgba(59,130,246,0.4), rgba(236,72,153,0.4));
+          background: linear-gradient(135deg, #8b5cf6, #ec4899);
           border-radius: 10px;
         }
-        
-        @keyframes starPulse {
-          0%, 100% { opacity: 0.5; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-        
-        @keyframes rayPulse {
-          0%, 100% { opacity: 0.1; }
-          50% { opacity: 0.3; }
-        }
       `}</style>
-    </>
+    </div>
   );
 }
