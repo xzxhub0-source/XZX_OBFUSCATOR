@@ -112,7 +112,8 @@ export default function Home() {
   const [fileName, setFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const [stars, setStars] = useState<{ x: number; y: number; size: number; speed: number; rayAngle: number; rayLength: number }[]>([]);
+  const [stars, setStars] = useState<{ x: number; y: number; size: number; speed: number; pulse: number }[]>([]);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -149,17 +150,28 @@ export default function Home() {
   const [obfuscationCount, setObfuscationCount] = useState(0);
   const [pageStartTime] = useState(Date.now());
 
-  // Generate stars with rays on mount
+  // Track mouse position for light reflection
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({
+        x: (e.clientX / window.innerWidth) * 100,
+        y: (e.clientY / window.innerHeight) * 100,
+      });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  // Generate stars with glow properties
   useEffect(() => {
     const newStars = [];
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 100; i++) {
       newStars.push({
         x: Math.random() * 100,
         y: Math.random() * 100,
-        size: Math.random() * 2 + 1,
-        speed: Math.random() * 0.5 + 0.1,
-        rayAngle: Math.random() * 360,
-        rayLength: Math.random() * 30 + 10,
+        size: Math.random() * 3 + 1,
+        speed: Math.random() * 0.2 + 0.05,
+        pulse: Math.random() * 2,
       });
     }
     setStars(newStars);
@@ -173,7 +185,7 @@ export default function Home() {
       setStars(prev => prev.map(star => ({
         ...star,
         y: star.y - star.speed < 0 ? 100 : star.y - star.speed,
-        rayAngle: (star.rayAngle + 0.2) % 360,
+        pulse: (star.pulse + 0.02) % (Math.PI * 2),
       })));
     }, 50);
     
@@ -422,69 +434,117 @@ export default function Home() {
 
   return (
     <>
-      {/* Animated stars background with light rays */}
-      <div className="fixed inset-0 bg-gradient-to-b from-[#0a0a0f] via-[#1a1a1f] to-[#0a0a0f] overflow-hidden">
-        {stars.map((star, i) => (
-          <React.Fragment key={i}>
-            {/* Light ray (reflects off buttons) */}
-            <div
-              className="absolute bg-gradient-to-r from-white/0 via-white/10 to-white/0"
-              style={{
-                left: `${star.x}%`,
-                top: `${star.y}%`,
-                width: `${star.rayLength}px`,
-                height: `${star.size * 0.3}px`,
-                transform: `rotate(${star.rayAngle}deg)`,
-                opacity: 0.15,
-                filter: 'blur(1px)',
-                animation: `rayPulse ${Math.random() * 3 + 2}s infinite`,
-                pointerEvents: 'none',
-                mixBlendMode: 'screen',
-              }}
-            />
-            {/* Star core */}
-            <div
-              className="absolute bg-white rounded-full"
-              style={{
-                left: `${star.x}%`,
-                top: `${star.y}%`,
-                width: `${star.size}px`,
-                height: `${star.size}px`,
-                opacity: 0.2,
-                boxShadow: `0 0 ${star.size * 4}px rgba(255,255,255,0.2)`,
-                animation: `twinkle ${Math.random() * 3 + 2}s infinite`,
-              }}
-            />
-          </React.Fragment>
-        ))}
+      {/* Dynamic star field with light emission */}
+      <div className="fixed inset-0 bg-gradient-to-b from-[#030014] via-[#0a0a1f] to-[#030014] overflow-hidden">
+        {/* Star glow layer */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-900/20 via-transparent to-transparent" />
+        
+        {/* Stars with light emission */}
+        {stars.map((star, i) => {
+          const pulseIntensity = 0.5 + Math.sin(star.pulse) * 0.3;
+          const distanceFromMouse = Math.sqrt(
+            Math.pow((star.x - mousePosition.x) / 10, 2) + 
+            Math.pow((star.y - mousePosition.y) / 10, 2)
+          );
+          const mouseGlow = Math.max(0, 1 - distanceFromMouse / 20);
+          
+          return (
+            <React.Fragment key={i}>
+              {/* Star core */}
+              <div
+                className="absolute rounded-full"
+                style={{
+                  left: `${star.x}%`,
+                  top: `${star.y}%`,
+                  width: `${star.size}px`,
+                  height: `${star.size}px`,
+                  background: 'white',
+                  boxShadow: `0 0 ${star.size * (4 + pulseIntensity * 2)}px rgba(255, 255, 255, ${0.3 + pulseIntensity * 0.2 + mouseGlow * 0.3})`,
+                  opacity: 0.7 + pulseIntensity * 0.3 + mouseGlow * 0.4,
+                  transition: 'box-shadow 0.1s ease-out',
+                }}
+              />
+              
+              {/* Light rays (visible on dark background) */}
+              {star.size > 1.5 && (
+                <>
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${star.x}%`,
+                      top: `${star.y}%`,
+                      width: `${star.size * 8}px`,
+                      height: `${star.size * 0.5}px`,
+                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)',
+                      transform: 'rotate(45deg)',
+                      filter: 'blur(2px)',
+                      opacity: 0.2 * pulseIntensity + mouseGlow * 0.2,
+                    }}
+                  />
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${star.x}%`,
+                      top: `${star.y}%`,
+                      width: `${star.size * 8}px`,
+                      height: `${star.size * 0.5}px`,
+                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)',
+                      transform: 'rotate(-45deg)',
+                      filter: 'blur(2px)',
+                      opacity: 0.2 * pulseIntensity + mouseGlow * 0.2,
+                    }}
+                  />
+                </>
+              )}
+            </React.Fragment>
+          );
+        })}
+        
+        {/* Ambient light gradient that follows mouse */}
+        <div 
+          className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+          style={{
+            background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(139,92,246,0.15), transparent 50%)`,
+          }}
+        />
       </div>
 
-      {/* Light overlay for button reflection effect */}
-      <div className="fixed inset-0 pointer-events-none bg-gradient-to-t from-transparent via-white/5 to-transparent mix-blend-overlay" />
-
-      {/* Main content */}
+      {/* Main content with glass morphism and light reflection */}
       <main className="relative z-10 flex flex-col p-4 sm:p-6 gap-4 lg:gap-6 min-h-screen">
-        {/* Header with 40% transparent elements */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top duration-700 bg-black/20 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
-          <div className="flex items-center gap-4">
+        {/* Header with dynamic light reflection */}
+        <header 
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top duration-700 bg-black/20 backdrop-blur-md p-4 rounded-2xl border border-white/20 relative overflow-hidden"
+          style={{
+            boxShadow: `0 10px 30px -10px rgba(139,92,246,0.3), 0 0 0 1px rgba(255,255,255,0.1)`,
+          }}
+        >
+          {/* Light reflection overlay that follows mouse */}
+          <div 
+            className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+            style={{
+              background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.15), transparent 70%)`,
+            }}
+          />
+          
+          <div className="flex items-center gap-4 relative z-10">
             <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 via-blue-600/30 to-pink-600/30 rounded-2xl blur-xl opacity-30 group-hover:opacity-50 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/40 via-blue-600/40 to-pink-600/40 rounded-2xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity duration-500"></div>
               <div
-                className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-purple-600/40 via-blue-600/40 to-pink-600/40 flex items-center justify-center shadow-2xl shadow-purple-500/20 ring-2 ring-white/20 backdrop-blur-sm transform group-hover:scale-105 transition-all duration-300"
+                className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-purple-600/40 via-blue-600/40 to-pink-600/40 flex items-center justify-center shadow-2xl shadow-purple-500/30 ring-2 ring-white/20 backdrop-blur-sm transform group-hover:scale-105 transition-all duration-300"
                 aria-hidden="true"
               >
-                <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-white/80 drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
+                <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-white/90 drop-shadow-md group-hover:rotate-12 transition-transform duration-300" />
               </div>
             </div>
             <div>
               <h1 className="text-xl sm:text-3xl font-bold tracking-tight">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400/80 via-blue-400/80 to-pink-400/80">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-blue-400 to-pink-400">
                   XZX
                 </span>
-                <span className="text-white/80 ml-2">Obfuscator</span>
+                <span className="text-white/90 ml-2">Obfuscator</span>
               </h1>
               <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs sm:text-sm text-gray-300/60 font-medium">
+                <p className="text-xs sm:text-sm text-gray-300/70 font-medium">
                   v2 | Advanced Protection
                 </p>
                 {getActiveAdvancedCount() > 0 && (
@@ -495,14 +555,23 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <nav className="flex flex-wrap gap-3 w-full sm:w-auto" aria-label="Main actions">
+          
+          <nav className="flex flex-wrap gap-3 w-full sm:w-auto relative z-10" aria-label="Main actions">
             <Button
               onClick={copyToClipboard}
               disabled={!outputCode || isProcessing}
-              className="group bg-white/10 hover:bg-white/20 active:bg-white/30 text-white/80 border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 relative overflow-hidden"
+              className="group bg-white/10 hover:bg-white/20 active:bg-white/30 text-white/90 border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 relative overflow-hidden"
+              style={{
+                boxShadow: `0 5px 15px -5px rgba(139,92,246,0.3)`,
+              }}
             >
-              {/* Light reflection effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              {/* Mouse-following light reflection */}
+              <div 
+                className="absolute inset-0 pointer-events-none transition-opacity duration-200"
+                style={{
+                  background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.25), transparent 80%)`,
+                }}
+              />
               {copySuccess ? (
                 <>
                   <CheckCircle className="w-4 h-4 mr-2 text-green-400/80 animate-in zoom-in duration-200" />
@@ -515,21 +584,39 @@ export default function Home() {
                 </>
               )}
             </Button>
+            
             <Button
               onClick={downloadCode}
               disabled={!outputCode || isProcessing}
-              className="group bg-white/10 hover:bg-white/20 active:bg-white/30 text-white/80 border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 relative overflow-hidden"
+              className="group bg-white/10 hover:bg-white/20 active:bg-white/30 text-white/90 border border-white/20 hover:border-white/40 flex-1 sm:flex-none transition-all duration-300 shadow-lg hover:shadow-2xl backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 relative overflow-hidden"
+              style={{
+                boxShadow: `0 5px 15px -5px rgba(139,92,246,0.3)`,
+              }}
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              <div 
+                className="absolute inset-0 pointer-events-none transition-opacity duration-200"
+                style={{
+                  background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.25), transparent 80%)`,
+                }}
+              />
               <Download className="w-4 h-4 mr-2 group-hover:translate-y-0.5 transition-transform duration-200" />
               Download
             </Button>
+            
             {isProcessing ? (
               <Button
                 onClick={cancelObfuscation}
-                className="group relative bg-gradient-to-r from-red-600/30 to-pink-600/30 hover:from-red-700/40 hover:to-pink-700/40 active:scale-[0.98] text-white/80 shadow-xl hover:shadow-2xl shadow-red-500/30 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] overflow-hidden"
+                className="group relative bg-gradient-to-r from-red-600/30 to-pink-600/30 hover:from-red-700/40 hover:to-pink-700/40 active:scale-[0.98] text-white/90 shadow-xl hover:shadow-2xl shadow-red-500/30 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] overflow-hidden"
+                style={{
+                  boxShadow: `0 5px 15px -5px rgba(239,68,68,0.3)`,
+                }}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                <div 
+                  className="absolute inset-0 pointer-events-none transition-opacity duration-200"
+                  style={{
+                    background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.25), transparent 80%)`,
+                  }}
+                />
                 <X className="w-4 h-4 mr-2 relative z-10" />
                 <span className="relative z-10">Cancel</span>
               </Button>
@@ -537,9 +624,17 @@ export default function Home() {
               <Button
                 onClick={obfuscateCode}
                 disabled={!inputCode || isProcessing}
-                className="group relative bg-gradient-to-r from-purple-600/30 via-blue-600/30 to-pink-600/30 hover:from-purple-700/40 hover:via-blue-700/40 hover:to-pink-700/40 active:scale-[0.98] text-white/80 shadow-xl hover:shadow-2xl shadow-purple-500/30 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 overflow-hidden"
+                className="group relative bg-gradient-to-r from-purple-600/30 via-blue-600/30 to-pink-600/30 hover:from-purple-700/40 hover:via-blue-700/40 hover:to-pink-700/40 active:scale-[0.98] text-white/90 shadow-xl hover:shadow-2xl shadow-purple-500/30 flex-1 sm:flex-none transition-all duration-300 font-semibold hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 overflow-hidden"
+                style={{
+                  boxShadow: `0 5px 15px -5px rgba(139,92,246,0.3)`,
+                }}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                <div 
+                  className="absolute inset-0 pointer-events-none transition-opacity duration-200"
+                  style={{
+                    background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.25), transparent 80%)`,
+                  }}
+                />
                 <Shuffle className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-180 transition-transform duration-500" />
                 <span className="relative z-10">{isProcessing ? "Processing..." : "Obfuscate"}</span>
               </Button>
@@ -550,7 +645,18 @@ export default function Home() {
         {/* Success Animation Overlay */}
         {showSuccessAnimation && (
           <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top fade-in duration-300">
-            <div className="bg-gradient-to-r from-purple-500/40 via-blue-500/40 to-pink-500/40 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3">
+            <div 
+              className="bg-gradient-to-r from-purple-500/40 via-blue-500/40 to-pink-500/40 backdrop-blur-xl rounded-2xl px-6 py-4 shadow-2xl border border-purple-400/30 flex items-center gap-3 relative overflow-hidden"
+              style={{
+                boxShadow: `0 20px 40px -10px rgba(139,92,246,0.3)`,
+              }}
+            >
+              <div 
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.2), transparent 70%)`,
+                }}
+              />
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                 <Sparkles className="w-5 h-5 text-white/80 animate-pulse" />
               </div>
@@ -574,8 +680,19 @@ export default function Home() {
               aria-labelledby="input-code-heading"
               className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
             >
-              <Card className="flex-1 bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500 hover:shadow-purple-500/20">
-                <div className="p-4 border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-blue-500/10 backdrop-blur-sm">
+              <Card 
+                className="flex-1 bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500 hover:shadow-purple-500/20 relative"
+                style={{
+                  boxShadow: `0 20px 40px -10px rgba(139,92,246,0.2)`,
+                }}
+              >
+                <div 
+                  className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+                  style={{
+                    background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.1), transparent 70%)`,
+                  }}
+                />
+                <div className="p-4 border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-blue-500/10 backdrop-blur-sm relative">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-lg blur-md opacity-40"></div>
@@ -609,7 +726,12 @@ export default function Home() {
                       disabled={isProcessing}
                       className="bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/30 text-white/80 disabled:opacity-30 backdrop-blur-sm relative overflow-hidden"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full hover:translate-x-full transition-transform duration-1000" />
+                      <div 
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.2), transparent 80%)`,
+                        }}
+                      />
                       <Upload className="w-4 h-4 mr-2" />
                       Upload File
                     </Button>
@@ -652,8 +774,19 @@ export default function Home() {
               aria-labelledby="output-code-heading"
               className="flex flex-col h-[300px] lg:h-auto lg:min-h-0 group"
             >
-              <Card className="flex-1 bg-gradient-to-br from-blue-900/20 via-pink-900/10 to-purple-900/20 backdrop-blur-xl border-blue-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-blue-500/20 hover:ring-blue-500/30 transition-all duration-500 hover:shadow-blue-500/20">
-                <div className="p-4 border-b border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-pink-500/10 backdrop-blur-sm">
+              <Card 
+                className="flex-1 bg-gradient-to-br from-blue-900/20 via-pink-900/10 to-purple-900/20 backdrop-blur-xl border-blue-500/30 shadow-2xl shadow-black/30 overflow-hidden flex flex-col h-full p-0 gap-0 ring-1 ring-blue-500/20 hover:ring-blue-500/30 transition-all duration-500 hover:shadow-blue-500/20 relative"
+                style={{
+                  boxShadow: `0 20px 40px -10px rgba(59,130,246,0.2)`,
+                }}
+              >
+                <div 
+                  className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+                  style={{
+                    background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.1), transparent 70%)`,
+                  }}
+                />
+                <div className="p-4 border-b border-blue-500/20 bg-gradient-to-r from-blue-500/10 to-pink-500/10 backdrop-blur-sm relative">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="relative">
@@ -699,7 +832,18 @@ export default function Home() {
             {/* Metrics Display */}
             {metrics && !isProcessing && (
               <section aria-labelledby="metrics-heading" className="lg:col-span-2">
-                <Card className="bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500">
+                <Card 
+                  className="bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500 relative"
+                  style={{
+                    boxShadow: `0 20px 40px -10px rgba(139,92,246,0.2)`,
+                  }}
+                >
+                  <div 
+                    className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+                    style={{
+                      background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.1), transparent 70%)`,
+                    }}
+                  />
                   <div className="flex items-center gap-3 mb-5 pb-4 border-b border-purple-500/20">
                     <div className="relative">
                       <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-lg blur-md opacity-40"></div>
@@ -782,7 +926,18 @@ export default function Home() {
 
           {/* Settings Panel */}
           <aside className="lg:col-span-4 lg:overflow-auto" aria-labelledby="settings-heading">
-            <Card className="bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500">
+            <Card 
+              className="bg-gradient-to-br from-purple-900/20 via-blue-900/10 to-pink-900/20 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-black/30 p-6 sm:p-7 ring-1 ring-purple-500/20 hover:ring-purple-500/30 transition-all duration-500 relative"
+              style={{
+                boxShadow: `0 20px 40px -10px rgba(139,92,246,0.2)`,
+              }}
+            >
+              <div 
+                className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+                style={{
+                  background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.1), transparent 70%)`,
+                }}
+              />
               <div className="flex items-center gap-3 mb-6 sm:mb-8 pb-5 border-b border-purple-500/20">
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 rounded-xl blur-lg opacity-40"></div>
@@ -1277,6 +1432,12 @@ export default function Home() {
             aria-live="assertive"
             className="relative overflow-hidden bg-gradient-to-r from-red-900/30 via-red-800/20 to-red-900/30 border-2 border-red-500/40 rounded-2xl p-6 flex items-start gap-4 shadow-2xl shadow-red-500/20 backdrop-blur-xl ring-1 ring-red-500/30 animate-in slide-in-from-bottom fade-in duration-500"
           >
+            <div 
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.1), transparent 70%)`,
+              }}
+            />
             <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-red-500/10 to-transparent rounded-full blur-3xl"></div>
             <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-red-500/30 to-red-600/30 flex items-center justify-center flex-shrink-0 shadow-lg backdrop-blur-sm border border-red-500/30">
               <AlertCircle className="w-6 h-6 text-red-300/80 animate-pulse" aria-hidden="true" />
@@ -1297,6 +1458,12 @@ export default function Home() {
             role="alert"
             className="relative overflow-hidden bg-gradient-to-r from-yellow-900/30 via-yellow-800/20 to-yellow-900/30 border-2 border-yellow-500/40 rounded-2xl p-6 flex items-start gap-4 shadow-2xl shadow-yellow-500/20 backdrop-blur-xl ring-1 ring-yellow-500/30 animate-in slide-in-from-bottom fade-in duration-500"
           >
+            <div 
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.1), transparent 70%)`,
+              }}
+            />
             <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-yellow-500/10 to-transparent rounded-full blur-3xl"></div>
             <div className="relative w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-500/30 to-yellow-600/30 flex items-center justify-center flex-shrink-0 shadow-lg backdrop-blur-sm border border-yellow-500/30">
               <AlertTriangle className="w-6 h-6 text-yellow-300/80 animate-pulse" aria-hidden="true" />
@@ -1317,7 +1484,13 @@ export default function Home() {
           role="contentinfo"
           aria-label="Version and author information"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-purple-500/30 hover:bg-white/20 transition-all duration-300">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-purple-500/30 hover:bg-white/20 transition-all duration-300 relative overflow-hidden">
+            <div 
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background: `radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(255,255,255,0.15), transparent 70%)`,
+              }}
+            />
             <span className="text-sm text-gray-400/60 font-mono">v2</span>
             <span className="text-sm text-gray-400/60">Made by</span>
             <a
@@ -1352,16 +1525,6 @@ export default function Home() {
         .custom-scrollbar::-webkit-scrollbar-thumb {
           background: linear-gradient(135deg, rgba(139,92,246,0.4), rgba(59,130,246,0.4), rgba(236,72,153,0.4));
           border-radius: 10px;
-        }
-        
-        @keyframes twinkle {
-          0%, 100% { opacity: 0.15; }
-          50% { opacity: 0.3; }
-        }
-        
-        @keyframes rayPulse {
-          0%, 100% { opacity: 0.1; }
-          50% { opacity: 0.2; }
         }
       `}</style>
     </>
