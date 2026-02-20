@@ -137,6 +137,7 @@ export default function Home() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [totalObfuscations, setTotalObfuscations] = useState(150);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -173,19 +174,33 @@ export default function Home() {
   const [obfuscationCount, setObfuscationCount] = useState(0);
   const [pageStartTime] = useState(Date.now());
 
+  // Simulate loading
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Load total obfuscations from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem('xzx-total-obfuscations');
-    if (saved) {
-      setTotalObfuscations(parseInt(saved));
-    } else {
-      localStorage.setItem('xzx-total-obfuscations', '150');
+    try {
+      const saved = localStorage.getItem('xzx-total-obfuscations');
+      if (saved) {
+        setTotalObfuscations(parseInt(saved));
+      } else {
+        localStorage.setItem('xzx-total-obfuscations', '150');
+      }
+    } catch (e) {
+      console.error('localStorage error:', e);
     }
   }, []);
 
   // Save to localStorage whenever totalObfuscations changes
   useEffect(() => {
-    localStorage.setItem('xzx-total-obfuscations', totalObfuscations.toString());
+    try {
+      localStorage.setItem('xzx-total-obfuscations', totalObfuscations.toString());
+    } catch (e) {
+      console.error('localStorage error:', e);
+    }
   }, [totalObfuscations]);
 
   useEffect(() => {
@@ -273,8 +288,15 @@ export default function Home() {
         optimizationLevel: settings.optimizationLevel,
       };
 
+      // Use setTimeout to prevent UI blocking
       const result = await new Promise<any>((resolve) => {
-        setTimeout(() => resolve(obfuscateLua(inputCode, options)), 100);
+        setTimeout(() => {
+          try {
+            resolve(obfuscateLua(inputCode, options));
+          } catch (e) {
+            resolve({ success: false, error: e.message });
+          }
+        }, 100);
       });
 
       const duration = Date.now() - startTime;
@@ -442,6 +464,23 @@ export default function Home() {
       </div>
     );
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative w-20 h-20 mx-auto mb-4">
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
+            <div className="relative w-20 h-20 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+              <Shield className="w-10 h-10 text-white" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">XZX Obfuscator</h2>
+          <p className="text-gray-400">Loading advanced protection...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
