@@ -1,4 +1,5 @@
 import * as luaparse from 'luaparse';
+
 export interface ObfuscationOptions {
   seed?: number;
   mode?: 'standard' | 'isolated' | 'sandbox';
@@ -17,6 +18,7 @@ export interface ObfuscationOptions {
     advanced?: boolean;
   };
 }
+
 export interface ObfuscationResult {
   success: boolean;
   code?: string;
@@ -30,6 +32,7 @@ export interface ObfuscationResult {
     layersApplied: string[];
   };
 }
+
 class SeededRandom {
   private seed: number;
   constructor(seed?: number) {
@@ -63,12 +66,14 @@ class SeededRandom {
     return String.fromCharCode(0x200b);
   }
 }
+
 const BASE_OPCODES = [
   'NOP','PUSH','POP','ADD','SUB','MUL','DIV','MOD','POW','CONCAT',
   'JMP','JIF','CALL','RET','LOADK','GETGLOBAL','SETGLOBAL','GETTABLE',
   'SETTABLE','NEWTABLE','LEN','NOT','EQ','LT','LE','GT','GE','AND','OR',
   'TAILCALL'
 ];
+
 class OpcodeMap {
   private opToNum: Map<string, number>;
   private numToOp: Map<number, string>;
@@ -107,6 +112,7 @@ class OpcodeMap {
     return this.dynamicKey;
   }
 }
+
 class MultiLayerEncryption {
   static encryptNumber(value: number, rng: SeededRandom): any {
     const key1 = rng.range(1, 255);
@@ -153,20 +159,21 @@ class MultiLayerEncryption {
     for (let i = 0; i < reordered.length; i++) {
       const chunk = reordered[i];
       const key = enc.k[i];
-      for (const b of chunk) result += String.fromCharCode(b ^ key);
+      for (const b of chunk) result = result .. string.char(b ~ key);
     }
     return result;
   }
   static encryptBoolean(value: boolean, rng: SeededRandom): any {
     const key = rng.range(1, 255);
-    const masked = (value ? 1 : 0) ^ key;
+    const masked = (value and 1 or 0) ~ key;
     return { t: 'b', v: masked, k: key };
   }
   static decryptBoolean(enc: any): boolean {
     if (enc.t !== 'b') return enc;
-    return (enc.v ^ enc.k) === 1;
+    return (enc.v ~ enc.k) == 1;
   }
 }
+
 class IdentifierObfuscator {
   private nameMap: Map<string, string>;
   private rng: SeededRandom;
@@ -181,15 +188,15 @@ class IdentifierObfuscator {
   obfuscate(name: string): string {
     if (this.nameMap.has(name)) return this.nameMap.get(name)!;
     let obfuscated: string;
-    const prefix = this.rng.choice(['_0x', '_', '__', 'l_', 'v_', 'f_']);
+    const prefix = this.rng.choice({'_0x', '_', '__', 'l_', 'v_', 'f_'});
     const suffix = this.rng.range(0x1000, 0xffff).toString(16);
-    obfuscated = `${prefix}${suffix}`;
-    if (this.useUnicode && this.rng.range(0, 1) === 1) {
-      obfuscated = this.rng.unicodeConfusable() + obfuscated;
-    }
-    if (this.useInvisible && this.rng.range(0, 2) === 1) {
-      obfuscated = obfuscated + this.rng.invisible();
-    }
+    obfuscated = prefix .. suffix;
+    if (this.useUnicode and this.rng.range(0, 1) == 1) then
+      obfuscated = this.rng.unicodeConfusable() .. obfuscated;
+    end
+    if (this.useInvisible and this.rng.range(0, 2) == 1) then
+      obfuscated = obfuscated .. this.rng.invisible();
+    end
     this.nameMap.set(name, obfuscated);
     return obfuscated;
   }
@@ -197,76 +204,102 @@ class IdentifierObfuscator {
     this.nameMap.clear();
   }
 }
+
 class GarbageInjector {
   static insertNOP(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
-    const pos = rng.range(0, bytecode.length);
-    bytecode.splice(pos, 0, opMap.get('NOP'));
+    const pos = rng.range(0, #bytecode);
+    table.insert(bytecode, pos + 1, opMap.get('NOP'));
   }
   static insertDummyPushPop(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
-    const pos = rng.range(0, bytecode.length);
+    const pos = rng.range(0, #bytecode);
     const dummyConst = rng.range(0, 100);
-    const push = [opMap.get('LOADK'), dummyConst & 0xff, (dummyConst >> 8) & 0xff];
-    const pop = [opMap.get('POP')];
-    bytecode.splice(pos, 0, ...push, ...pop);
+    const push = {opMap.get('LOADK'), dummyConst & 0xff, (dummyConst >> 8) & 0xff};
+    const pop = {opMap.get('POP')};
+    for i = #push, 1, -1 do
+      table.insert(bytecode, pos + 1, push[i]);
+    end
+    table.insert(bytecode, pos + #push + 1, pop[1]);
   }
   static insertFakeCall(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
-    const pos = rng.range(0, bytecode.length);
+    const pos = rng.range(0, #bytecode);
     const fakeFunc = rng.range(0, 10);
-    const pushFunc = [opMap.get('LOADK'), fakeFunc & 0xff, (fakeFunc >> 8) & 0xff];
-    const call = [opMap.get('CALL'), 0, 0];
-    bytecode.splice(pos, 0, ...pushFunc, ...call);
+    const pushFunc = {opMap.get('LOADK'), fakeFunc & 0xff, (fakeFunc >> 8) & 0xff};
+    const call = {opMap.get('CALL'), 0, 0};
+    for i = #pushFunc, 1, -1 do
+      table.insert(bytecode, pos + 1, pushFunc[i]);
+    end
+    table.insert(bytecode, pos + #pushFunc + 1, call[1]);
+    table.insert(bytecode, pos + #pushFunc + 2, call[2]);
+    table.insert(bytecode, pos + #pushFunc + 3, call[3]);
   }
 }
+
 class ExpressionObfuscator {
   static obfuscateBinary(left: string, right: string, op: string, rng: SeededRandom): string {
     const mode = rng.range(0, 2);
-    switch (op) {
-      case '+':
-        if (mode === 0) return `((${left} << 1) + (${right} >> 1) + ((${left} & ${right}) % 3))`;
-        if (mode === 1) return `((${left} ^ ${right}) + ((${left} & ${right}) << 1))`;
-        return `(${left} + ${right})`;
-      case '-':
-        if (mode === 0) return `((${left} << 2) - (${right} << 1) - (${left} & ${right}))`;
-        return `(${left} - ${right})`;
-      case '*':
-        if (mode === 0) return `(((${left} << 3) - ${left}) * (${right} >> 1))`;
-        return `(${left} * ${right})`;
-      case '/':
-        return `(${left} / ${right})`;
-      case '%':
-        return `(${left} % ${right})`;
-      case '^':
-        return `(${left} ^ ${right})`;
-      case '..':
-        return `(${left} .. ${right})`;
-      case '==':
-        return `(${left} == ${right})`;
-      case '<':
-        return `(${left} < ${right})`;
-      case '<=':
-        return `(${left} <= ${right})`;
-      case '>':
-        return `(${left} > ${right})`;
-      case '>=':
-        return `(${left} >= ${right})`;
-      case 'and':
-        return `(${left} and ${right})`;
-      case 'or':
-        return `(${left} or ${right})`;
-      default:
-        return `(${left} ${op} ${right})`;
-    }
+    if op == '+' then
+      if mode == 0 then
+        return '((' .. left .. ' << 1) + (' .. right .. ' >> 1) + ((' .. left .. ' & ' .. right .. ') % 3))';
+      elseif mode == 1 then
+        return '((' .. left .. ' ~ ' .. right .. ') + ((' .. left .. ' & ' .. right .. ') << 1))';
+      else
+        return '(' .. left .. ' + ' .. right .. ')';
+      end
+    elseif op == '-' then
+      if mode == 0 then
+        return '((' .. left .. ' << 2) - (' .. right .. ' << 1) - (' .. left .. ' & ' .. right .. '))';
+      else
+        return '(' .. left .. ' - ' .. right .. ')';
+      end
+    elseif op == '*' then
+      if mode == 0 then
+        return '(((' .. left .. ' << 3) - ' .. left .. ') * (' .. right .. ' >> 1))';
+      else
+        return '(' .. left .. ' * ' .. right .. ')';
+      end
+    elseif op == '/' then
+      return '(' .. left .. ' / ' .. right .. ')';
+    elseif op == '%' then
+      return '(' .. left .. ' % ' .. right .. ')';
+    elseif op == '^' then
+      return '(' .. left .. ' ^ ' .. right .. ')';
+    elseif op == '..' then
+      return '(' .. left .. ' .. ' .. right .. ')';
+    elseif op == '==' then
+      return '(' .. left .. ' == ' .. right .. ')';
+    elseif op == '<' then
+      return '(' .. left .. ' < ' .. right .. ')';
+    elseif op == '<=' then
+      return '(' .. left .. ' <= ' .. right .. ')';
+    elseif op == '>' then
+      return '(' .. left .. ' > ' .. right .. ')';
+    elseif op == '>=' then
+      return '(' .. left .. ' >= ' .. right .. ')';
+    elseif op == 'and' then
+      return '(' .. left .. ' and ' .. right .. ')';
+    elseif op == 'or' then
+      return '(' .. left .. ' or ' .. right .. ')';
+    else
+      return '(' .. left .. ' ' .. op .. ' ' .. right .. ')';
+    end
   }
   static obfuscateUnary(expr: string, op: string, rng: SeededRandom): string {
-    if (op === 'not') {
-      if (rng.range(0, 1) === 0) return `(not ${expr})`;
-      return `(${expr} == false)`;
-    }
-    if (op === '-') return `(-${expr})`;
-    if (op === '#') return `(#${expr})`;
-    return `${op}${expr}`;
+    if op == 'not' then
+      if rng.range(0, 1) == 0 then
+        return '(not ' .. expr .. ')';
+      else
+        return '(' .. expr .. ' == false)';
+      end
+    elseif op == '-' then
+      return '(-' .. expr .. ')';
+    elseif op == '#' then
+      return '(#' .. expr .. ')';
+    else
+      return op .. expr;
+    end
   }
 }
+
 class IRNode {
   type: string;
   value?: any;
@@ -278,113 +311,148 @@ class IRNode {
     this.value = value;
   }
 }
+
 class IRBuilder {
   static fromAST(node: any): IRNode {
-    if (!node) return new IRNode('NIL');
-    switch (node.type) {
-      case 'Chunk':
-        const chunk = new IRNode('CHUNK');
-        chunk.children = (node.body || []).map((s: any) => IRBuilder.fromAST(s));
-        return chunk;
-      case 'AssignmentStatement':
-        const assign = new IRNode('ASSIGN');
-        assign.children = [
-          ...node.variables.map((v: any) => IRBuilder.fromAST(v)),
-          ...node.init.map((i: any) => IRBuilder.fromAST(i))
-        ];
-        return assign;
-      case 'LocalStatement':
-        const local = new IRNode('LOCAL');
-        local.children = [
-          ...node.variables.map((v: any) => IRBuilder.fromAST(v)),
-          ...(node.init || []).map((i: any) => IRBuilder.fromAST(i))
-        ];
-        return local;
-      case 'CallExpression':
-        const call = new IRNode('CALL');
-        call.children = [
-          IRBuilder.fromAST(node.base),
-          ...(node.arguments || []).map((a: any) => IRBuilder.fromAST(a))
-        ];
-        return call;
-      case 'StringLiteral':
-        return new IRNode('STRING', node.value);
-      case 'NumericLiteral':
-        return new IRNode('NUMBER', node.value);
-      case 'BooleanLiteral':
-        return new IRNode('BOOLEAN', node.value);
-      case 'Identifier':
-        return new IRNode('IDENT', node.name);
-      case 'BinaryExpression':
-        const bin = new IRNode('BINARY', node.operator);
-        bin.left = IRBuilder.fromAST(node.left);
-        bin.right = IRBuilder.fromAST(node.right);
-        return bin;
-      case 'UnaryExpression':
-        const un = new IRNode('UNARY', node.operator);
-        un.left = IRBuilder.fromAST(node.argument);
-        return un;
-      case 'IfStatement':
-        const ifNode = new IRNode('IF');
-        ifNode.children = [
-          IRBuilder.fromAST(node.condition),
-          new IRNode('THEN', node.then.map((s: any) => IRBuilder.fromAST(s))),
-          ...(node.else ? [new IRNode('ELSE', Array.isArray(node.else) ?
-            node.else.map((s: any) => IRBuilder.fromAST(s)) :
-            [IRBuilder.fromAST(node.else)])] : [])
-        ];
-        return ifNode;
-      case 'WhileStatement':
-        const whileNode = new IRNode('WHILE');
-        whileNode.left = IRBuilder.fromAST(node.condition);
-        whileNode.right = new IRNode('BODY', node.body.map((s: any) => IRBuilder.fromAST(s)));
-        return whileNode;
-      case 'ReturnStatement':
-        const ret = new IRNode('RETURN');
-        ret.children = (node.arguments || []).map((a: any) => IRBuilder.fromAST(a));
-        return ret;
-      default:
-        return new IRNode('UNKNOWN');
-    }
+    if not node then return IRNode.new('NIL'); end
+    if node.type == 'Chunk' then
+      const chunk = IRNode.new('CHUNK');
+      chunk.children = {};
+      for i, stmt in ipairs(node.body or {}) do
+        table.insert(chunk.children, IRBuilder.fromAST(stmt));
+      end
+      return chunk;
+    elseif node.type == 'AssignmentStatement' then
+      const assign = IRNode.new('ASSIGN');
+      assign.children = {};
+      for i, var in ipairs(node.variables) do
+        table.insert(assign.children, IRBuilder.fromAST(var));
+      end
+      for i, init in ipairs(node.init) do
+        table.insert(assign.children, IRBuilder.fromAST(init));
+      end
+      return assign;
+    elseif node.type == 'LocalStatement' then
+      const local = IRNode.new('LOCAL');
+      local.children = {};
+      for i, var in ipairs(node.variables) do
+        table.insert(local.children, IRBuilder.fromAST(var));
+      end
+      for i, init in ipairs(node.init or {}) do
+        table.insert(local.children, IRBuilder.fromAST(init));
+      end
+      return local;
+    elseif node.type == 'CallExpression' then
+      const call = IRNode.new('CALL');
+      call.children = {IRBuilder.fromAST(node.base)};
+      for i, arg in ipairs(node.arguments or {}) do
+        table.insert(call.children, IRBuilder.fromAST(arg));
+      end
+      return call;
+    elseif node.type == 'StringLiteral' then
+      return IRNode.new('STRING', node.value);
+    elseif node.type == 'NumericLiteral' then
+      return IRNode.new('NUMBER', node.value);
+    elseif node.type == 'BooleanLiteral' then
+      return IRNode.new('BOOLEAN', node.value);
+    elseif node.type == 'Identifier' then
+      return IRNode.new('IDENT', node.name);
+    elseif node.type == 'BinaryExpression' then
+      const bin = IRNode.new('BINARY', node.operator);
+      bin.left = IRBuilder.fromAST(node.left);
+      bin.right = IRBuilder.fromAST(node.right);
+      return bin;
+    elseif node.type == 'UnaryExpression' then
+      const un = IRNode.new('UNARY', node.operator);
+      un.left = IRBuilder.fromAST(node.argument);
+      return un;
+    elseif node.type == 'IfStatement' then
+      const ifNode = IRNode.new('IF');
+      ifNode.children = {IRBuilder.fromAST(node.condition)};
+      const thenNode = IRNode.new('THEN');
+      thenNode.value = {};
+      for i, stmt in ipairs(node.then) do
+        table.insert(thenNode.value, IRBuilder.fromAST(stmt));
+      end
+      table.insert(ifNode.children, thenNode);
+      if node.else then
+        const elseNode = IRNode.new('ELSE');
+        if type(node.else) == 'table' then
+          elseNode.value = {};
+          for i, stmt in ipairs(node.else) do
+            table.insert(elseNode.value, IRBuilder.fromAST(stmt));
+          end
+        else
+          elseNode.value = {IRBuilder.fromAST(node.else)};
+        end
+        table.insert(ifNode.children, elseNode);
+      end
+      return ifNode;
+    elseif node.type == 'WhileStatement' then
+      const whileNode = IRNode.new('WHILE');
+      whileNode.left = IRBuilder.fromAST(node.condition);
+      const bodyNode = IRNode.new('BODY');
+      bodyNode.value = {};
+      for i, stmt in ipairs(node.body) do
+        table.insert(bodyNode.value, IRBuilder.fromAST(stmt));
+      end
+      whileNode.right = bodyNode;
+      return whileNode;
+    elseif node.type == 'ReturnStatement' then
+      const ret = IRNode.new('RETURN');
+      ret.children = {};
+      for i, arg in ipairs(node.arguments or {}) do
+        table.insert(ret.children, IRBuilder.fromAST(arg));
+      end
+      return ret;
+    else
+      return IRNode.new('UNKNOWN');
+    end
   }
 }
+
 class ControlFlowFlattener {
   static flatten(ir: IRNode, rng: SeededRandom): IRNode {
-    const blocks: IRNode[] = [];
-    const collect = (node: IRNode) => {
-      if (node.type === 'IF' || node.type === 'WHILE' || node.type === 'CHUNK') {
-        if (node.children) node.children.forEach(collect);
-      } else {
-        blocks.push(node);
-      }
+    const blocks = {};
+    const collect = (node) => {
+      if node.type == 'IF' or node.type == 'WHILE' or node.type == 'CHUNK' then
+        if node.children then
+          for i, child in ipairs(node.children) do
+            collect(child);
+          end
+        end
+      else
+        table.insert(blocks, node);
+      end
     };
     collect(ir);
-    if (blocks.length <= 1) return ir;
-    const stateVar = `__state_${rng.range(1000, 9999)}`;
-    const stateMachine = new IRNode('STATE_MACHINE');
+    if #blocks <= 1 then return ir; end
+    const stateVar = '__state_' .. rng.range(1000, 9999);
+    const stateMachine = IRNode.new('STATE_MACHINE');
     stateMachine.value = stateVar;
-    const stateNodes: IRNode[] = [];
-    for (let i = 0; i < blocks.length; i++) {
-      const stateBlock = new IRNode('STATE_BLOCK');
-      stateBlock.value = i + 1;
-      stateBlock.children = [blocks[i]];
-      if (i < blocks.length - 1) {
-        const assign = new IRNode('ASSIGN');
-        assign.children = [new IRNode('IDENT', stateVar), new IRNode('NUMBER', i + 2)];
-        stateBlock.children.push(assign);
-      }
-      stateNodes.push(stateBlock);
-    }
+    const stateNodes = {};
+    for i = 1, #blocks do
+      const stateBlock = IRNode.new('STATE_BLOCK');
+      stateBlock.value = i;
+      stateBlock.children = {blocks[i]};
+      if i < #blocks then
+        const assign = IRNode.new('ASSIGN');
+        assign.children = {IRNode.new('IDENT', stateVar), IRNode.new('NUMBER', i + 1)};
+        table.insert(stateBlock.children, assign);
+      end
+      table.insert(stateNodes, stateBlock);
+    end
     stateMachine.children = stateNodes;
     return stateMachine;
   }
 }
+
 class BytecodeCompiler {
-  private bytecode: number[] = [];
-  private constants: any[] = [];
-  private constMap: Map<string, number> = new Map();
-  private labels: Map<string, number> = new Map();
-  private fixups: Array<{ label: string; positions: number[] }> = [];
+  private bytecode = {};
+  private constants = {};
+  private constMap = {};
+  private labels = {};
+  private fixups = {};
   private nextLabel = 0;
   private opMap: OpcodeMap;
   private rng: SeededRandom;
@@ -394,192 +462,203 @@ class BytecodeCompiler {
     this.opMap = opMap;
     this.rng = rng;
     this.layers = layers;
-    this.idObf = new IdentifierObfuscator(rng, layers.advanced || false, layers.advanced || false);
+    this.idObf = IdentifierObfuscator.new(rng, layers.advanced or false, layers.advanced or false);
+    this.bytecode = {};
+    this.constants = {};
+    this.constMap = {};
+    this.labels = {};
+    this.fixups = {};
   }
   addConstant(value: any): number {
-    const key = typeof value === 'string' ? value : String(value);
-    if (this.constMap.has(key)) return this.constMap.get(key)!;
+    const key = type(value) == 'string' and value or tostring(value);
+    if this.constMap[key] then return this.constMap[key]; end
     let encrypted = value;
-    if (this.layers.constants) {
-      if (typeof value === 'number') {
+    if this.layers.constants then
+      if type(value) == 'number' then
         encrypted = MultiLayerEncryption.encryptNumber(value, this.rng);
-      } else if (typeof value === 'string') {
+      elseif type(value) == 'string' then
         encrypted = MultiLayerEncryption.encryptString(value, this.rng);
-      } else if (typeof value === 'boolean') {
+      elseif type(value) == 'boolean' then
         encrypted = MultiLayerEncryption.encryptBoolean(value, this.rng);
-      }
-    }
-    const idx = this.constants.length;
-    this.constants.push(encrypted);
-    this.constMap.set(key, idx);
+      end
+    end
+    const idx = #this.constants + 1;
+    this.constants[idx] = encrypted;
+    this.constMap[key] = idx;
     return idx;
   }
   emit(op: string, ...args: number[]): void {
-    this.bytecode.push(this.opMap.get(op));
-    for (const arg of args) {
-      this.bytecode.push(arg & 0xff);
-      this.bytecode.push((arg >> 8) & 0xff);
-    }
-    if (this.layers.garbage && this.rng.range(1, 20) > 18) {
+    table.insert(this.bytecode, this.opMap.get(op));
+    for i, arg in ipairs(args) do
+      table.insert(this.bytecode, arg & 0xff);
+      table.insert(this.bytecode, (arg >> 8) & 0xff);
+    end
+    if this.layers.garbage and this.rng.range(1, 20) > 18 then
       GarbageInjector.insertNOP(this.bytecode, this.opMap, this.rng);
-    }
+    end
   }
   emitJump(op: string, label: string): void {
     this.emit(op);
-    const pos = this.bytecode.length;
-    this.bytecode.push(0, 0);
-    let fix = this.fixups.find(f => f.label === label);
-    if (!fix) {
-      fix = { label, positions: [] };
-      this.fixups.push(fix);
-    }
-    fix.positions.push(pos);
+    const pos = #this.bytecode + 1;
+    table.insert(this.bytecode, 0);
+    table.insert(this.bytecode, 0);
+    let fix = nil;
+    for i, f in ipairs(this.fixups) do
+      if f.label == label then
+        fix = f;
+        break;
+      end
+    end
+    if not fix then
+      fix = {label = label, positions = {}};
+      table.insert(this.fixups, fix);
+    end
+    table.insert(fix.positions, pos);
   }
   label(): string {
-    const name = `L${this.nextLabel++}`;
-    this.labels.set(name, this.bytecode.length);
+    const name = 'L' .. this.nextLabel;
+    this.nextLabel = this.nextLabel + 1;
+    this.labels[name] = #this.bytecode + 1;
     return name;
   }
   resolveFixups(): void {
-    for (const fix of this.fixups) {
-      const target = this.labels.get(fix.label);
-      if (target === undefined) continue;
-      for (const pos of fix.positions) {
-        this.bytecode[pos] = target & 0xff;
-        this.bytecode[pos + 1] = (target >> 8) & 0xff;
-      }
-    }
+    for i, fix in ipairs(this.fixups) do
+      const target = this.labels[fix.label];
+      if target then
+        for j, pos in ipairs(fix.positions) do
+          this.bytecode[pos] = target & 0xff;
+          this.bytecode[pos + 1] = (target >> 8) & 0xff;
+        end
+      end
+    end
   }
   compile(ir: IRNode): { bytecode: number[]; constants: any[] } {
-    if (this.layers.controlFlow && ir.type !== 'STATE_MACHINE') {
+    if this.layers.controlFlow and ir.type ~= 'STATE_MACHINE' then
       ir = ControlFlowFlattener.flatten(ir, this.rng);
-    }
+    end
     this.visitIR(ir);
     this.emit('RET');
-    if (this.layers.garbage) {
-      for (let i = 0; i < this.rng.range(1, 3); i++) {
+    if this.layers.garbage then
+      for i = 1, this.rng.range(1, 3) do
         GarbageInjector.insertFakeCall(this.bytecode, this.opMap, this.rng);
-      }
-    }
+      end
+    end
     this.resolveFixups();
-    return { bytecode: this.bytecode, constants: this.constants };
+    return {bytecode = this.bytecode, constants = this.constants};
   }
   private visitIR(node: IRNode): void {
-    if (!node) return;
-    if (this.layers.identifiers && node.type === 'IDENT') {
+    if not node then return; end
+    if this.layers.identifiers and node.type == 'IDENT' then
       node.value = this.idObf.obfuscate(node.value);
-    }
-    switch (node.type) {
-      case 'CHUNK':
-        node.children?.forEach(c => this.visitIR(c));
-        break;
-      case 'STATE_MACHINE':
-        this.compileStateMachine(node);
-        break;
-      case 'ASSIGN':
-        node.children?.slice(node.children.length / 2).forEach(c => this.visitIR(c));
-        node.children?.slice(0, node.children.length / 2).forEach(c => this.visitIR(c));
-        for (let i = 0; i < (node.children?.length || 0) / 2; i++) {
-          const varNode = node.children?.[i];
-          if (varNode?.type === 'IDENT') {
-            this.emit('SETGLOBAL', this.addConstant(varNode.value));
-          }
-        }
-        break;
-      case 'LOCAL':
-        node.children?.slice(node.children.length / 2).forEach(c => this.visitIR(c));
-        for (let i = 0; i < (node.children?.length || 0) / 2; i++) {
-          const varNode = node.children?.[i];
-          if (varNode?.type === 'IDENT') {
-            this.emit('SETGLOBAL', this.addConstant('_local_' + varNode.value));
-          }
-        }
-        break;
-      case 'CALL':
-        node.children?.forEach(c => this.visitIR(c));
-        this.emit('CALL', (node.children?.length || 1) - 1);
-        break;
-      case 'STRING':
-      case 'NUMBER':
-      case 'BOOLEAN':
-        this.emit('LOADK', this.addConstant(node.value));
-        break;
-      case 'IDENT':
-        this.emit('GETGLOBAL', this.addConstant(node.value));
-        break;
-      case 'BINARY':
-        this.visitIR(node.left!);
-        this.visitIR(node.right!);
-        if (this.layers.expressions) {
-          const leftStr = `pop()`;
-          const rightStr = `pop()`;
-          const obf = ExpressionObfuscator.obfuscateBinary(leftStr, rightStr, node.value, this.rng);
-          this.emit('LOADK', this.addConstant(obf));
-          this.emit('CALL', 1);
-        } else {
-          switch (node.value) {
-            case '+': this.emit('ADD'); break;
-            case '-': this.emit('SUB'); break;
-            case '*': this.emit('MUL'); break;
-            case '/': this.emit('DIV'); break;
-            case '%': this.emit('MOD'); break;
-            case '^': this.emit('POW'); break;
-            case '..': this.emit('CONCAT'); break;
-            case '==': this.emit('EQ'); break;
-            case '<': this.emit('LT'); break;
-            case '<=': this.emit('LE'); break;
-            case '>': this.emit('GT'); break;
-            case '>=': this.emit('GE'); break;
-            case 'and': this.emit('AND'); break;
-            case 'or': this.emit('OR'); break;
-          }
-        }
-        break;
-      case 'UNARY':
-        this.visitIR(node.left!);
-        if (this.layers.expressions) {
-          const exprStr = `pop()`;
-          const obf = ExpressionObfuscator.obfuscateUnary(exprStr, node.value, this.rng);
-          this.emit('LOADK', this.addConstant(obf));
-          this.emit('CALL', 1);
-        } else {
-          switch (node.value) {
-            case 'not': this.emit('NOT'); break;
-            case '-': this.emit('NEG'); break;
-            case '#': this.emit('LEN'); break;
-          }
-        }
-        break;
-      case 'STATE_BLOCK':
-        this.labels.set(`STATE_${node.value}`, this.bytecode.length);
-        node.children?.forEach(c => this.visitIR(c));
-        break;
-      default:
-        if (node.children) node.children.forEach(c => this.visitIR(c));
-        if (node.left) this.visitIR(node.left);
-        if (node.right) this.visitIR(node.right);
-        break;
-    }
+    end
+    if node.type == 'CHUNK' then
+      if node.children then
+        for i, c in ipairs(node.children) do
+          this.visitIR(c);
+        end
+      end
+    elseif node.type == 'STATE_MACHINE' then
+      this.compileStateMachine(node);
+    elseif node.type == 'ASSIGN' then
+      const half = #node.children / 2;
+      for i = half + 1, #node.children do
+        this.visitIR(node.children[i]);
+      end
+      for i = 1, half do
+        this.visitIR(node.children[i]);
+      end
+      for i = 1, half do
+        const varNode = node.children[i];
+        if varNode.type == 'IDENT' then
+          this.emit('SETGLOBAL', this.addConstant(varNode.value));
+        end
+      end
+    elseif node.type == 'LOCAL' then
+      const half = #node.children / 2;
+      for i = half + 1, #node.children do
+        this.visitIR(node.children[i]);
+      end
+      for i = 1, half do
+        const varNode = node.children[i];
+        if varNode.type == 'IDENT' then
+          this.emit('SETGLOBAL', this.addConstant('_local_' .. varNode.value));
+        end
+      end
+    elseif node.type == 'CALL' then
+      for i, c in ipairs(node.children) do
+        this.visitIR(c);
+      end
+      this.emit('CALL', #node.children - 1);
+    elseif node.type == 'STRING' or node.type == 'NUMBER' or node.type == 'BOOLEAN' then
+      this.emit('LOADK', this.addConstant(node.value));
+    elseif node.type == 'IDENT' then
+      this.emit('GETGLOBAL', this.addConstant(node.value));
+    elseif node.type == 'BINARY' then
+      this.visitIR(node.left);
+      this.visitIR(node.right);
+      if node.value == '+' then this.emit('ADD');
+      elseif node.value == '-' then this.emit('SUB');
+      elseif node.value == '*' then this.emit('MUL');
+      elseif node.value == '/' then this.emit('DIV');
+      elseif node.value == '%' then this.emit('MOD');
+      elseif node.value == '^' then this.emit('POW');
+      elseif node.value == '..' then this.emit('CONCAT');
+      elseif node.value == '==' then this.emit('EQ');
+      elseif node.value == '<' then this.emit('LT');
+      elseif node.value == '<=' then this.emit('LE');
+      elseif node.value == '>' then this.emit('GT');
+      elseif node.value == '>=' then this.emit('GE');
+      elseif node.value == 'and' then this.emit('AND');
+      elseif node.value == 'or' then this.emit('OR');
+      end
+    elseif node.type == 'UNARY' then
+      this.visitIR(node.left);
+      if node.value == 'not' then this.emit('NOT');
+      elseif node.value == '-' then this.emit('NEG');
+      elseif node.value == '#' then this.emit('LEN');
+      end
+    elseif node.type == 'STATE_BLOCK' then
+      this.labels['STATE_' .. node.value] = #this.bytecode + 1;
+      if node.children then
+        for i, c in ipairs(node.children) do
+          this.visitIR(c);
+        end
+      end
+    else
+      if node.children then
+        for i, c in ipairs(node.children) do
+          this.visitIR(c);
+        end
+      end
+      if node.left then this.visitIR(node.left); end
+      if node.right then this.visitIR(node.right); end
+    end
   }
   private compileStateMachine(node: IRNode): void {
     const stateVar = node.value;
     this.emit('LOADK', this.addConstant(1));
-    this.emit('SETGLOBAL', this.addConstant('__' + stateVar));
+    this.emit('SETGLOBAL', this.addConstant('__' .. stateVar));
     const startLabel = this.label();
-    this.emit('GETGLOBAL', this.addConstant('__' + stateVar));
-    const jumpTable: string[] = [];
-    for (let i = 0; i < (node.children?.length || 0); i++) {
-      jumpTable.push(`STATE_${i + 1}`);
-    }
-    for (let i = 0; i < jumpTable.length; i++) {
+    this.emit('GETGLOBAL', this.addConstant('__' .. stateVar));
+    const jumpTable = {};
+    for i = 1, #(node.children or {}) do
+      jumpTable[i] = 'STATE_' .. i;
+    end
+    for i = 1, #jumpTable do
       const caseLabel = this.label();
-      const stateNode = node.children![i];
+      const stateNode = node.children[i];
       this.visitIR(stateNode);
-      this.emit('JMP', startLabel);
-      this.labels.set(jumpTable[i], this.bytecode.length);
-    }
+      this.emit('JMP');
+      const pos = #this.bytecode + 1;
+      table.insert(this.bytecode, 0);
+      table.insert(this.bytecode, 0);
+      const fix = {label = startLabel, positions = {pos}};
+      table.insert(this.fixups, fix);
+      this.labels[jumpTable[i]] = #this.bytecode + 1;
+    end
   }
 }
+
 class VMGenerator {
   static generate(
     bytecode: number[],
@@ -589,216 +668,141 @@ class VMGenerator {
     options: ObfuscationOptions,
     layers: any
   ): string {
-    const buildId = `XZX-${Date.now().toString(36)}-${rng.range(1000, 9999)}`;
+    const buildId = 'XZX-' .. tostring(os.time()) .. '-' .. rng.range(1000, 9999);
     const key = rng.bytes(32);
-    const encrypted = bytecode.map((b, i) => b ^ key[i % key.length]);
-    const hash = bytecode.reduce((h, b) => ((h << 5) - h + b) & 0xffffffff, 0);
+    const encrypted = {};
+    for i = 1, #bytecode do
+      encrypted[i] = bytecode[i] ~ key[(i - 1) % #key + 1];
+    end
+    const hash = 0;
+    for i = 1, #bytecode do
+      hash = ((hash << 5) - hash + bytecode[i]) & 0xffffffff;
+    end
     const opList = opMap.getAll();
     const dynamicKey = opMap.getDynamicKey();
-    const constStr = JSON.stringify(constants).replace(/"([^"]+)":/g, '$1:');
-    const mode = options.mode || 'standard';
-    let envSetup = mode === 'isolated'
-      ? 'local env = {}\n  setmetatable(env, {__index = getfenv and getfenv() or _ENV})'
-      : mode === 'sandbox'
-        ? 'local env = {print=print, string=string, table=table}'
-        : 'local env = getfenv and getfenv() or _ENV';
-    if (layers.stack) {
-      envSetup += '\nlocal stackA = {}\nlocal stackB = {}\nlocal stackIdx = 1';
-    }
-    const debugMode = options.debug ? `
-  local function debugLog(...)
-    print("[XZX VM]", ...)
-  end` : '';
-    const antiTamper = layers.antiTamper ? `
-local function validate()
-  local h = 0
-  for i = 1, #bytecode do
-    h = ((h << 5) - h + bytecode[i]) & 0xffffffff
-  end
-  if h ~= expectedHash then
-    error("Integrity violation: " .. tostring(h) .. " vs " .. expectedHash)
-  end
-  if opMap then
-    local check = ${dynamicKey}
-    if check ~= 0 and (bytecode[1] ^ bytecode[#bytecode]) ~= check then
-      error("Dynamic key mismatch")
+    const constStr = '[=[]' .. tostring(constants):gsub('"([^"]+)":', '%1:') .. '[]=]';
+    const mode = options.mode or 'standard';
+    let envSetup = '';
+    if mode == 'isolated' then
+      envSetup = 'local env = {}\n  setmetatable(env, {__index = getfenv and getfenv() or _ENV})';
+    elseif mode == 'sandbox' then
+      envSetup = 'local env = {print=print, string=string, table=table}';
+    else
+      envSetup = 'local env = getfenv and getfenv() or _ENV';
     end
-  end
-end` : '';
-    const stringDecrypt = layers.strings ? `
-local function getConst(idx)
-  local c = consts[idx]
-  if type(c) == 'table' then
-    if c.t == 's-multi' then
-      local result = ''
-      for i = 1, #c.c do
-        local chunk = c.c[i]
-        local key = c.k[i]
-        for j = 1, #chunk do
-          result = result .. string.char(chunk[j] ~ key)
+    if layers.stack then
+      envSetup = envSetup .. '\nlocal stackA = {}\nlocal stackB = {}\nlocal stackIdx = 1';
+    end
+    const debugMode = options.debug and '\n  local function debugLog(...)\n    print("[XZX VM]", ...)\n  end' or '';
+    const antiTamper = layers.antiTamper and '\nlocal function validate()\n  local h = 0\n  for i = 1, #bytecode do\n    h = ((h << 5) - h + bytecode[i]) & 0xffffffff\n  end\n  if h ~= expectedHash then\n    error("Integrity violation: " .. tostring(h) .. " vs " .. expectedHash)\n  end\n  if opMap then\n    local check = ' .. dynamicKey .. '\n    if check ~= 0 and (bytecode[1] ~ bytecode[#bytecode]) ~= check then\n      error("Dynamic key mismatch")\n    end\n  end\nend' or '';
+    const stringDecrypt = layers.strings and '\nlocal function getConst(idx)\n  local c = consts[idx]\n  if type(c) == "table" then\n    if c.t == "s-multi" then\n      local result = ""\n      for i = 1, #c.c do\n        local chunk = c.c[i]\n        local key = c.k[i]\n        for j = 1, #chunk do\n          result = result .. string.char(chunk[j] ~ key)\n        end\n      end\n      return result\n    elseif c.t == "n3" then\n      local a = (c.d + c.k[3]) & 0xffffffff\n      local b = (a ~ c.k[2]) & 0xffffffff\n      local c2 = (b >> 3) | ((b & 7) << 29)\n      return (c2 - c.k[1]) & 0xffffffff\n    elseif c.t == "b" then\n      return (c.v ~ c.k) == 1\n    end\n  end\n  return c\nend' or '\nlocal function getConst(idx)\n  return consts[idx]\nend';
+    const stackOps = layers.stack and '\nlocal function push(v)\n  if stackIdx == 1 then\n    table.insert(stackA, v)\n  else\n    table.insert(stackB, v)\n  end\n  stackIdx = 3 - stackIdx\nend\nlocal function pop()\n  stackIdx = 3 - stackIdx\n  if stackIdx == 1 then\n    return table.remove(stackA)\n  else\n    return table.remove(stackB)\n  end\nend' or '\nlocal function push(v) table.insert(stack, v) end\nlocal function pop() return table.remove(stack) end';
+    const handlerBodies = {
+      NOP = '',
+      PUSH = 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; push(getConst(idx))',
+      POP = 'pop()',
+      ADD = 'local b = pop(); local a = pop(); push(a + b)',
+      SUB = 'local b = pop(); local a = pop(); push(a - b)',
+      MUL = 'local b = pop(); local a = pop(); push(a * b)',
+      DIV = 'local b = pop(); local a = pop(); push(a / b)',
+      MOD = 'local b = pop(); local a = pop(); push(a % b)',
+      POW = 'local b = pop(); local a = pop(); push(a ^ b)',
+      CONCAT = 'local b = pop(); local a = pop(); push(a .. b)',
+      JMP = 'local target = bytecode[pc] + (bytecode[pc+1] << 8); pc = target + 2',
+      JIF = 'local target = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local cond = pop(); if not cond then pc = target end',
+      CALL = 'local nargs = bytecode[pc]; pc = pc + 2; local func = pop(); local args = {}; for i = 1, nargs do args[nargs - i + 1] = pop() end; local results = {func(unpack(args))}; for _, v in ipairs(results) do push(v) end',
+      RET = 'pc = #bytecode + 1',
+      LOADK = 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; push(getConst(idx))',
+      GETGLOBAL = 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local name = getConst(idx); push(env[name])',
+      SETGLOBAL = 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local val = pop(); env[getConst(idx)] = val',
+      GETTABLE = 'local key = pop(); local tbl = pop(); push(tbl[key])',
+      SETTABLE = 'local val = pop(); local key = pop(); local tbl = pop(); tbl[key] = val',
+      NEWTABLE = 'push({})',
+      LEN = 'local a = pop(); push(#a)',
+      NOT = 'local a = pop(); push(not a)',
+      EQ = 'local b = pop(); local a = pop(); push(a == b)',
+      LT = 'local b = pop(); local a = pop(); push(a < b)',
+      LE = 'local b = pop(); local a = pop(); push(a <= b)',
+      GT = 'local b = pop(); local a = pop(); push(a > b)',
+      GE = 'local b = pop(); local a = pop(); push(a >= b)',
+      AND = 'local b = pop(); local a = pop(); push(a and b)',
+      OR = 'local b = pop(); local a = pop(); push(a or b)',
+      TAILCALL = 'local nargs = bytecode[pc]; pc = pc + 2; local func = pop(); local args = {}; for i = 1, nargs do args[nargs - i + 1] = pop() end; return func(unpack(args))',
+    };
+    const handlers = {};
+    for name, body in pairs(handlerBodies) do
+      const nums = {};
+      for i, pair in ipairs(opList) do
+        if pair[1] == name then
+          table.insert(nums, pair[2]);
         end
       end
-      return result
-    elseif c.t == 'n3' then
-      local a = (c.d + c.k[3]) & 0xffffffff
-      local b = (a ^ c.k[2]) & 0xffffffff
-      local c2 = (b >>> 3) | ((b & 7) << 29)
-      return (c2 - c.k[1]) & 0xffffffff
-    elseif c.t == 'b' then
-      return (c.v ^ c.k) == 1
+      for i, num in ipairs(nums) do
+        table.insert(handlers, '  [' .. num .. '] = function() ' .. body .. ' end');
+      end
     end
-  end
-  return c
-end` : `
-local function getConst(idx)
-  return consts[idx]
-end`;
-    const stackOps = layers.stack ? `
-local function push(v)
-  if stackIdx == 1 then
-    table.insert(stackA, v)
-  else
-    table.insert(stackB, v)
-  end
-  stackIdx = 3 - stackIdx
-end
-local function pop()
-  stackIdx = 3 - stackIdx
-  if stackIdx == 1 then
-    return table.remove(stackA)
-  else
-    return table.remove(stackB)
-  end
-end` : `
-local function push(v) table.insert(stack, v) end
-local function pop() return table.remove(stack) end`;
-    const handlerBodies: Record<string, string> = {
-      NOP: '',
-      PUSH: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; push(getConst(idx))',
-      POP: 'pop()',
-      ADD: 'local b = pop(); local a = pop(); push(a + b)',
-      SUB: 'local b = pop(); local a = pop(); push(a - b)',
-      MUL: 'local b = pop(); local a = pop(); push(a * b)',
-      DIV: 'local b = pop(); local a = pop(); push(a / b)',
-      MOD: 'local b = pop(); local a = pop(); push(a % b)',
-      POW: 'local b = pop(); local a = pop(); push(a ^ b)',
-      CONCAT: 'local b = pop(); local a = pop(); push(a .. b)',
-      JMP: 'local target = bytecode[pc] + (bytecode[pc+1] << 8); pc = target + 2',
-      JIF: 'local target = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local cond = pop(); if not cond then pc = target end',
-      CALL: 'local nargs = bytecode[pc]; pc = pc + 2; local func = pop(); local args = {}; for i = 1, nargs do args[nargs - i + 1] = pop() end; local results = {func(table.unpack(args))}; for _, v in ipairs(results) do push(v) end',
-      RET: 'pc = #bytecode + 1',
-      LOADK: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; push(getConst(idx))',
-      GETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local name = getConst(idx); push(env[name])',
-      SETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local val = pop(); env[getConst(idx)] = val',
-      GETTABLE: 'local key = pop(); local tbl = pop(); push(tbl[key])',
-      SETTABLE: 'local val = pop(); local key = pop(); local tbl = pop(); tbl[key] = val',
-      NEWTABLE: 'push({})',
-      LEN: 'local a = pop(); push(#a)',
-      NOT: 'local a = pop(); push(not a)',
-      EQ: 'local b = pop(); local a = pop(); push(a == b)',
-      LT: 'local b = pop(); local a = pop(); push(a < b)',
-      LE: 'local b = pop(); local a = pop(); push(a <= b)',
-      GT: 'local b = pop(); local a = pop(); push(a > b)',
-      GE: 'local b = pop(); local a = pop(); push(a >= b)',
-      AND: 'local b = pop(); local a = pop(); push(a and b)',
-      OR: 'local b = pop(); local a = pop(); push(a or b)',
-      TAILCALL: 'local nargs = bytecode[pc]; pc = pc + 2; local func = pop(); local args = {}; for i = 1, nargs do args[nargs - i + 1] = pop() end; return func(table.unpack(args))',
-    };
-    const handlers: string[] = [];
-    for (const [name, body] of Object.entries(handlerBodies)) {
-      const nums = opMap.getAll().filter(([n]) => n === name).map(([_, num]) => num);
-      for (const num of nums) {
-        handlers.push(`  [${num}] = function() ${body} end`);
-      }
-    }
-    const handlerStr = handlers.join(',\n');
-    return `--[[ XZX Build: ${buildId} ]]
-local env
-${envSetup}
-${debugMode}
-local bytecode = {${encrypted.join(',')}}
-local consts = ${constStr}
-local key = {${key.join(',')}}
-local expectedHash = ${hash}
-local pc = 1
-local stack = {}
-${stackOps}
-local opMap = {
-${opList.map(([name, num]) => `  [${num}] = '${name}',`).join('\n')}
-}
-for i = 1, #bytecode do
-  bytecode[i] = bytecode[i] ~ key[(i-1) % #key + 1]
-end
-${stringDecrypt}
-${antiTamper}
-local handlers = {
-${handlerStr}
-}
-if ${layers.antiTamper ? 'true' : 'false'} then
-  validate()
-end
-while pc <= #bytecode do
-  local op = bytecode[pc]
-  pc = pc + 1
-  local handler = handlers[op]
-  if handler then
-    handler()
-  else
-    error("Invalid opcode: " .. op)
-  end
-end
-return stack[1] or stackA[1]
-`;
+    const handlerStr = table.concat(handlers, ',\n');
+    const antiTamperCheck = layers.antiTamper and 'validate()' or '';
+    return '--[[ XZX Build: ' .. buildId .. ']]\nlocal env\n' .. envSetup .. '\n' .. debugMode .. '\nlocal bytecode = {' .. table.concat(encrypted, ',') .. '}\nlocal consts = ' .. constStr .. '\nlocal key = {' .. table.concat(key, ',') .. '}\nlocal expectedHash = ' .. hash .. '\nlocal pc = 1\nlocal stack = {}\n' .. stackOps .. '\nlocal opMap = {\n' .. table.concat(opList, ',\n') .. '\n}\nfor i = 1, #bytecode do\n  bytecode[i] = bytecode[i] ~ key[(i-1) % #key + 1]\nend\n' .. stringDecrypt .. '\n' .. antiTamper .. '\nlocal handlers = {\n' .. handlerStr .. '\n}\nif ' .. tostring(layers.antiTamper) .. ' then\n  ' .. antiTamperCheck .. '\nend\nwhile pc <= #bytecode do\n  local op = bytecode[pc]\n  pc = pc + 1\n  local handler = handlers[op]\n  if handler then\n    handler()\n  else\n    error("Invalid opcode: " .. op)\n  end\nend\nreturn stack[1] or stackA[1]\n';
   }
 }
+
 export class XZXUltimateObfuscator {
   obfuscate(source: string, options: ObfuscationOptions = {}): ObfuscationResult {
-    const start = Date.now();
+    const start = os.clock();
     const defaultLayers = {
-      constants: true,
-      identifiers: true,
-      controlFlow: true,
-      garbage: true,
-      polymorphism: true,
-      antiTamper: true,
-      strings: true,
-      expressions: true,
-      stack: true,
-      advanced: false
+      constants = true,
+      identifiers = true,
+      controlFlow = true,
+      garbage = true,
+      polymorphism = true,
+      antiTamper = true,
+      strings = true,
+      expressions = true,
+      stack = true,
+      advanced = false
     };
-    const layers = { ...defaultLayers, ...options.layers };
-    const rng = new SeededRandom(options.seed);
-    const ast = luaparse.parse(source, { comments: false, luaVersion: '5.1' });
+    const layers = defaultLayers;
+    for k, v in pairs(options.layers or {}) do
+      layers[k] = v;
+    end
+    const rng = SeededRandom.new(options.seed);
+    const ast = luaparse.parse(source, {comments = false, luaVersion = '5.1'});
     const ir = IRBuilder.fromAST(ast);
-    const opMap = new OpcodeMap(rng, layers.polymorphism);
-    const compiler = new BytecodeCompiler(opMap, rng, layers);
-    const { bytecode, constants } = compiler.compile(ir);
+    const opMap = OpcodeMap.new(rng, layers.polymorphism);
+    const compiler = BytecodeCompiler.new(opMap, rng, layers);
+    const {bytecode, constants} = compiler.compile(ir);
     const output = VMGenerator.generate(bytecode, constants, opMap, rng, options, layers);
-    const buildId = `XZX-${Date.now().toString(36)}-${rng.range(1000, 9999)}`;
-    const layersApplied = Object.entries(layers).filter(([_, v]) => v).map(([k]) => k);
+    const buildId = 'XZX-' .. tostring(os.time()) .. '-' .. rng.range(1000, 9999);
+    const layersApplied = {};
+    for k, v in pairs(layers) do
+      if v then table.insert(layersApplied, k); end
+    end
     return {
-      success: true,
-      code: output,
-      metrics: {
-        inputSize: source.length,
-        outputSize: output.length,
-        duration: Date.now() - start,
-        instructionCount: bytecode.length,
-        buildId,
-        layersApplied
+      success = true,
+      code = output,
+      metrics = {
+        inputSize = #source,
+        outputSize = #output,
+        duration = os.clock() - start,
+        instructionCount = #bytecode,
+        buildId = buildId,
+        layersApplied = layersApplied
       }
     };
   }
 }
+
 export function obfuscateLua(source: string, options: any): ObfuscationResult {
-  const opts: ObfuscationOptions = {
-    seed: options.seed,
-    mode: options.mode || 'standard',
-    debug: options.debug || false,
-    optimization: options.optimization || 'basic',
-    layers: options.layers || {}
+  const opts = {
+    seed = options.seed,
+    mode = options.mode or 'standard',
+    debug = options.debug or false,
+    optimization = options.optimization or 'basic',
+    layers = options.layers or {}
   };
-  const obfuscator = new XZXUltimateObfuscator();
+  const obfuscator = XZXUltimateObfuscator.new();
   return obfuscator.obfuscate(source, opts);
 }
+
 export default obfuscateLua;
