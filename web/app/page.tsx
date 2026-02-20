@@ -41,26 +41,14 @@ import {
   BrainCircuit,
   FileWarning,
   CheckCheck,
-  Github,
   MessageCircle,
   Award,
-  TrendingUp,
-  Star,
   Users,
-  ZapIcon,
-  Menu,
-  XCircle,
-  Maximize2,
-  Minimize2,
-  ChevronRight,
-  ChevronLeft,
+  ExternalLink,
   Moon,
   Sun,
-  Heart,
-  ExternalLink,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
-import { BackgroundGradientAnimation } from "@/components/BackgroundGradient";
 import { obfuscateLua } from "@/lib/obfuscator";
 import {
   trackObfuscation,
@@ -80,7 +68,6 @@ import type { EncryptionAlgorithm } from "@/lib/encryption";
 import type { FormattingStyle } from "@/lib/formatter";
 import type { ObfuscationMetrics } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 
 const DEFAULT_LUA_CODE = `-- Welcome to XZX Obfuscator
 -- Paste your Lua code below
@@ -145,6 +132,7 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -181,7 +169,6 @@ export default function Home() {
   const [obfuscationCount, setObfuscationCount] = useState(0);
   const [pageStartTime] = useState(Date.now());
 
-  // Track mouse position for lighting effects
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({
@@ -435,7 +422,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* Premium gradient background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 
           className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.15),transparent_50%)]"
@@ -450,25 +436,19 @@ export default function Home() {
           }}
         />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(59,130,246,0.1),transparent_50%)]" />
-        
-        {/* Floating orbs */}
         <div className="absolute top-20 left-20 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-pink-600/20 rounded-full blur-3xl animate-pulse delay-1000" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Premium noise texture */}
       <div className="fixed inset-0 opacity-20 pointer-events-none" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E")`,
       }} />
 
-      {/* Main content */}
       <div className="relative z-10">
-        {/* Top navigation bar */}
         <nav className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/10 bg-black/20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
-              {/* Logo and brand */}
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur opacity-50"></div>
@@ -484,24 +464,30 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Discord link - prominent */}
-              <a
-                href="https://discord.gg/5q5bEKmYqF"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752c4] rounded-lg transition-colors group"
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span className="text-sm font-medium">Join Discord</span>
-                <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-              </a>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                </button>
+
+                <a
+                  href="https://discord.gg/5q5bEKmYqF"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752c4] rounded-lg transition-colors group"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Join Discord</span>
+                  <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                </a>
+              </div>
             </div>
           </div>
         </nav>
 
-        {/* Main content area */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
@@ -511,7 +497,6 @@ export default function Home() {
             </div>
             
             <div className="flex items-center gap-4">
-              {/* Stats cards */}
               <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
                 <Users className="w-4 h-4 text-purple-400" />
                 <span className="text-sm text-gray-300">1.2k+ users</span>
@@ -523,11 +508,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Main workspace */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left column - Code editors */}
             <div className="lg:col-span-8 space-y-6">
-              {/* Input editor */}
               <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
                 <div className="p-4 border-b border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -579,7 +561,6 @@ export default function Home() {
                 </div>
               </Card>
 
-              {/* Output editor */}
               {outputCode && (
                 <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
@@ -634,7 +615,6 @@ export default function Home() {
                 </Card>
               )}
 
-              {/* Metrics panel */}
               {metrics && (
                 <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-6">
                   <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
@@ -671,7 +651,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Right column - Settings */}
             <div className="lg:col-span-4">
               <Card className="sticky top-24 border-white/10 bg-white/5 backdrop-blur-xl">
                 <div className="p-6 border-b border-white/10">
@@ -684,7 +663,6 @@ export default function Home() {
                 </div>
 
                 <div className="p-6 max-h-[600px] overflow-y-auto custom-scrollbar">
-                  {/* Basic settings */}
                   <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Basic</h4>
                     {renderSwitch(
@@ -738,7 +716,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* VM & Core Features */}
                   <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">VM & Core</h4>
                     {renderSwitch(
@@ -799,7 +776,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Anti-Analysis */}
                   <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Anti-Analysis</h4>
                     {renderSwitch(
@@ -846,7 +822,6 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Target Version */}
                   <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Target</h4>
                     <Select
@@ -868,7 +843,6 @@ export default function Home() {
                     </Select>
                   </div>
 
-                  {/* Optimization level */}
                   <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
                     <Select
@@ -889,7 +863,6 @@ export default function Home() {
                     </Select>
                   </div>
 
-                  {/* Encryption Algorithm */}
                   <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Encryption</h4>
                     <Select
@@ -912,7 +885,6 @@ export default function Home() {
                     </Select>
                   </div>
 
-                  {/* Output Formatting */}
                   <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Format</h4>
                     <Select
@@ -933,7 +905,6 @@ export default function Home() {
                     </Select>
                   </div>
 
-                  {/* Protection level slider */}
                   <div className="mt-8 pt-8 border-t border-white/10">
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-sm font-medium">Protection Level</span>
@@ -978,7 +949,6 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* Obfuscate button */}
                   <Button
                     onClick={obfuscateCode}
                     disabled={!inputCode || isProcessing}
@@ -1002,7 +972,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Error Display */}
           {error && (
             <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-red-400" />
@@ -1010,7 +979,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Warning Display */}
           {warning && !error && (
             <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-yellow-400" />
@@ -1018,7 +986,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Footer */}
           <footer className="mt-12 pt-8 border-t border-white/10">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="text-sm text-gray-400">
