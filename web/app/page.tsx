@@ -82,7 +82,22 @@ import type { ObfuscationMetrics } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 
-const DEFAULT_LUA_CODE = "-- Your Lua code here\nprint('Hello World!')";
+const DEFAULT_LUA_CODE = `-- Welcome to XZX Obfuscator
+-- Paste your Lua code below
+-- Example:
+
+local function calculateScore(basePoints, multiplier)
+  local maxScore = 1000
+  local result = basePoints * multiplier
+  
+  if result > maxScore then
+    result = maxScore
+  end
+  
+  return result
+end
+
+print("Score: " .. calculateScore(100, 5))`;
 
 interface ObfuscatorSettings {
   mangleNames: boolean;
@@ -130,9 +145,6 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [activeTab, setActiveTab] = useState<'input' | 'output' | 'metrics'>('input');
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -277,7 +289,6 @@ export default function Home() {
         setMetrics(transformedMetrics);
         setError(null);
         setInputError(undefined);
-        setActiveTab('output');
 
         const newCount = obfuscationCount + 1;
         setObfuscationCount(newCount);
@@ -423,14 +434,21 @@ export default function Home() {
   };
 
   return (
-    <div className={cn(
-      "min-h-screen transition-colors duration-300",
-      theme === 'dark' ? 'bg-[#0a0a0f]' : 'bg-[#f5f5f8]'
-    )}>
+    <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Premium gradient background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.15),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(236,72,153,0.1),transparent_50%)]" />
+        <div 
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.15),transparent_50%)]"
+          style={{
+            transform: `translate(${mousePosition.x * 0.02}px, ${mousePosition.y * 0.02}px)`,
+          }}
+        />
+        <div 
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(236,72,153,0.1),transparent_50%)]"
+          style={{
+            transform: `translate(${mousePosition.x * -0.01}px, ${mousePosition.y * -0.01}px)`,
+          }}
+        />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(59,130,246,0.1),transparent_50%)]" />
         
         {/* Floating orbs */}
@@ -466,43 +484,24 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Navigation links */}
-              <div className="hidden md:flex items-center gap-8">
-                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Features</a>
-                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Documentation</a>
-                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Pricing</a>
-                <a href="#" className="text-sm text-gray-300 hover:text-white transition-colors">Blog</a>
-              </div>
-
-              {/* Right side actions */}
-              <div className="flex items-center gap-4">
-                {/* Theme toggle */}
-                <button
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                </button>
-
-                {/* Discord link - prominent */}
-                <a
-                  href="https://discord.gg/5q5bEKmYqF"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752c4] rounded-lg transition-colors group"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Join Discord</span>
-                  <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-                </a>
-              </div>
+              {/* Discord link - prominent */}
+              <a
+                href="https://discord.gg/5q5bEKmYqF"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752c4] rounded-lg transition-colors group"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="text-sm font-medium">Join Discord</span>
+                <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+              </a>
             </div>
           </div>
         </nav>
 
         {/* Main content area */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header with stats */}
+          {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
@@ -528,113 +527,69 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left column - Code editors */}
             <div className="lg:col-span-8 space-y-6">
-              {/* Tabs */}
-              <div className="flex items-center gap-2 border-b border-white/10 pb-4">
-                <button
-                  onClick={() => setActiveTab('input')}
-                  className={cn(
-                    "px-4 py-2 text-sm font-medium rounded-lg transition-all",
-                    activeTab === 'input'
-                      ? 'bg-purple-600 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  )}
-                >
-                  Input
-                </button>
-                <button
-                  onClick={() => setActiveTab('output')}
-                  className={cn(
-                    "px-4 py-2 text-sm font-medium rounded-lg transition-all",
-                    activeTab === 'output'
-                      ? 'bg-purple-600 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  )}
-                >
-                  Output
-                </button>
-                {metrics && (
-                  <button
-                    onClick={() => setActiveTab('metrics')}
-                    className={cn(
-                      "px-4 py-2 text-sm font-medium rounded-lg transition-all",
-                      activeTab === 'metrics'
-                        ? 'bg-purple-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    )}
-                  >
-                    Metrics
-                  </button>
-                )}
-              </div>
-
               {/* Input editor */}
-              {activeTab === 'input' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      <span className="text-sm text-gray-400">Ready for input</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        accept=".lua,.txt"
-                        className="hidden"
-                      />
-                      <Button
-                        onClick={triggerFileUpload}
-                        variant="outline"
-                        size="sm"
-                        className="border-white/10 hover:bg-white/5"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload
-                      </Button>
-                      {fileName && (
-                        <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
-                          <File className="w-3 h-3 text-purple-400" />
-                          <span className="text-xs text-purple-300">{fileName}</span>
-                          <button onClick={clearFile} className="hover:text-white">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+              <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
+                <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-sm text-gray-400">Input</span>
                   </div>
-                  
-                  <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
-                    <CodeEditor
-                      value={inputCode}
-                      onChange={handleInputChange}
-                      error={inputError}
-                      options={{
-                        readOnly: isProcessing,
-                        automaticLayout: true,
-                        wordWrap: "on",
-                        lineNumbers: "on",
-                        fontSize: 14,
-                        scrollBeyondLastLine: false,
-                        theme: theme === 'dark' ? 'vs-dark' : 'light',
-                      }}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept=".lua,.txt"
+                      className="hidden"
                     />
-                  </Card>
+                    <Button
+                      onClick={triggerFileUpload}
+                      variant="outline"
+                      size="sm"
+                      className="border-white/10 hover:bg-white/5"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload
+                    </Button>
+                    {fileName && (
+                      <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
+                        <File className="w-3 h-3 text-purple-400" />
+                        <span className="text-xs text-purple-300">{fileName}</span>
+                        <button onClick={clearFile} className="hover:text-white">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
+                <div className="h-[400px]">
+                  <CodeEditor
+                    value={inputCode}
+                    onChange={handleInputChange}
+                    error={inputError}
+                    options={{
+                      readOnly: isProcessing,
+                      automaticLayout: true,
+                      wordWrap: "on",
+                      lineNumbers: "on",
+                      fontSize: 14,
+                      scrollBeyondLastLine: false,
+                    }}
+                  />
+                </div>
+              </Card>
 
               {/* Output editor */}
-              {activeTab === 'output' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+              {outputCode && (
+                <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                      <span className="text-sm text-gray-400">Protected output</span>
+                      <span className="text-sm text-gray-400">Output</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
                         onClick={copyToClipboard}
-                        disabled={!outputCode}
                         variant="outline"
                         size="sm"
                         className="border-white/10 hover:bg-white/5"
@@ -653,7 +608,6 @@ export default function Home() {
                       </Button>
                       <Button
                         onClick={downloadCode}
-                        disabled={!outputCode}
                         variant="outline"
                         size="sm"
                         className="border-white/10 hover:bg-white/5"
@@ -663,8 +617,7 @@ export default function Home() {
                       </Button>
                     </div>
                   </div>
-
-                  <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
+                  <div className="h-[400px]">
                     <CodeEditor
                       value={outputCode}
                       readOnly
@@ -675,24 +628,23 @@ export default function Home() {
                         lineNumbers: "on",
                         fontSize: 14,
                         scrollBeyondLastLine: false,
-                        theme: theme === 'dark' ? 'vs-dark' : 'light',
                       }}
                     />
-                  </Card>
-                </div>
+                  </div>
+                </Card>
               )}
 
               {/* Metrics panel */}
-              {activeTab === 'metrics' && metrics && (
+              {metrics && (
                 <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-6">
                   <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="p-4 bg-white/5 rounded-xl">
-                      <div className="text-sm text-gray-400 mb-1">Input</div>
+                      <div className="text-sm text-gray-400 mb-1">Input Size</div>
                       <div className="text-xl font-bold">{formatBytes(metrics.inputSize)}</div>
                     </div>
                     <div className="p-4 bg-white/5 rounded-xl">
-                      <div className="text-sm text-gray-400 mb-1">Output</div>
+                      <div className="text-sm text-gray-400 mb-1">Output Size</div>
                       <div className="text-xl font-bold">{formatBytes(metrics.outputSize)}</div>
                     </div>
                     <div className="p-4 bg-white/5 rounded-xl">
@@ -724,7 +676,7 @@ export default function Home() {
               <Card className="sticky top-24 border-white/10 bg-white/5 backdrop-blur-xl">
                 <div className="p-6 border-b border-white/10">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Protection Settings</h3>
+                    <h3 className="text-lg font-semibold">Settings</h3>
                     <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
                       {getActiveAdvancedCount()} active
                     </div>
@@ -786,9 +738,9 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Advanced settings */}
+                  {/* VM & Core Features */}
                   <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Advanced</h4>
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">VM & Core</h4>
                     {renderSwitch(
                       "control-flow-flattening",
                       "Control Flow Flattening",
@@ -832,6 +784,25 @@ export default function Home() {
                       "Advanced"
                     )}
                     {renderSwitch(
+                      "intense-vm",
+                      "Intense VM",
+                      "Multi-layer VM processing",
+                      settings.intenseVM,
+                      (checked) => {
+                        setSettings({ ...settings, intenseVM: checked });
+                        trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "purple",
+                      "Advanced"
+                    )}
+                  </div>
+
+                  {/* Anti-Analysis */}
+                  <div className="space-y-4 mb-8">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Anti-Analysis</h4>
+                    {renderSwitch(
                       "anti-debugging",
                       "Anti-Debugging",
                       "Runtime debugger detection",
@@ -859,57 +830,46 @@ export default function Home() {
                       "red",
                       "Advanced"
                     )}
+                    {renderSwitch(
+                      "integrity-checks",
+                      "Integrity Checks",
+                      "Verify code integrity",
+                      settings.integrityChecks,
+                      (checked) => {
+                        setSettings({ ...settings, integrityChecks: checked });
+                        trackSettingsChange({ setting: "integrityChecks", value: checked }).catch(err =>
+                          console.error("Analytics tracking failed:", err)
+                        );
+                      },
+                      "red",
+                      "Advanced"
+                    )}
                   </div>
 
-                  {/* VM settings */}
+                  {/* Target Version */}
                   <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Virtual Machine</h4>
-                    {renderSwitch(
-                      "intense-vm",
-                      "Intense VM",
-                      "Multi-layer VM processing",
-                      settings.intenseVM,
-                      (checked) => {
-                        setSettings({ ...settings, intenseVM: checked });
-                        trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
-                      "purple",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "virtualization",
-                      "Virtualization",
-                      "Complete code virtualization",
-                      settings.virtualization,
-                      (checked) => {
-                        setSettings({ ...settings, virtualization: checked });
-                        trackSettingsChange({ setting: "virtualization", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
-                      "pink",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "bytecode-encryption",
-                      "Bytecode Encryption",
-                      "Encrypt VM bytecode",
-                      settings.bytecodeEncryption,
-                      (checked) => {
-                        setSettings({ ...settings, bytecodeEncryption: checked });
-                        trackSettingsChange({ setting: "bytecodeEncryption", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
-                      "blue",
-                      "Advanced"
-                    )}
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Target</h4>
+                    <Select
+                      value={settings.targetVersion}
+                      onValueChange={(value: any) => {
+                        setSettings({ ...settings, targetVersion: value });
+                      }}
+                    >
+                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5.1">Lua 5.1</SelectItem>
+                        <SelectItem value="5.2">Lua 5.2</SelectItem>
+                        <SelectItem value="5.3">Lua 5.3</SelectItem>
+                        <SelectItem value="5.4">Lua 5.4</SelectItem>
+                        <SelectItem value="luajit">LuaJIT</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Optimization level */}
-                  <div className="space-y-4">
+                  <div className="space-y-4 mb-8">
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
                     <Select
                       value={settings.optimizationLevel.toString()}
@@ -925,6 +885,50 @@ export default function Home() {
                         <SelectItem value="1">Level 1 (Basic)</SelectItem>
                         <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
                         <SelectItem value="3">Level 3 (Maximum)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Encryption Algorithm */}
+                  <div className="space-y-4 mb-8">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Encryption</h4>
+                    <Select
+                      value={settings.encryptionAlgorithm}
+                      onValueChange={(value: EncryptionAlgorithm) => {
+                        setSettings({ ...settings, encryptionAlgorithm: value });
+                      }}
+                      disabled={!settings.encodeStrings}
+                    >
+                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="xor">XOR</SelectItem>
+                        <SelectItem value="base64">Base64</SelectItem>
+                        <SelectItem value="huffman">Huffman</SelectItem>
+                        <SelectItem value="chunked">Chunked</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Output Formatting */}
+                  <div className="space-y-4 mb-8">
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Format</h4>
+                    <Select
+                      value={settings.formattingStyle}
+                      onValueChange={(value: FormattingStyle) => {
+                        setSettings({ ...settings, formattingStyle: value });
+                      }}
+                    >
+                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="minified">Minified</SelectItem>
+                        <SelectItem value="pretty">Pretty</SelectItem>
+                        <SelectItem value="obfuscated">Obfuscated</SelectItem>
+                        <SelectItem value="single-line">Single Line</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -998,14 +1002,27 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Error Display */}
+          {error && (
+            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400" />
+              <p className="text-sm text-red-300">{error}</p>
+            </div>
+          )}
+
+          {/* Warning Display */}
+          {warning && !error && (
+            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+              <p className="text-sm text-yellow-300">{warning}</p>
+            </div>
+          )}
+
           {/* Footer */}
           <footer className="mt-12 pt-8 border-t border-white/10">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-6">
-                <span className="text-sm text-gray-400">© 2026 XZX HUB</span>
-                <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Terms</a>
-                <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Privacy</a>
-                <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Contact</a>
+              <div className="text-sm text-gray-400">
+                © 2026 XZX HUB. All rights reserved.
               </div>
               
               <div className="flex items-center gap-4">
@@ -1017,7 +1034,6 @@ export default function Home() {
                 >
                   <MessageCircle className="w-4 h-4 text-[#5865F2]" />
                   <span className="text-sm">Join our Discord</span>
-                  <Heart className="w-3 h-3 text-pink-400 group-hover:scale-110 transition-transform" />
                 </a>
               </div>
             </div>
