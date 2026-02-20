@@ -69,7 +69,7 @@ import type { FormattingStyle } from "@/lib/formatter";
 import type { ObfuscationMetrics } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const DEFAULT_LUA_CODE = `-- Welcome to XZX Obfuscator
+const DEFAULT_LUA_CODE = `-- Welcome to XZX Lua Obfuscator
 -- Paste your Lua code below
 -- Example:
 
@@ -425,6 +425,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
+      {/* Page Title */}
+      <title>XZX Lua Obfuscator - Military-Grade Protection</title>
+      <meta name="description" content="XZX Lua Obfuscator provides military-grade protection for your Lua code with advanced VM-based obfuscation." />
+      
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 
           className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.15),transparent_50%)]"
@@ -479,31 +483,12 @@ export default function Home() {
                   href="https://discord.gg/5q5bEKmYqF"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752c4] rounded-lg transition-colors group"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#5865F2] hover:bg-[#4752c4] rounded-lg transition-all duration-300 group font-medium shadow-lg hover:shadow-2xl shadow-[#5865F2]/20 hover:shadow-[#5865F2]/40 scale-100 hover:scale-105"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Join Discord</span>
+                  <span className="text-sm font-semibold">Join Discord</span>
                   <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
                 </a>
-
-                <Button
-                  onClick={obfuscateCode}
-                  disabled={!inputCode || isProcessing}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-6 py-2 rounded-lg relative overflow-hidden group"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                  {isProcessing ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Processing
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center">
-                      <Shield className="w-4 h-4 mr-2" />
-                      Obfuscate
-                    </div>
-                  )}
-                </Button>
               </div>
             </div>
           </div>
@@ -513,7 +498,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-                Lua Obfuscator
+                XZX Lua Obfuscator
               </h1>
               <p className="text-gray-400 mt-1">Military-grade protection for your Lua code</p>
             </div>
@@ -553,7 +538,7 @@ export default function Home() {
                       className="border-white/10 hover:bg-white/5"
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      Upload
+                      Upload File
                     </Button>
                     {fileName && (
                       <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
