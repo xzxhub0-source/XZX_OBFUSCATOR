@@ -86,6 +86,8 @@ end
 
 print("Score: " .. calculateScore(100, 5))`;
 
+const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2.0.0 [https://discord.gg/5q5bEKmYqF]\n\n";
+
 interface ObfuscatorSettings {
   mangleNames: boolean;
   encodeStrings: boolean;
@@ -259,7 +261,8 @@ export default function Home() {
       const duration = Date.now() - startTime;
 
       if (result.success && result.code) {
-        setOutputCode(result.code);
+        const finalCode = OUTPUT_HEADER + result.code;
+        setOutputCode(finalCode);
         const transformedMetrics: ObfuscationMetrics = {
           inputSize: result.metrics?.inputSize || inputCode.length,
           outputSize: result.metrics?.outputSize || result.code.length,
@@ -482,6 +485,25 @@ export default function Home() {
                   <span className="text-sm font-medium">Join Discord</span>
                   <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
                 </a>
+
+                <Button
+                  onClick={obfuscateCode}
+                  disabled={!inputCode || isProcessing}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-6 py-2 rounded-lg relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                  {isProcessing ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processing
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Obfuscate
+                    </div>
+                  )}
+                </Button>
               </div>
             </div>
           </div>
@@ -948,25 +970,6 @@ export default function Home() {
                       className="w-full"
                     />
                   </div>
-
-                  <Button
-                    onClick={obfuscateCode}
-                    disabled={!inputCode || isProcessing}
-                    className="w-full mt-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-6 rounded-xl relative overflow-hidden group"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                    {isProcessing ? (
-                      <div className="flex items-center justify-center">
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Processing...
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center">
-                        <Shield className="w-5 h-5 mr-2" />
-                        Obfuscate Code
-                      </div>
-                    )}
-                  </Button>
                 </div>
               </Card>
             </div>
