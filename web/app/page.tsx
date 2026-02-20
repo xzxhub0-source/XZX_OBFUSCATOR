@@ -47,6 +47,7 @@ import {
   ExternalLink,
   Moon,
   Sun,
+  TrendingUp,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { obfuscateLua } from "@/lib/obfuscator";
@@ -135,6 +136,7 @@ export default function Home() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [totalObfuscations, setTotalObfuscations] = useState(150);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -172,7 +174,7 @@ export default function Home() {
   const [pageStartTime] = useState(Date.now());
 
   useEffect(() => {
-    document.title = "XZX Lua Obfuscator - Military Grade Protection";
+    document.title = "XZX Lua Obfuscator - Advanced Protection";
     
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({
@@ -284,6 +286,7 @@ export default function Home() {
 
         const newCount = obfuscationCount + 1;
         setObfuscationCount(newCount);
+        setTotalObfuscations(prev => prev + 1);
 
         trackObfuscation({
           obfuscationType: settings.controlFlowFlattening ? "advanced" : "standard",
@@ -470,6 +473,11 @@ export default function Home() {
               </div>
 
               <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 rounded-full border border-purple-500/30">
+                  <Users className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="text-sm font-medium text-purple-300">{totalObfuscations.toLocaleString()}+</span>
+                </div>
+
                 <a
                   href="https://discord.gg/5q5bEKmYqF"
                   target="_blank"
@@ -498,17 +506,17 @@ export default function Home() {
               <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
                 XZX Lua Obfuscator
               </h1>
-              <p className="text-gray-400 mt-1">Military-grade protection for your Lua code</p>
+              <p className="text-gray-400 mt-1">Advanced protection for your Lua code</p>
             </div>
             
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
-                <Users className="w-4 h-4 text-purple-400" />
-                <span className="text-sm text-gray-300">1.2k+ users</span>
+                <TrendingUp className="w-4 h-4 text-green-400" />
+                <span className="text-sm text-gray-300">{totalObfuscations.toLocaleString()}+ scripts protected</span>
               </div>
               <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
                 <Award className="w-4 h-4 text-pink-400" />
-                <span className="text-sm text-gray-300">99.9% protection</span>
+                <span className="text-sm text-gray-300">Advanced protection</span>
               </div>
             </div>
           </div>
