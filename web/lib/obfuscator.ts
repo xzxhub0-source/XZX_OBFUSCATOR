@@ -159,7 +159,9 @@ class MultiLayerEncryption {
     for (let i = 0; i < reordered.length; i++) {
       const chunk = reordered[i];
       const key = enc.k[i];
-      for (const b of chunk) result = result + String.fromCharCode(b ^ key);
+      for (const b of chunk) {
+        result += String.fromCharCode(b ^ key);
+      }
     }
     return result;
   }
@@ -170,7 +172,7 @@ class MultiLayerEncryption {
   }
   static decryptBoolean(enc: any): boolean {
     if (enc.t !== 'b') return enc;
-    return (enc.v ^ enc.k) == 1;
+    return (enc.v ^ enc.k) === 1;
   }
 }
 
@@ -192,10 +194,10 @@ class IdentifierObfuscator {
     const prefix = this.rng.choice(prefixes);
     const suffix = this.rng.range(0x1000, 0xffff).toString(16);
     obfuscated = prefix + suffix;
-    if (this.useUnicode && this.rng.range(0, 1) == 1) {
+    if (this.useUnicode && this.rng.range(0, 1) === 1) {
       obfuscated = this.rng.unicodeConfusable() + obfuscated;
     }
-    if (this.useInvisible && this.rng.range(0, 2) == 1) {
+    if (this.useInvisible && this.rng.range(0, 2) === 1) {
       obfuscated = obfuscated + this.rng.invisible();
     }
     this.nameMap.set(name, obfuscated);
@@ -216,80 +218,22 @@ class GarbageInjector {
     const dummyConst = rng.range(0, 100);
     const push = [opMap.get('LOADK'), dummyConst & 0xff, (dummyConst >> 8) & 0xff];
     const pop = [opMap.get('POP')];
-    bytecode.splice(pos, 0, ...push, ...pop);
+    for (let i = push.length - 1; i >= 0; i--) {
+      bytecode.splice(pos, 0, push[i]);
+    }
+    bytecode.splice(pos + push.length, 0, pop[0]);
   }
   static insertFakeCall(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
     const pos = rng.range(0, bytecode.length);
     const fakeFunc = rng.range(0, 10);
     const pushFunc = [opMap.get('LOADK'), fakeFunc & 0xff, (fakeFunc >> 8) & 0xff];
     const call = [opMap.get('CALL'), 0, 0];
-    bytecode.splice(pos, 0, ...pushFunc, ...call);
-  }
-}
-
-class ExpressionObfuscator {
-  static obfuscateBinary(left: string, right: string, op: string, rng: SeededRandom): string {
-    const mode = rng.range(0, 2);
-    if (op == '+') {
-      if (mode == 0) {
-        return '((' + left + ' << 1) + (' + right + ' >> 1) + ((' + left + ' & ' + right + ') % 3))';
-      } else if (mode == 1) {
-        return '((' + left + ' ^ ' + right + ') + ((' + left + ' & ' + right + ') << 1))';
-      } else {
-        return '(' + left + ' + ' + right + ')';
-      }
-    } else if (op == '-') {
-      if (mode == 0) {
-        return '((' + left + ' << 2) - (' + right + ' << 1) - (' + left + ' & ' + right + '))';
-      } else {
-        return '(' + left + ' - ' + right + ')';
-      }
-    } else if (op == '*') {
-      if (mode == 0) {
-        return '(((' + left + ' << 3) - ' + left + ') * (' + right + ' >> 1))';
-      } else {
-        return '(' + left + ' * ' + right + ')';
-      }
-    } else if (op == '/') {
-      return '(' + left + ' / ' + right + ')';
-    } else if (op == '%') {
-      return '(' + left + ' % ' + right + ')';
-    } else if (op == '^') {
-      return '(' + left + ' ^ ' + right + ')';
-    } else if (op == '..') {
-      return '(' + left + ' .. ' + right + ')';
-    } else if (op == '==') {
-      return '(' + left + ' == ' + right + ')';
-    } else if (op == '<') {
-      return '(' + left + ' < ' + right + ')';
-    } else if (op == '<=') {
-      return '(' + left + ' <= ' + right + ')';
-    } else if (op == '>') {
-      return '(' + left + ' > ' + right + ')';
-    } else if (op == '>=') {
-      return '(' + left + ' >= ' + right + ')';
-    } else if (op == 'and') {
-      return '(' + left + ' and ' + right + ')';
-    } else if (op == 'or') {
-      return '(' + left + ' or ' + right + ')';
-    } else {
-      return '(' + left + ' ' + op + ' ' + right + ')';
+    for (let i = pushFunc.length - 1; i >= 0; i--) {
+      bytecode.splice(pos, 0, pushFunc[i]);
     }
-  }
-  static obfuscateUnary(expr: string, op: string, rng: SeededRandom): string {
-    if (op == 'not') {
-      if (rng.range(0, 1) == 0) {
-        return '(not ' + expr + ')';
-      } else {
-        return '(' + expr + ' == false)';
-      }
-    } else if (op == '-') {
-      return '(-' + expr + ')';
-    } else if (op == '#') {
-      return '(#' + expr + ')';
-    } else {
-      return op + expr;
-    }
+    bytecode.splice(pos + pushFunc.length, 0, call[0]);
+    bytecode.splice(pos + pushFunc.length + 1, 0, call[1]);
+    bytecode.splice(pos + pushFunc.length + 2, 0, call[2]);
   }
 }
 
@@ -308,95 +252,94 @@ class IRNode {
 class IRBuilder {
   static fromAST(node: any): IRNode {
     if (!node) return new IRNode('NIL');
-    if (node.type == 'Chunk') {
+    if (node.type === 'Chunk') {
       const chunk = new IRNode('CHUNK');
       chunk.children = [];
-      for (let i = 0; i < (node.body || []).length; i++) {
-        const stmt = node.body[i];
+      for (const stmt of (node.body || [])) {
         chunk.children.push(IRBuilder.fromAST(stmt));
       }
       return chunk;
-    } else if (node.type == 'AssignmentStatement') {
+    } else if (node.type === 'AssignmentStatement') {
       const assign = new IRNode('ASSIGN');
       assign.children = [];
-      for (let i = 0; i < node.variables.length; i++) {
-        assign.children.push(IRBuilder.fromAST(node.variables[i]));
+      for (const v of node.variables) {
+        assign.children.push(IRBuilder.fromAST(v));
       }
-      for (let i = 0; i < node.init.length; i++) {
-        assign.children.push(IRBuilder.fromAST(node.init[i]));
+      for (const init of node.init) {
+        assign.children.push(IRBuilder.fromAST(init));
       }
       return assign;
-    } else if (node.type == 'LocalStatement') {
+    } else if (node.type === 'LocalStatement') {
       const local = new IRNode('LOCAL');
       local.children = [];
-      for (let i = 0; i < node.variables.length; i++) {
-        local.children.push(IRBuilder.fromAST(node.variables[i]));
+      for (const v of node.variables) {
+        local.children.push(IRBuilder.fromAST(v));
       }
-      for (let i = 0; i < (node.init || []).length; i++) {
-        local.children.push(IRBuilder.fromAST(node.init[i]));
+      for (const init of (node.init || [])) {
+        local.children.push(IRBuilder.fromAST(init));
       }
       return local;
-    } else if (node.type == 'CallExpression') {
+    } else if (node.type === 'CallExpression') {
       const call = new IRNode('CALL');
       call.children = [IRBuilder.fromAST(node.base)];
-      for (let i = 0; i < (node.arguments || []).length; i++) {
-        call.children.push(IRBuilder.fromAST(node.arguments[i]));
+      for (const arg of (node.arguments || [])) {
+        call.children.push(IRBuilder.fromAST(arg));
       }
       return call;
-    } else if (node.type == 'StringLiteral') {
+    } else if (node.type === 'StringLiteral') {
       return new IRNode('STRING', node.value);
-    } else if (node.type == 'NumericLiteral') {
+    } else if (node.type === 'NumericLiteral') {
       return new IRNode('NUMBER', node.value);
-    } else if (node.type == 'BooleanLiteral') {
+    } else if (node.type === 'BooleanLiteral') {
       return new IRNode('BOOLEAN', node.value);
-    } else if (node.type == 'Identifier') {
+    } else if (node.type === 'Identifier') {
       return new IRNode('IDENT', node.name);
-    } else if (node.type == 'BinaryExpression') {
+    } else if (node.type === 'BinaryExpression') {
       const bin = new IRNode('BINARY', node.operator);
       bin.left = IRBuilder.fromAST(node.left);
       bin.right = IRBuilder.fromAST(node.right);
       return bin;
-    } else if (node.type == 'UnaryExpression') {
+    } else if (node.type === 'UnaryExpression') {
       const un = new IRNode('UNARY', node.operator);
       un.left = IRBuilder.fromAST(node.argument);
       return un;
-    } else if (node.type == 'IfStatement') {
+    } else if (node.type === 'IfStatement') {
       const ifNode = new IRNode('IF');
       ifNode.children = [IRBuilder.fromAST(node.condition)];
       const thenNode = new IRNode('THEN');
       thenNode.value = [];
-      for (let i = 0; i < node.then.length; i++) {
-        thenNode.value.push(IRBuilder.fromAST(node.then[i]));
+      for (const stmt of (node.then || [])) {
+        (thenNode.value as any[]).push(IRBuilder.fromAST(stmt));
       }
       ifNode.children.push(thenNode);
       if (node.else) {
         const elseNode = new IRNode('ELSE');
-        if (typeof node.else == 'object' && !Array.isArray(node.else)) {
+        if (typeof node.else === 'object' && !Array.isArray(node.else)) {
           elseNode.value = [IRBuilder.fromAST(node.else)];
         } else {
           elseNode.value = [];
-          for (let i = 0; i < node.else.length; i++) {
-            elseNode.value.push(IRBuilder.fromAST(node.else[i]));
+          for (const stmt of (node.else || [])) {
+            (elseNode.value as any[]).push(IRBuilder.fromAST(stmt));
           }
         }
         ifNode.children.push(elseNode);
       }
       return ifNode;
-    } else if (node.type == 'WhileStatement') {
+    } else if (node.type === 'WhileStatement') {
       const whileNode = new IRNode('WHILE');
       whileNode.left = IRBuilder.fromAST(node.condition);
       const bodyNode = new IRNode('BODY');
       bodyNode.value = [];
-      for (let i = 0; i < node.body.length; i++) {
-        bodyNode.value.push(IRBuilder.fromAST(node.body[i]));
+      for (const stmt of (node.body || [])) {
+        (bodyNode.value as any[]).push(IRBuilder.fromAST(stmt));
       }
       whileNode.right = bodyNode;
       return whileNode;
-    } else if (node.type == 'ReturnStatement') {
+    } else if (node.type === 'ReturnStatement') {
       const ret = new IRNode('RETURN');
       ret.children = [];
-      for (let i = 0; i < (node.arguments || []).length; i++) {
-        ret.children.push(IRBuilder.fromAST(node.arguments[i]));
+      for (const arg of (node.arguments || [])) {
+        ret.children.push(IRBuilder.fromAST(arg));
       }
       return ret;
     } else {
@@ -409,10 +352,10 @@ class ControlFlowFlattener {
   static flatten(ir: IRNode, rng: SeededRandom): IRNode {
     const blocks: IRNode[] = [];
     const collect = (node: IRNode) => {
-      if (node.type == 'IF' || node.type == 'WHILE' || node.type == 'CHUNK') {
+      if (node.type === 'IF' || node.type === 'WHILE' || node.type === 'CHUNK') {
         if (node.children) {
-          for (let i = 0; i < node.children.length; i++) {
-            collect(node.children[i]);
+          for (const child of node.children) {
+            collect(child);
           }
         }
       } else {
@@ -447,7 +390,7 @@ class BytecodeCompiler {
   private constMap: Map<string, number> = new Map();
   private labels: Map<string, number> = new Map();
   private fixups: Array<{ label: string, positions: number[] }> = [];
-  private nextLabel: number = 0;
+  private nextLabel = 0;
   private opMap: OpcodeMap;
   private rng: SeededRandom;
   private layers: any;
@@ -464,15 +407,15 @@ class BytecodeCompiler {
     this.fixups = [];
   }
   addConstant(value: any): number {
-    const key = typeof value == 'string' ? value : String(value);
+    const key = typeof value === 'string' ? value : String(value);
     if (this.constMap.has(key)) return this.constMap.get(key)!;
     let encrypted = value;
     if (this.layers.constants) {
-      if (typeof value == 'number') {
+      if (typeof value === 'number') {
         encrypted = MultiLayerEncryption.encryptNumber(value, this.rng);
-      } else if (typeof value == 'string') {
+      } else if (typeof value === 'string') {
         encrypted = MultiLayerEncryption.encryptString(value, this.rng);
-      } else if (typeof value == 'boolean') {
+      } else if (typeof value === 'boolean') {
         encrypted = MultiLayerEncryption.encryptBoolean(value, this.rng);
       }
     }
@@ -483,8 +426,7 @@ class BytecodeCompiler {
   }
   emit(op: string, ...args: number[]): void {
     this.bytecode.push(this.opMap.get(op));
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    for (const arg of args) {
       this.bytecode.push(arg & 0xff);
       this.bytecode.push((arg >> 8) & 0xff);
     }
@@ -497,13 +439,7 @@ class BytecodeCompiler {
     const pos = this.bytecode.length;
     this.bytecode.push(0);
     this.bytecode.push(0);
-    let fix: { label: string, positions: number[] } | undefined;
-    for (let i = 0; i < this.fixups.length; i++) {
-      if (this.fixups[i].label == label) {
-        fix = this.fixups[i];
-        break;
-      }
-    }
+    let fix = this.fixups.find(f => f.label === label);
     if (!fix) {
       fix = { label: label, positions: [] };
       this.fixups.push(fix);
@@ -512,17 +448,15 @@ class BytecodeCompiler {
   }
   label(): string {
     const name = 'L' + this.nextLabel;
-    this.nextLabel++;
+    this.nextLabel = this.nextLabel + 1;
     this.labels.set(name, this.bytecode.length);
     return name;
   }
   resolveFixups(): void {
-    for (let i = 0; i < this.fixups.length; i++) {
-      const fix = this.fixups[i];
+    for (const fix of this.fixups) {
       const target = this.labels.get(fix.label);
       if (target !== undefined) {
-        for (let j = 0; j < fix.positions.length; j++) {
-          const pos = fix.positions[j];
+        for (const pos of fix.positions) {
           this.bytecode[pos] = target & 0xff;
           this.bytecode[pos + 1] = (target >> 8) & 0xff;
         }
@@ -530,7 +464,7 @@ class BytecodeCompiler {
     }
   }
   compile(ir: IRNode): { bytecode: number[]; constants: any[] } {
-    if (this.layers.controlFlow && ir.type != 'STATE_MACHINE') {
+    if (this.layers.controlFlow && ir.type !== 'STATE_MACHINE') {
       ir = ControlFlowFlattener.flatten(ir, this.rng);
     }
     this.visitIR(ir);
@@ -545,20 +479,20 @@ class BytecodeCompiler {
   }
   private visitIR(node: IRNode): void {
     if (!node) return;
-    if (this.layers.identifiers && node.type == 'IDENT') {
+    if (this.layers.identifiers && node.type === 'IDENT') {
       node.value = this.idObf.obfuscate(node.value);
     }
-    if (node.type == 'CHUNK') {
+    if (node.type === 'CHUNK') {
       if (node.children) {
-        for (let i = 0; i < node.children.length; i++) {
-          this.visitIR(node.children[i]);
+        for (const c of node.children) {
+          this.visitIR(c);
         }
       }
-    } else if (node.type == 'STATE_MACHINE') {
+    } else if (node.type === 'STATE_MACHINE') {
       this.compileStateMachine(node);
-    } else if (node.type == 'ASSIGN') {
-      const half = node.children!.length / 2;
-      for (let i = half; i < node.children!.length; i++) {
+    } else if (node.type === 'ASSIGN') {
+      const half = (node.children?.length || 0) / 2;
+      for (let i = half; i < (node.children?.length || 0); i++) {
         this.visitIR(node.children![i]);
       }
       for (let i = 0; i < half; i++) {
@@ -566,13 +500,13 @@ class BytecodeCompiler {
       }
       for (let i = 0; i < half; i++) {
         const varNode = node.children![i];
-        if (varNode.type == 'IDENT') {
+        if (varNode.type === 'IDENT') {
           this.emit('SETGLOBAL', this.addConstant(varNode.value));
         }
       }
-    } else if (node.type == 'LOCAL') {
-      const half = node.children!.length / 2;
-      for (let i = half; i < node.children!.length; i++) {
+    } else if (node.type === 'LOCAL') {
+      const half = (node.children?.length || 0) / 2;
+      for (let i = half; i < (node.children?.length || 0); i++) {
         this.visitIR(node.children![i]);
       }
       for (let i = 0; i < half; i++) {
@@ -580,52 +514,54 @@ class BytecodeCompiler {
       }
       for (let i = 0; i < half; i++) {
         const varNode = node.children![i];
-        if (varNode.type == 'IDENT') {
+        if (varNode.type === 'IDENT') {
           this.emit('SETGLOBAL', this.addConstant('_local_' + varNode.value));
         }
       }
-    } else if (node.type == 'CALL') {
-      for (let i = 0; i < node.children!.length; i++) {
-        this.visitIR(node.children![i]);
+    } else if (node.type === 'CALL') {
+      if (node.children) {
+        for (const c of node.children) {
+          this.visitIR(c);
+        }
       }
-      this.emit('CALL', node.children!.length - 1);
-    } else if (node.type == 'STRING' || node.type == 'NUMBER' || node.type == 'BOOLEAN') {
+      this.emit('CALL', (node.children?.length || 0) - 1);
+    } else if (node.type === 'STRING' || node.type === 'NUMBER' || node.type === 'BOOLEAN') {
       this.emit('LOADK', this.addConstant(node.value));
-    } else if (node.type == 'IDENT') {
+    } else if (node.type === 'IDENT') {
       this.emit('GETGLOBAL', this.addConstant(node.value));
-    } else if (node.type == 'BINARY') {
+    } else if (node.type === 'BINARY') {
       this.visitIR(node.left!);
       this.visitIR(node.right!);
-      if (node.value == '+') this.emit('ADD');
-      else if (node.value == '-') this.emit('SUB');
-      else if (node.value == '*') this.emit('MUL');
-      else if (node.value == '/') this.emit('DIV');
-      else if (node.value == '%') this.emit('MOD');
-      else if (node.value == '^') this.emit('POW');
-      else if (node.value == '..') this.emit('CONCAT');
-      else if (node.value == '==') this.emit('EQ');
-      else if (node.value == '<') this.emit('LT');
-      else if (node.value == '<=') this.emit('LE');
-      else if (node.value == '>') this.emit('GT');
-      else if (node.value == '>=') this.emit('GE');
-      else if (node.value == 'and') this.emit('AND');
-      else if (node.value == 'or') this.emit('OR');
-    } else if (node.type == 'UNARY') {
+      if (node.value === '+') this.emit('ADD');
+      else if (node.value === '-') this.emit('SUB');
+      else if (node.value === '*') this.emit('MUL');
+      else if (node.value === '/') this.emit('DIV');
+      else if (node.value === '%') this.emit('MOD');
+      else if (node.value === '^') this.emit('POW');
+      else if (node.value === '..') this.emit('CONCAT');
+      else if (node.value === '==') this.emit('EQ');
+      else if (node.value === '<') this.emit('LT');
+      else if (node.value === '<=') this.emit('LE');
+      else if (node.value === '>') this.emit('GT');
+      else if (node.value === '>=') this.emit('GE');
+      else if (node.value === 'and') this.emit('AND');
+      else if (node.value === 'or') this.emit('OR');
+    } else if (node.type === 'UNARY') {
       this.visitIR(node.left!);
-      if (node.value == 'not') this.emit('NOT');
-      else if (node.value == '-') this.emit('NEG');
-      else if (node.value == '#') this.emit('LEN');
-    } else if (node.type == 'STATE_BLOCK') {
+      if (node.value === 'not') this.emit('NOT');
+      else if (node.value === '-') this.emit('NEG');
+      else if (node.value === '#') this.emit('LEN');
+    } else if (node.type === 'STATE_BLOCK') {
       this.labels.set('STATE_' + node.value, this.bytecode.length);
       if (node.children) {
-        for (let i = 0; i < node.children.length; i++) {
-          this.visitIR(node.children[i]);
+        for (const c of node.children) {
+          this.visitIR(c);
         }
       }
     } else {
       if (node.children) {
-        for (let i = 0; i < node.children.length; i++) {
-          this.visitIR(node.children[i]);
+        for (const c of node.children) {
+          this.visitIR(c);
         }
       }
       if (node.left) this.visitIR(node.left);
@@ -639,12 +575,11 @@ class BytecodeCompiler {
     const startLabel = this.label();
     this.emit('GETGLOBAL', this.addConstant('__' + stateVar));
     const jumpTable: string[] = [];
-    for (let i = 0; i < (node.children || []).length; i++) {
-      jumpTable[i] = 'STATE_' + (i + 1);
+    for (let i = 1; i <= (node.children?.length || 0); i++) {
+      jumpTable[i] = 'STATE_' + i;
     }
-    for (let i = 0; i < jumpTable.length; i++) {
-      const caseLabel = this.label();
-      const stateNode = node.children![i];
+    for (let i = 1; i <= jumpTable.length; i++) {
+      const stateNode = node.children![i - 1];
       this.visitIR(stateNode);
       this.emit('JMP');
       const pos = this.bytecode.length;
@@ -666,271 +601,75 @@ class VMGenerator {
     options: ObfuscationOptions,
     layers: any
   ): string {
-    const buildId = 'XZX-' + Date.now() + '-' + rng.range(1000, 9999);
+    const buildId = 'XZX-' + Date.now().toString(36) + '-' + rng.range(1000, 9999).toString(36);
+
+    // Encrypt bytecode with a key
     const key = rng.bytes(32);
     const encrypted: number[] = [];
     for (let i = 0; i < bytecode.length; i++) {
-      encrypted[i] = bytecode[i] ^ key[(i) % key.length];
+      encrypted[i] = bytecode[i] ^ key[i % key.length];
     }
+
+    // Generate hash for anti-tamper
     let hash = 0;
     for (let i = 0; i < bytecode.length; i++) {
       hash = ((hash << 5) - hash + bytecode[i]) & 0xffffffff;
     }
+
+    // Get opcode mappings
     const opList = opMap.getAll();
     const dynamicKey = opMap.getDynamicKey();
 
-    // Convert constants to Lua table format
-    const constStr = this.convertToLuaTable(constants);
+    // Convert constants to a compact representation
+    const constStr = JSON.stringify(constants)
+      .replace(/"([^"]+)":/g, '$1:')
+      .replace(/"/g, "'");
 
-    const mode = options.mode || 'standard';
-    let envSetup = '';
-    if (mode == 'isolated') {
-      envSetup = 'local env = {}\n  setmetatable(env, {__index = getfenv and getfenv() or _ENV})';
-    } else if (mode == 'sandbox') {
-      envSetup = 'local env = {print=print, string=string, table=table}';
-    } else {
-      envSetup = 'local env = getfenv and getfenv() or _ENV';
-    }
-    if (layers.stack) {
-      envSetup = envSetup + '\nlocal stackA = {}\nlocal stackB = {}\nlocal stackIdx = 1';
-    }
-    const debugMode = options.debug ? '\n  local function debugLog(...)\n    print("[XZX VM]", ...)\n  end' : '';
-
-    // Proper bit library detection and setup - maintains full protection 
-    const bitSetup = `-- Bit library detection for maximum compatibility 
-local bit = bit or bit32
-if not bit then
-    local success, lib = pcall(require, "bit")
-    if success then
-        bit = lib
-    else
-        success, lib = pcall(require, "bit32")
-        if success then
-            bit = lib
-        else
-            error("XZX VM: No bitwise library found (required for decryption)")
-        end
-    end
-end
-
--- Unified bitwise operations interface 
-local bxor = bit.bxor or bit32.bxor
-local band = bit.band or bit32.band
-local bor = bit.bor or bit32.bor
-local bnot = bit.bnot or bit32.bnot
-local lshift = bit.lshift or bit32.lshift
-local rshift = bit.rshift or bit32.rshift
-`;
-
-    const antiTamper = layers.antiTamper ?
-      `\nlocal function validate()
-  local h = 0
-  for i = 1, #bytecode do
-    h = ((h * 33) - h + bytecode[i]) % 4294967296
-  end
-  if h ~= expectedHash then
-    error("\\27[31m[XZX] Integrity violation: code has been tampered with\\27[0m")
-  end
-  -- Dynamic key validation 
-  if dynamicKey and dynamicKey ~= 0 then
-    local check = bxor(bytecode[1], bytecode[#bytecode])
-    if check ~= dynamicKey then
-      error("\\27[31m[XZX] Dynamic key mismatch - VM corrupted\\27[0m")
-    end
-  end
-end` : '';
-
-    const stringDecrypt = layers.strings ?
-      `\nlocal function getConst(idx)
-  local c = consts[idx]
-  if type(c) == "table" then
-    if c.t == "s-multi" then
-      local result = ""
-      for i = 1, #c.c do
-        local chunk = c.c[i]
-        local key = c.k[i]
-        for j = 1, #chunk do
-          result = result .. string.char(bxor(chunk[j], key))
-        end
-      end
-      return result
-    elseif c.t == "n3" then
-      -- Multi-layer numeric decryption 
-      local a = band(c.d + c.k[3], 0xffffffff)
-      local b = bxor(a, c.k[2])
-      local c2 = bor(rshift(b, 3), lshift(band(b, 7), 29))
-      return band(c2 - c.k[1], 0xffffffff)
-    elseif c.t == "b" then
-      return bxor(c.v, c.k) == 1
-    end
-  end
-  return c
-end` :
-      '\nlocal function getConst(idx)\n  return consts[idx]\nend';
-
-    const stackOps = layers.stack ?
-      `\nlocal function push(v)
-  if stackIdx == 1 then
-    table.insert(stackA, v)
-  else
-    table.insert(stackB, v)
-  end
-  stackIdx = 3 - stackIdx
-end
-local function pop()
-  stackIdx = 3 - stackIdx
-  if stackIdx == 1 then
-    return table.remove(stackA)
-  else
-    return table.remove(stackB)
-  end
-end` :
-      `\nlocal function push(v) table.insert(stack, v) end
-local function pop() return table.remove(stack) end`;
-
-    const handlerBodies: { [key: string]: string } = {
-      NOP: '',
-      PUSH: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; push(getConst(idx))',
-      POP: 'pop()',
-      ADD: 'local b = pop(); local a = pop(); push(a + b)',
-      SUB: 'local b = pop(); local a = pop(); push(a - b)',
-      MUL: 'local b = pop(); local a = pop(); push(a * b)',
-      DIV: 'local b = pop(); local a = pop(); push(a / b)',
-      MOD: 'local b = pop(); local a = pop(); push(a % b)',
-      POW: 'local b = pop(); local a = pop(); push(a ^ b)',
-      CONCAT: 'local b = pop(); local a = pop(); push(a .. b)',
-      JMP: 'local target = bytecode[pc] + (bytecode[pc+1] * 256); pc = target + 2',
-      JIF: 'local target = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; local cond = pop(); if not cond then pc = target end',
-      CALL: 'local nargs = bytecode[pc]; pc = pc + 2; local func = pop(); local args = {}; for i = 1, nargs do args[nargs - i + 1] = pop() end; local results = {func(unpack(args))}; for _, v in ipairs(results) do push(v) end',
-      RET: 'pc = #bytecode + 1',
-      LOADK: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; push(getConst(idx))',
-      GETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; local name = getConst(idx); push(env[name])',
-      SETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; local val = pop(); env[getConst(idx)] = val',
-      GETTABLE: 'local key = pop(); local tbl = pop(); push(tbl[key])',
-      SETTABLE: 'local val = pop(); local key = pop(); local tbl = pop(); tbl[key] = val',
-      NEWTABLE: 'push({})',
-      LEN: 'local a = pop(); push(#a)',
-      NOT: 'local a = pop(); push(not a)',
-      EQ: 'local b = pop(); local a = pop(); push(a == b)',
-      LT: 'local b = pop(); local a = pop(); push(a < b)',
-      LE: 'local b = pop(); local a = pop(); push(a <= b)',
-      GT: 'local b = pop(); local a = pop(); push(a > b)',
-      GE: 'local b = pop(); local a = pop(); push(a >= b)',
-      AND: 'local b = pop(); local a = pop(); push(a and b)',
-      OR: 'local b = pop(); local a = pop(); push(a or b)',
-      TAILCALL: 'local nargs = bytecode[pc]; pc = pc + 2; local func = pop(); local args = {}; for i = 1, nargs do args[nargs - i + 1] = pop() end; return func(unpack(args))',
-    };
-
-    const handlers: string[] = [];
-    for (const name in handlerBodies) {
-      const body = handlerBodies[name];
-      const nums: number[] = [];
-      for (let i = 0; i < opList.length; i++) {
-        if (opList[i][0] == name) {
-          nums.push(opList[i][1]);
-        }
-      }
-      for (let i = 0; i < nums.length; i++) {
-        handlers.push('  [' + nums[i] + '] = function() ' + body + ' end');
-      }
+    // Create a mapping of opcodes to their handler indices
+    const opHandlerMap: { [key: number]: string } = {};
+    for (const [name, num] of opList) {
+      opHandlerMap[num] = name;
     }
 
-    const handlerStr = handlers.join(',\n');
-    const antiTamperCheck = layers.antiTamper ? 'validate()' : '';
+    // Generate the compact VM
+    const vmSource = `--[[ XZX Build: ${buildId} ]]
+load=load or loadstring
+return load("-- XZX VM\\n"..((function(...)local a={${encrypted.join(',')}}local b=${constStr}local c={${key.join(',')}}local d=${hash}local e=${dynamicKey}local f={${opList.map(([name, num]) => `${num}=${JSON.stringify(name)}`).join(',')}}return(function(...)local g=setmetatable or function(t)return t end local h=getfenv or function()return _ENV end local i=string local j=table local k=unpack or table.unpack local l=math local m=type local n=pcall local o=error local p=rawget local q=rawset local r=next local s=select local t=tonumber local u=tostring local v=0 local w={}local x=1 while x<=#a do local y=a[x]x=x+1 if y==${opMap.get('LOADK')}then local z=a[x]+(a[x+1]<<8)x=x+2 local A=b[z]if m(A)=='table'then if A.t=='s-multi'then local B=''for C=1,#A.c do local D=A.c[C]local E=A.k[C]for F=1,#D do B=B..i.char(D[F]~E)end end A=B elseif A.t=='n3'then local G=(A.d+A.k[3])&0xffffffff local H=(G~A.k[2])&0xffffffff local I=(H>>3)|((H&7)<<29)A=(I-A.k[1])&0xffffffff elseif A.t=='b'then A=(A.v~A.k)==1 end end w[x-1]=A elseif y==${opMap.get('PUSH')}then local z=a[x]+(a[x+1]<<8)x=x+2 w[x-1]=b[z]elseif y==${opMap.get('POP')}then x=x-1 elseif y==${opMap.get('ADD')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J+K elseif y==${opMap.get('SUB')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J-K elseif y==${opMap.get('MUL')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J*K elseif y==${opMap.get('DIV')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J/K elseif y==${opMap.get('JMP')}then local L=a[x]+(a[x+1]<<8)x=L+2 elseif y==${opMap.get('JIF')}then local L=a[x]+(a[x+1]<<8)x=x+2 local M=w[x-1]x=x-1 if not M then x=L end elseif y==${opMap.get('CALL')}then local N=a[x]x=x+2 local O=w[x-1]x=x-1 local P={}for Q=1,N do P[N-Q+1]=w[x-1]x=x-1 end local R={O(k(P))}for _,S in ipairs(R)do w[x]=S x=x+1 end elseif y==${opMap.get('RET')}then break end end return w[1]or(w[1]==nil and nil)or w[1]end)end)()".."",nil,"bt")()`;
 
-    // Create opMap as a lookup table
-    const opMapEntries: string[] = [];
-    for (let i = 0; i < opList.length; i++) {
-      opMapEntries.push('  ["' + opList[i][0] + '"] = ' + opList[i][1]);
-    }
-
-    return '--[[ XZX Build: ' + buildId + ' ]]\n' +
-      '--[[ Protected using XZX Ultimate Obfuscator ]]\n' +
-      '--[[ Discord: https://discord.gg/5q5bEKmYqF ]]\n\n' +
-      'local env\n' +
-      envSetup + '\n' +
-      debugMode + '\n' +
-      bitSetup + '\n' +
-      'local bytecode = {' + encrypted.join(',') + '}\n' +
-      'local consts = ' + constStr + '\n' +
-      'local key = {' + key.join(',') + '}\n' +
-      'local expectedHash = ' + hash + '\n' +
-      'local dynamicKey = ' + dynamicKey + '\n' +
-      'local pc = 1\n' +
-      'local stack = {}\n' +
-      stackOps + '\n' +
-      'local opMap = {\n' + opMapEntries.join(',\n') + '\n}\n' +
-      '-- Decrypt bytecode with XOR using native bit library \n' +
-      'for i = 1, #bytecode do\n' +
-      '  bytecode[i] = bxor(bytecode[i], key[((i-1) % #key) + 1])\n' +
-      'end\n' +
-      stringDecrypt + '\n' +
-      antiTamper + '\n' +
-      'local handlers = {\n' + handlerStr + '\n}\n' +
-      'if ' + String(layers.antiTamper) + ' then\n' +
-      '  ' + antiTamperCheck + '\n' +
-      'end\n' +
-      'while pc <= #bytecode do\n' +
-      '  local op = bytecode[pc]\n' +
-      '  pc = pc + 1\n' +
-      '  local handler = handlers[op]\n' +
-      '  if handler then\n' +
-      '    handler()\n' +
-      '  else\n' +
-      '    error("\\27[31m[XZX] Invalid opcode: " .. op .. " at pc: " .. (pc-1) .. "\\27[0m")\n' +
-      '  end\n' +
-      'end\n' +
-      'return stack[1] or (stackA and stackA[1]) or nil\n';
+    // Add final obfuscation layer with hex/binary numbers
+    return this.addFinalObfuscationLayer(vmSource, rng);
   }
 
-  private static convertToLuaTable(obj: any): string {
-    if (obj === null || obj === undefined) {
-      return 'nil';
-    }
-
-    if (typeof obj === 'number') {
-      return obj.toString();
-    }
-
-    if (typeof obj === 'string') {
-      return '"' + obj.replace(/"/g, '\\"') + '"';
-    }
-
-    if (typeof obj === 'boolean') {
-      return obj ? 'true' : 'false';
-    }
-
-    if (Array.isArray(obj)) {
-      const items: string[] = [];
-      for (let i = 0; i < obj.length; i++) {
-        if (obj[i] !== undefined) {
-          items.push(this.convertToLuaTable(obj[i]));
-        }
+  private static addFinalObfuscationLayer(code: string, rng: SeededRandom): string {
+    // Convert decimal numbers to hex/binary where appropriate
+    code = code.replace(/\b(\d+)\b/g, (num) => {
+      const n = parseInt(num);
+      // Skip small numbers and common indices
+      if (n < 10 || n > 10000) return num;
+      
+      // Randomly choose between hex, binary, or decimal
+      const choice = rng.range(0, 2);
+      if (choice === 0) {
+        return '0x' + n.toString(16);
+      } else if (choice === 1) {
+        return '0b' + n.toString(2);
       }
-      return '{' + items.join(', ') + '}';
-    }
+      return num;
+    });
 
-    if (typeof obj === 'object') {
-      const pairs: string[] = [];
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
-            pairs.push(key + ' = ' + this.convertToLuaTable(obj[key]));
-          } else {
-            pairs.push('["' + key + '"] = ' + this.convertToLuaTable(obj[key]));
-          }
-        }
-      }
-      return '{' + pairs.join(', ') + '}';
-    }
+    // Add junk code and wrap in loader
+    const junkVars = ['Y', 'g', 'Z', 'P', 'R', 'x', 'v', 'X', 'V', 'B'];
+    const junkValues = junkVars.map(v => rng.range(100, 999));
+    const junkCode = junkVars.map((v, i) => `local ${v}=${junkValues[i]}`).join(';');
 
-    return 'nil';
+    // Create the final output with multiple layers of wrapping
+    return `(function(...)${junkCode};local function ${String.fromCharCode(rng.range(65, 90))}()${code}end;return ${String.fromCharCode(rng.range(65, 90))}()end)(...)`;
   }
 }
 
 export class XZXUltimateObfuscator {
   obfuscate(source: string, options: ObfuscationOptions = {}): ObfuscationResult {
-    const start = Date.now() / 1000;
+    const start = Date.now();
     const defaultLayers = {
       constants: true,
       identifiers: true,
@@ -943,36 +682,40 @@ export class XZXUltimateObfuscator {
       stack: true,
       advanced: false
     };
-    const layers = { ...defaultLayers };
-    if (options.layers) {
-      for (const k in options.layers) {
-        (layers as any)[k] = (options.layers as any)[k];
-      }
-    }
+    const layers = { ...defaultLayers, ...(options.layers || {}) };
     const rng = new SeededRandom(options.seed);
-    const ast = luaparse.parse(source, { comments: false, luaVersion: '5.1' });
-    const ir = IRBuilder.fromAST(ast);
-    const opMap = new OpcodeMap(rng, layers.polymorphism);
-    const compiler = new BytecodeCompiler(opMap, rng, layers);
-    const { bytecode, constants } = compiler.compile(ir);
-    const output = VMGenerator.generate(bytecode, constants, opMap, rng, options, layers);
-    const buildId = 'XZX-' + Date.now() + '-' + rng.range(1000, 9999);
-    const layersApplied: string[] = [];
-    for (const k in layers) {
-      if ((layers as any)[k]) layersApplied.push(k);
+
+    try {
+      const ast = luaparse.parse(source, { comments: false, luaVersion: '5.1' });
+      const ir = IRBuilder.fromAST(ast);
+      const opMap = new OpcodeMap(rng, layers.polymorphism);
+      const compiler = new BytecodeCompiler(opMap, rng, layers);
+      const { bytecode, constants } = compiler.compile(ir);
+      let output = VMGenerator.generate(bytecode, constants, opMap, rng, options, layers);
+
+      const buildId = 'XZX-' + Date.now().toString(36) + '-' + rng.range(1000, 9999).toString(36);
+      const layersApplied = Object.entries(layers)
+        .filter(([_, v]) => v)
+        .map(([k]) => k);
+
+      return {
+        success: true,
+        code: output,
+        metrics: {
+          inputSize: source.length,
+          outputSize: output.length,
+          duration: (Date.now() - start) / 1000,
+          instructionCount: bytecode.length,
+          buildId: buildId,
+          layersApplied: layersApplied
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
-    return {
-      success: true,
-      code: output,
-      metrics: {
-        inputSize: source.length,
-        outputSize: output.length,
-        duration: (Date.now() / 1000) - start,
-        instructionCount: bytecode.length,
-        buildId: buildId,
-        layersApplied: layersApplied
-      }
-    };
   }
 }
 
