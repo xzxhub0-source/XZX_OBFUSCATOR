@@ -87,7 +87,7 @@ end
 
 print("Score: " .. calculateScore(100, 5))`;
 
-const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2.0.0 [https://discord.gg/5q5bEKmYqF]\n\n";
+const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2 [https://discord.gg/5q5bEKmYqF]\n\n";
 
 interface ObfuscatorSettings {
   mangleNames: boolean;
@@ -172,6 +172,21 @@ export default function Home() {
 
   const [obfuscationCount, setObfuscationCount] = useState(0);
   const [pageStartTime] = useState(Date.now());
+
+  // Load total obfuscations from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('xzx-total-obfuscations');
+    if (saved) {
+      setTotalObfuscations(parseInt(saved));
+    } else {
+      localStorage.setItem('xzx-total-obfuscations', '150');
+    }
+  }, []);
+
+  // Save to localStorage whenever totalObfuscations changes
+  useEffect(() => {
+    localStorage.setItem('xzx-total-obfuscations', totalObfuscations.toString());
+  }, [totalObfuscations]);
 
   useEffect(() => {
     document.title = "XZX Lua Obfuscator - Advanced Protection";
@@ -467,17 +482,14 @@ export default function Home() {
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
                   XZX
                 </span>
-                <span className="text-xs px-2 py-1 bg-purple-600/20 rounded-full text-purple-300 border border-purple-600/30">
-                  v2.0.0
+                <span className="text-xs px-2 py-1 bg-purple-600/20 rounded-full text-purple-300 border border-purple-600/30 flex items-center gap-2">
+                  V2
+                  <Users className="w-3 h-3 text-purple-400" />
+                  {totalObfuscations.toLocaleString()}+
                 </span>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 rounded-full border border-purple-500/30">
-                  <Users className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="text-sm font-medium text-purple-300">{totalObfuscations.toLocaleString()}+</span>
-                </div>
-
                 <a
                   href="https://discord.gg/5q5bEKmYqF"
                   target="_blank"
