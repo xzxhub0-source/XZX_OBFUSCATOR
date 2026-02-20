@@ -148,32 +148,10 @@ class MultiLayerEncryption {
     const shuffledKeys = order.map(i => keys[i]);
     return { t: 's-multi', c: shuffledChunks, k: shuffledKeys, o: order };
   }
-  static decryptString(enc: any): string {
-    if (enc.t !== 's-multi') return enc;
-    const reordered: number[][] = [];
-    for (let i = 0; i < enc.c.length; i++) {
-      const originalIdx = enc.o.indexOf(i);
-      reordered[i] = enc.c[originalIdx];
-    }
-    let result = '';
-    for (let i = 0; i < reordered.length; i++) {
-      const chunk = reordered[i];
-      const key = enc.k[i];
-      // Fixed: Changed Lua syntax to JavaScript
-      for (const b of chunk) result = result + String.fromCharCode(b ^ key);
-    }
-    return result;
-  }
   static encryptBoolean(value: boolean, rng: SeededRandom): any {
     const key = rng.range(1, 255);
-    // Fixed: Changed Lua syntax to JavaScript
     const masked = (value ? 1 : 0) ^ key;
     return { t: 'b', v: masked, k: key };
-  }
-  static decryptBoolean(enc: any): boolean {
-    if (enc.t !== 'b') return enc;
-    // Fixed: Changed Lua syntax to JavaScript
-    return (enc.v ^ enc.k) == 1;
   }
 }
 
@@ -191,12 +169,10 @@ class IdentifierObfuscator {
   obfuscate(name: string): string {
     if (this.nameMap.has(name)) return this.nameMap.get(name)!;
     let obfuscated: string;
-    // Fixed: Changed from Lua table to JavaScript array/object
     const prefixes = ['_0x', '_', '__', 'l_', 'v_', 'f_'];
     const prefix = this.rng.choice(prefixes);
     const suffix = this.rng.range(0x1000, 0xffff).toString(16);
     obfuscated = prefix + suffix;
-    // Fixed: Changed Lua syntax to JavaScript
     if (this.useUnicode && this.rng.range(0, 1) == 1) {
       obfuscated = this.rng.unicodeConfusable() + obfuscated;
     }
@@ -221,7 +197,6 @@ class GarbageInjector {
     const dummyConst = rng.range(0, 100);
     const push = [opMap.get('LOADK'), dummyConst & 0xff, (dummyConst >> 8) & 0xff];
     const pop = [opMap.get('POP')];
-    // Fixed: Changed from Lua to JavaScript
     bytecode.splice(pos, 0, ...push, ...pop);
   }
   static insertFakeCall(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
@@ -229,7 +204,6 @@ class GarbageInjector {
     const fakeFunc = rng.range(0, 10);
     const pushFunc = [opMap.get('LOADK'), fakeFunc & 0xff, (fakeFunc >> 8) & 0xff];
     const call = [opMap.get('CALL'), 0, 0];
-    // Fixed: Changed from Lua to JavaScript
     bytecode.splice(pos, 0, ...pushFunc, ...call);
   }
 }
@@ -237,7 +211,6 @@ class GarbageInjector {
 class ExpressionObfuscator {
   static obfuscateBinary(left: string, right: string, op: string, rng: SeededRandom): string {
     const mode = rng.range(0, 2);
-    // Fixed: Changed Lua syntax to JavaScript
     if (op == '+') {
       if (mode == 0) {
         return '((' + left + ' << 1) + (' + right + ' >> 1) + ((' + left + ' & ' + right + ') % 3))';
@@ -315,7 +288,6 @@ class IRNode {
 
 class IRBuilder {
   static fromAST(node: any): IRNode {
-    // Fixed: Changed Lua syntax to JavaScript
     if (!node) return new IRNode('NIL');
     if (node.type == 'Chunk') {
       const chunk = new IRNode('CHUNK');
@@ -687,7 +659,9 @@ class VMGenerator {
     }
     const opList = opMap.getAll();
     const dynamicKey = opMap.getDynamicKey();
-    const constStr = JSON.stringify(constants).replace(/"([^"]+)":/g, '$1:');
+    
+    const constStr = this.convertToLuaTable(constants);
+    
     const mode = options.mode || 'standard';
     let envSetup = '';
     if (mode == 'isolated') {
@@ -701,13 +675,24 @@ class VMGenerator {
       envSetup = envSetup + '\nlocal stackA = {}\nlocal stackB = {}\nlocal stackIdx = 1';
     }
     const debugMode = options.debug ? '\n  local function debugLog(...)\n    print("[XZX VM]", ...)\n  end' : '';
-    const antiTamper = layers.antiTamper ? '\nlocal function validate()\n  local h = 0\n  for i = 1, #bytecode do\n    h = ((h << 5) - h + bytecode[i]) & 0xffffffff\n  end\n  if h ~= expectedHash then\n    error("Integrity violation: " .. tostring(h) .. " vs " .. expectedHash)\n  end\n  if opMap then\n    local check = ' + dynamicKey + '\n    if check ~= 0 and (bytecode[1] ~ bytecode[#bytecode]) ~= check then\n      error("Dynamic key mismatch")\n    end\n  end\nend' : '';
-    const stringDecrypt = layers.strings ? '\nlocal function getConst(idx)\n  local c = consts[idx]\n  if type(c) == "table" then\n    if c.t == "s-multi" then\n      local result = ""\n      for i = 1, #c.c do\n        local chunk = c.c[i]\n        local key = c.k[i]\n        for j = 1, #chunk do\n          result = result .. string.char(chunk[j] ~ key)\n        end\n      end\n      return result\n    elseif c.t == "n3" then\n      local a = (c.d + c.k[3]) & 0xffffffff\n      local b = (a ~ c.k[2]) & 0xffffffff\n      local c2 = (b >> 3) | ((b & 7) << 29)\n      return (c2 - c.k[1]) & 0xffffffff\n    elseif c.t == "b" then\n      return (c.v ~ c.k) == 1\n    end\n  end\n  return c\nend' : '\nlocal function getConst(idx)\n  return consts[idx]\nend';
-    const stackOps = layers.stack ? '\nlocal function push(v)\n  if stackIdx == 1 then\n    table.insert(stackA, v)\n  else\n    table.insert(stackB, v)\n  end\n  stackIdx = 3 - stackIdx\nend\nlocal function pop()\n  stackIdx = 3 - stackIdx\n  if stackIdx == 1 then\n    return table.remove(stackA)\n  else\n    return table.remove(stackB)\n  end\nend' : '\nlocal function push(v) table.insert(stack, v) end\nlocal function pop() return table.remove(stack) end';
+    
+    const bitOps = layers.antiTamper || layers.strings ? 
+    '\nlocal function bxor(a, b)\n  local result = 0\n  local bitval = 1\n  while a > 0 or b > 0 do\n    if (a % 2) ~= (b % 2) then\n      result = result + bitval\n    end\n    a = math.floor(a / 2)\n    b = math.floor(b / 2)\n    bitval = bitval * 2\n  end\n  return result\nend\n\nlocal function band(a, b)\n  local result = 0\n  local bitval = 1\n  while a > 0 and b > 0 do\n    if (a % 2) == 1 and (b % 2) == 1 then\n      result = result + bitval\n    end\n    a = math.floor(a / 2)\n    b = math.floor(b / 2)\n    bitval = bitval * 2\n  end\n  return result\nend\n\nlocal function lshift(a, b)\n  return a * (2 ^ b)\nend\n\nlocal function rshift(a, b)\n  return math.floor(a / (2 ^ b))\nend\n\nlocal function bit_and_7(x)\n  return x % 128\nend' : '';
+    
+    const antiTamper = layers.antiTamper ? 
+    '\nlocal function validate()\n  local h = 0\n  for i = 1, #bytecode do\n    h = ((h * 32) - h + bytecode[i]) % 4294967296\n  end\n  if h ~= expectedHash then\n    error("Integrity violation: " .. tostring(h) .. " vs " .. expectedHash)\n  end\nend' : '';
+    
+    const stringDecrypt = layers.strings ? 
+    '\nlocal function getConst(idx)\n  local c = consts[idx]\n  if type(c) == "table" then\n    if c.t == "s-multi" then\n      local result = ""\n      for i = 1, #c.c do\n        local chunk = c.c[i]\n        local key = c.k[i]\n        for j = 1, #chunk do\n          result = result .. string.char(bxor(chunk[j], key))\n        end\n      end\n      return result\n    elseif c.t == "n3" then\n      local a = (c.d + c.k[3]) % 4294967296\n      local b = bxor(a, c.k[2])\n      local c2 = rshift(b, 3) + band(lshift(band(b, 7), 29), 4294967295)\n      return (c2 - c.k[1]) % 4294967296\n    elseif c.t == "b" then\n      return bxor(c.v, c.k) == 1\n    end\n  end\n  return c\nend' : 
+    '\nlocal function getConst(idx)\n  return consts[idx]\nend';
+    
+    const stackOps = layers.stack ? 
+    '\nlocal function push(v)\n  if stackIdx == 1 then\n    table.insert(stackA, v)\n  else\n    table.insert(stackB, v)\n  end\n  stackIdx = 3 - stackIdx\nend\nlocal function pop()\n  stackIdx = 3 - stackIdx\n  if stackIdx == 1 then\n    return table.remove(stackA)\n  else\n    return table.remove(stackB)\n  end\nend' : 
+    '\nlocal function push(v) table.insert(stack, v) end\nlocal function pop() return table.remove(stack) end';
     
     const handlerBodies: {[key: string]: string} = {
       NOP: '',
-      PUSH: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; push(getConst(idx))',
+      PUSH: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; push(getConst(idx))',
       POP: 'pop()',
       ADD: 'local b = pop(); local a = pop(); push(a + b)',
       SUB: 'local b = pop(); local a = pop(); push(a - b)',
@@ -716,13 +701,13 @@ class VMGenerator {
       MOD: 'local b = pop(); local a = pop(); push(a % b)',
       POW: 'local b = pop(); local a = pop(); push(a ^ b)',
       CONCAT: 'local b = pop(); local a = pop(); push(a .. b)',
-      JMP: 'local target = bytecode[pc] + (bytecode[pc+1] << 8); pc = target + 2',
-      JIF: 'local target = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local cond = pop(); if not cond then pc = target end',
+      JMP: 'local target = bytecode[pc] + (bytecode[pc+1] * 256); pc = target + 2',
+      JIF: 'local target = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; local cond = pop(); if not cond then pc = target end',
       CALL: 'local nargs = bytecode[pc]; pc = pc + 2; local func = pop(); local args = {}; for i = 1, nargs do args[nargs - i + 1] = pop() end; local results = {func(unpack(args))}; for _, v in ipairs(results) do push(v) end',
       RET: 'pc = #bytecode + 1',
-      LOADK: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; push(getConst(idx))',
-      GETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local name = getConst(idx); push(env[name])',
-      SETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] << 8); pc = pc + 2; local val = pop(); env[getConst(idx)] = val',
+      LOADK: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; push(getConst(idx))',
+      GETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; local name = getConst(idx); push(env[name])',
+      SETGLOBAL: 'local idx = bytecode[pc] + (bytecode[pc+1] * 256); pc = pc + 2; local val = pop(); env[getConst(idx)] = val',
       GETTABLE: 'local key = pop(); local tbl = pop(); push(tbl[key])',
       SETTABLE: 'local val = pop(); local key = pop(); local tbl = pop(); tbl[key] = val',
       NEWTABLE: 'push({})',
@@ -755,7 +740,105 @@ class VMGenerator {
     const handlerStr = handlers.join(',\n');
     const antiTamperCheck = layers.antiTamper ? 'validate()' : '';
     
-    return '--[[ XZX Build: ' + buildId + ']]\nlocal env\n' + envSetup + '\n' + debugMode + '\nlocal bytecode = {' + encrypted.join(',') + '}\nlocal consts = ' + constStr + '\nlocal key = {' + key.join(',') + '}\nlocal expectedHash = ' + hash + '\nlocal pc = 1\nlocal stack = {}\n' + stackOps + '\nlocal opMap = {\n' + opList.join(',\n') + '\n}\nfor i = 1, #bytecode do\n  bytecode[i] = bytecode[i] ~ key[(i-1) % #key + 1]\nend\n' + stringDecrypt + '\n' + antiTamper + '\nlocal handlers = {\n' + handlerStr + '\n}\nif ' + String(layers.antiTamper) + ' then\n  ' + antiTamperCheck + '\nend\nwhile pc <= #bytecode do\n  local op = bytecode[pc]\n  pc = pc + 1\n  local handler = handlers[op]\n  if handler then\n    handler()\n  else\n    error("Invalid opcode: " .. op)\n  end\nend\nreturn stack[1] or stackA[1]\n';
+    const opMapEntries: string[] = [];
+    for (let i = 0; i < opList.length; i++) {
+      opMapEntries.push('  ["' + opList[i][0] + '"] = ' + opList[i][1]);
+    }
+    
+    const xorDecrypt = layers.antiTamper || layers.strings ? 'bxor' : '~';
+    
+    return '-- PROTECTED USING XZX OBFUSCATOR V2 [https://discord.gg/5q5bEKmYqF]\n\n' +
+           '--[[ XZX Build: ' + buildId + ']]\n' +
+           'local env\n' + 
+           envSetup + '\n' + 
+           debugMode + '\n' + 
+           bitOps + '\n' +
+           'local bytecode = {' + encrypted.join(',') + '}\n' +
+           'local consts = ' + constStr + '\n' +
+           'local key = {' + key.join(',') + '}\n' +
+           'local expectedHash = ' + hash + '\n' +
+           'local pc = 1\n' +
+           'local stack = {}\n' + 
+           stackOps + '\n' +
+           'local opMap = {\n' + opMapEntries.join(',\n') + '\n}\n' +
+           'for i = 1, #bytecode do\n' +
+           '  bytecode[i] = ' + xorDecrypt + '(bytecode[i], key[((i-1) % #key) + 1])\n' +
+           'end\n' + 
+           stringDecrypt + '\n' + 
+           antiTamper + '\n' +
+           'local handlers = {\n' + handlerStr + '\n}\n' +
+           'if ' + String(layers.antiTamper) + ' then\n' +
+           '  ' + antiTamperCheck + '\n' +
+           'end\n' +
+           'while pc <= #bytecode do\n' +
+           '  local op = bytecode[pc]\n' +
+           '  pc = pc + 1\n' +
+           '  local handler = handlers[op]\n' +
+           '  if handler then\n' +
+           '    handler()\n' +
+           '  else\n' +
+           '    error("Invalid opcode: " .. op)\n' +
+           '  end\n' +
+           'end\n' +
+           'return stack[1] or (stackA and stackA[1]) or nil\n';
+  }
+
+  private static convertToLuaTable(obj: any, indent: number = 0): string {
+    if (obj === null || obj === undefined) {
+      return 'nil';
+    }
+    
+    if (typeof obj === 'number') {
+      return obj.toString();
+    }
+    
+    if (typeof obj === 'string') {
+      return '"' + obj.replace(/"/g, '\\"') + '"';
+    }
+    
+    if (typeof obj === 'boolean') {
+      return obj ? 'true' : 'false';
+    }
+    
+    if (Array.isArray(obj)) {
+      const items: string[] = [];
+      let isSequential = true;
+      for (let i = 0; i < obj.length; i++) {
+        if (obj[i] !== undefined) {
+          items.push(this.convertToLuaTable(obj[i], indent + 1));
+        } else {
+          isSequential = false;
+        }
+      }
+      
+      if (isSequential && obj.length > 0) {
+        return '{' + items.join(', ') + '}';
+      } else {
+        const pairs: string[] = [];
+        for (let i = 0; i < obj.length; i++) {
+          if (obj[i] !== undefined) {
+            pairs.push('[' + (i + 1) + '] = ' + this.convertToLuaTable(obj[i], indent + 1));
+          }
+        }
+        return '{' + pairs.join(', ') + '}';
+      }
+    }
+    
+    if (typeof obj === 'object') {
+      const pairs: string[] = [];
+      for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+            pairs.push(key + ' = ' + this.convertToLuaTable(obj[key], indent + 1));
+          } else {
+            pairs.push('["' + key + '"] = ' + this.convertToLuaTable(obj[key], indent + 1));
+          }
+        }
+      }
+      return '{' + pairs.join(', ') + '}';
+    }
+    
+    return 'nil';
   }
 }
 
@@ -781,29 +864,37 @@ export class XZXUltimateObfuscator {
       }
     }
     const rng = new SeededRandom(options.seed);
-    const ast = luaparse.parse(source, {comments: false, luaVersion: '5.1'});
-    const ir = IRBuilder.fromAST(ast);
-    const opMap = new OpcodeMap(rng, layers.polymorphism);
-    const compiler = new BytecodeCompiler(opMap, rng, layers);
-    const {bytecode, constants} = compiler.compile(ir);
-    const output = VMGenerator.generate(bytecode, constants, opMap, rng, options, layers);
-    const buildId = 'XZX-' + Date.now() + '-' + rng.range(1000, 9999);
-    const layersApplied: string[] = [];
-    for (const k in layers) {
-      if ((layers as any)[k]) layersApplied.push(k);
-    }
-    return {
-      success: true,
-      code: output,
-      metrics: {
-        inputSize: source.length,
-        outputSize: output.length,
-        duration: (Date.now() / 1000) - start,
-        instructionCount: bytecode.length,
-        buildId: buildId,
-        layersApplied: layersApplied
+    
+    try {
+      const ast = luaparse.parse(source, {comments: false, luaVersion: '5.1'});
+      const ir = IRBuilder.fromAST(ast);
+      const opMap = new OpcodeMap(rng, layers.polymorphism);
+      const compiler = new BytecodeCompiler(opMap, rng, layers);
+      const {bytecode, constants} = compiler.compile(ir);
+      const output = VMGenerator.generate(bytecode, constants, opMap, rng, options, layers);
+      const buildId = 'XZX-' + Date.now() + '-' + rng.range(1000, 9999);
+      const layersApplied: string[] = [];
+      for (const k in layers) {
+        if ((layers as any)[k]) layersApplied.push(k);
       }
-    };
+      return {
+        success: true,
+        code: output,
+        metrics: {
+          inputSize: source.length,
+          outputSize: output.length,
+          duration: (Date.now() / 1000) - start,
+          instructionCount: bytecode.length,
+          buildId: buildId,
+          layersApplied: layersApplied
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   }
 }
 
