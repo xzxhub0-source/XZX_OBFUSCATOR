@@ -89,6 +89,9 @@ print("Score: " .. calculateScore(100, 5))`;
 
 const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2 [https://discord.gg/5q5bEKmYqF]\n\n";
 
+// Constant total obfuscations - same for everyone
+const TOTAL_OBFUSCATIONS = 150000;
+
 interface ObfuscatorSettings {
   mangleNames: boolean;
   encodeStrings: boolean;
@@ -136,7 +139,8 @@ export default function Home() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [totalObfuscations, setTotalObfuscations] = useState(150);
+  const [obfuscationCount, setObfuscationCount] = useState(0);
+  const [pageStartTime] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(true);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
@@ -171,37 +175,11 @@ export default function Home() {
     integrityChecks: true,
   });
 
-  const [obfuscationCount, setObfuscationCount] = useState(0);
-  const [pageStartTime] = useState(Date.now());
-
   // Simulate loading
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
-
-  // Load total obfuscations from localStorage on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('xzx-total-obfuscations');
-      if (saved) {
-        setTotalObfuscations(parseInt(saved));
-      } else {
-        localStorage.setItem('xzx-total-obfuscations', '150');
-      }
-    } catch (e) {
-      console.error('localStorage error:', e);
-    }
-  }, []);
-
-  // Save to localStorage whenever totalObfuscations changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('xzx-total-obfuscations', totalObfuscations.toString());
-    } catch (e) {
-      console.error('localStorage error:', e);
-    }
-  }, [totalObfuscations]);
 
   useEffect(() => {
     document.title = "XZX Lua Obfuscator - Advanced Protection";
@@ -321,9 +299,7 @@ export default function Home() {
         setError(null);
         setInputError(undefined);
 
-        const newCount = obfuscationCount + 1;
-        setObfuscationCount(newCount);
-        setTotalObfuscations(prev => prev + 1);
+        setObfuscationCount(prev => prev + 1);
 
         trackObfuscation({
           obfuscationType: settings.controlFlowFlattening ? "advanced" : "standard",
@@ -347,6 +323,7 @@ export default function Home() {
           protectionLevel: settings.compressionLevel,
         }).catch(err => console.error("Analytics tracking failed:", err));
 
+        const newCount = obfuscationCount + 1;
         if ([1, 5, 10, 25, 50].includes(newCount)) {
           trackObfuscationMilestone(newCount).catch(err => console.error("Analytics tracking failed:", err));
         }
@@ -524,7 +501,7 @@ export default function Home() {
                 <span className="text-xs px-2 py-1 bg-purple-600/20 rounded-full text-purple-300 border border-purple-600/30 flex items-center gap-2">
                   V2
                   <Users className="w-3 h-3 text-purple-400" />
-                  {totalObfuscations.toLocaleString()}+
+                  {TOTAL_OBFUSCATIONS.toLocaleString()}+
                 </span>
               </div>
 
@@ -563,7 +540,7 @@ export default function Home() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
                 <TrendingUp className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-gray-300">{totalObfuscations.toLocaleString()}+ scripts protected</span>
+                <span className="text-sm text-gray-300">{TOTAL_OBFUSCATIONS.toLocaleString()}+ scripts protected</span>
               </div>
               <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
                 <Award className="w-4 h-4 text-pink-400" />
