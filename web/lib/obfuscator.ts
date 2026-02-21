@@ -65,6 +65,10 @@ class SeededRandom {
   invisible(): string {
     return String.fromCharCode(0x200b);
   }
+  letter(): string {
+    const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    return letters[this.range(0, letters.length - 1)];
+  }
 }
 
 const BASE_OPCODES = [
@@ -124,13 +128,6 @@ class MultiLayerEncryption {
     const d = (c - key3) & 0xffffffff;
     return { t: 'n3', d, k: [key1, key2, key3] };
   }
-  static decryptNumber(enc: any): number {
-    if (enc.t !== 'n3') return enc;
-    const a = (enc.d + enc.k[2]) & 0xffffffff;
-    const b = (a ^ enc.k[1]) & 0xffffffff;
-    const c = (b >>> 3) | ((b & 7) << 29);
-    return (c - enc.k[0]) & 0xffffffff;
-  }
   static encryptString(value: string, rng: SeededRandom): any {
     const chunks: number[][] = [];
     const keys: number[] = [];
@@ -148,92 +145,10 @@ class MultiLayerEncryption {
     const shuffledKeys = order.map(i => keys[i]);
     return { t: 's-multi', c: shuffledChunks, k: shuffledKeys, o: order };
   }
-  static decryptString(enc: any): string {
-    if (enc.t !== 's-multi') return enc;
-    const reordered: number[][] = [];
-    for (let i = 0; i < enc.c.length; i++) {
-      const originalIdx = enc.o.indexOf(i);
-      reordered[i] = enc.c[originalIdx];
-    }
-    let result = '';
-    for (let i = 0; i < reordered.length; i++) {
-      const chunk = reordered[i];
-      const key = enc.k[i];
-      for (const b of chunk) {
-        result += String.fromCharCode(b ^ key);
-      }
-    }
-    return result;
-  }
   static encryptBoolean(value: boolean, rng: SeededRandom): any {
     const key = rng.range(1, 255);
     const masked = (value ? 1 : 0) ^ key;
     return { t: 'b', v: masked, k: key };
-  }
-  static decryptBoolean(enc: any): boolean {
-    if (enc.t !== 'b') return enc;
-    return (enc.v ^ enc.k) === 1;
-  }
-}
-
-class IdentifierObfuscator {
-  private nameMap: Map<string, string>;
-  private rng: SeededRandom;
-  private useUnicode: boolean;
-  private useInvisible: boolean;
-  constructor(rng: SeededRandom, useUnicode: boolean = false, useInvisible: boolean = false) {
-    this.nameMap = new Map();
-    this.rng = rng;
-    this.useUnicode = useUnicode;
-    this.useInvisible = useInvisible;
-  }
-  obfuscate(name: string): string {
-    if (this.nameMap.has(name)) return this.nameMap.get(name)!;
-    let obfuscated: string;
-    const prefixes = ['_0x', '_', '__', 'l_', 'v_', 'f_'];
-    const prefix = this.rng.choice(prefixes);
-    const suffix = this.rng.range(0x1000, 0xffff).toString(16);
-    obfuscated = prefix + suffix;
-    if (this.useUnicode && this.rng.range(0, 1) === 1) {
-      obfuscated = this.rng.unicodeConfusable() + obfuscated;
-    }
-    if (this.useInvisible && this.rng.range(0, 2) === 1) {
-      obfuscated = obfuscated + this.rng.invisible();
-    }
-    this.nameMap.set(name, obfuscated);
-    return obfuscated;
-  }
-  reset(): void {
-    this.nameMap.clear();
-  }
-}
-
-class GarbageInjector {
-  static insertNOP(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
-    const pos = rng.range(0, bytecode.length);
-    bytecode.splice(pos, 0, opMap.get('NOP'));
-  }
-  static insertDummyPushPop(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
-    const pos = rng.range(0, bytecode.length);
-    const dummyConst = rng.range(0, 100);
-    const push = [opMap.get('LOADK'), dummyConst & 0xff, (dummyConst >> 8) & 0xff];
-    const pop = [opMap.get('POP')];
-    for (let i = push.length - 1; i >= 0; i--) {
-      bytecode.splice(pos, 0, push[i]);
-    }
-    bytecode.splice(pos + push.length, 0, pop[0]);
-  }
-  static insertFakeCall(bytecode: number[], opMap: OpcodeMap, rng: SeededRandom): void {
-    const pos = rng.range(0, bytecode.length);
-    const fakeFunc = rng.range(0, 10);
-    const pushFunc = [opMap.get('LOADK'), fakeFunc & 0xff, (fakeFunc >> 8) & 0xff];
-    const call = [opMap.get('CALL'), 0, 0];
-    for (let i = pushFunc.length - 1; i >= 0; i--) {
-      bytecode.splice(pos, 0, pushFunc[i]);
-    }
-    bytecode.splice(pos + pushFunc.length, 0, call[0]);
-    bytecode.splice(pos + pushFunc.length + 1, 0, call[1]);
-    bytecode.splice(pos + pushFunc.length + 2, 0, call[2]);
   }
 }
 
@@ -348,45 +263,9 @@ class IRBuilder {
   }
 }
 
-class ControlFlowFlattener {
-  static flatten(ir: IRNode, rng: SeededRandom): IRNode {
-    const blocks: IRNode[] = [];
-    const collect = (node: IRNode) => {
-      if (node.type === 'IF' || node.type === 'WHILE' || node.type === 'CHUNK') {
-        if (node.children) {
-          for (const child of node.children) {
-            collect(child);
-          }
-        }
-      } else {
-        blocks.push(node);
-      }
-    };
-    collect(ir);
-    if (blocks.length <= 1) return ir;
-    const stateVar = '__state_' + rng.range(1000, 9999);
-    const stateMachine = new IRNode('STATE_MACHINE');
-    stateMachine.value = stateVar;
-    const stateNodes: IRNode[] = [];
-    for (let i = 0; i < blocks.length; i++) {
-      const stateBlock = new IRNode('STATE_BLOCK');
-      stateBlock.value = i + 1;
-      stateBlock.children = [blocks[i]];
-      if (i < blocks.length - 1) {
-        const assign = new IRNode('ASSIGN');
-        assign.children = [new IRNode('IDENT', stateVar), new IRNode('NUMBER', i + 2)];
-        stateBlock.children.push(assign);
-      }
-      stateNodes.push(stateBlock);
-    }
-    stateMachine.children = stateNodes;
-    return stateMachine;
-  }
-}
-
 class BytecodeCompiler {
   private bytecode: number[] = [];
-  private constants: any[] = [];
+  private constants: any[] = [null];
   private constMap: Map<string, number> = new Map();
   private labels: Map<string, number> = new Map();
   private fixups: Array<{ label: string, positions: number[] }> = [];
@@ -394,14 +273,12 @@ class BytecodeCompiler {
   private opMap: OpcodeMap;
   private rng: SeededRandom;
   private layers: any;
-  private idObf: IdentifierObfuscator;
   constructor(opMap: OpcodeMap, rng: SeededRandom, layers: any) {
     this.opMap = opMap;
     this.rng = rng;
     this.layers = layers;
-    this.idObf = new IdentifierObfuscator(rng, layers.advanced || false, layers.advanced || false);
     this.bytecode = [];
-    this.constants = [];
+    this.constants = [null];
     this.constMap = new Map();
     this.labels = new Map();
     this.fixups = [];
@@ -419,8 +296,8 @@ class BytecodeCompiler {
         encrypted = MultiLayerEncryption.encryptBoolean(value, this.rng);
       }
     }
-    const idx = this.constants.length + 1;
-    this.constants[idx] = encrypted;
+    const idx = this.constants.length;
+    this.constants.push(encrypted);
     this.constMap.set(key, idx);
     return idx;
   }
@@ -429,9 +306,6 @@ class BytecodeCompiler {
     for (const arg of args) {
       this.bytecode.push(arg & 0xff);
       this.bytecode.push((arg >> 8) & 0xff);
-    }
-    if (this.layers.garbage && this.rng.range(1, 20) > 18) {
-      GarbageInjector.insertNOP(this.bytecode, this.opMap, this.rng);
     }
   }
   emitJump(op: string, label: string): void {
@@ -448,7 +322,7 @@ class BytecodeCompiler {
   }
   label(): string {
     const name = 'L' + this.nextLabel;
-    this.nextLabel = this.nextLabel + 1;
+    this.nextLabel++;
     this.labels.set(name, this.bytecode.length);
     return name;
   }
@@ -464,38 +338,22 @@ class BytecodeCompiler {
     }
   }
   compile(ir: IRNode): { bytecode: number[]; constants: any[] } {
-    if (this.layers.controlFlow && ir.type !== 'STATE_MACHINE') {
-      ir = ControlFlowFlattener.flatten(ir, this.rng);
-    }
     this.visitIR(ir);
     this.emit('RET');
-    if (this.layers.garbage) {
-      for (let i = 0; i < this.rng.range(1, 3); i++) {
-        GarbageInjector.insertFakeCall(this.bytecode, this.opMap, this.rng);
-      }
-    }
     this.resolveFixups();
     return { bytecode: this.bytecode, constants: this.constants };
   }
   private visitIR(node: IRNode): void {
     if (!node) return;
-    if (this.layers.identifiers && node.type === 'IDENT') {
-      node.value = this.idObf.obfuscate(node.value);
-    }
     if (node.type === 'CHUNK') {
       if (node.children) {
         for (const c of node.children) {
           this.visitIR(c);
         }
       }
-    } else if (node.type === 'STATE_MACHINE') {
-      this.compileStateMachine(node);
     } else if (node.type === 'ASSIGN') {
       const half = (node.children?.length || 0) / 2;
       for (let i = half; i < (node.children?.length || 0); i++) {
-        this.visitIR(node.children![i]);
-      }
-      for (let i = 0; i < half; i++) {
         this.visitIR(node.children![i]);
       }
       for (let i = 0; i < half; i++) {
@@ -510,9 +368,6 @@ class BytecodeCompiler {
         this.visitIR(node.children![i]);
       }
       for (let i = 0; i < half; i++) {
-        this.visitIR(node.children![i]);
-      }
-      for (let i = 0; i < half; i++) {
         const varNode = node.children![i];
         if (varNode.type === 'IDENT') {
           this.emit('SETGLOBAL', this.addConstant('_local_' + varNode.value));
@@ -520,8 +375,8 @@ class BytecodeCompiler {
       }
     } else if (node.type === 'CALL') {
       if (node.children) {
-        for (const c of node.children) {
-          this.visitIR(c);
+        for (let i = node.children.length - 1; i >= 0; i--) {
+          this.visitIR(node.children[i]);
         }
       }
       this.emit('CALL', (node.children?.length || 0) - 1);
@@ -530,8 +385,8 @@ class BytecodeCompiler {
     } else if (node.type === 'IDENT') {
       this.emit('GETGLOBAL', this.addConstant(node.value));
     } else if (node.type === 'BINARY') {
-      this.visitIR(node.left!);
       this.visitIR(node.right!);
+      this.visitIR(node.left!);
       if (node.value === '+') this.emit('ADD');
       else if (node.value === '-') this.emit('SUB');
       else if (node.value === '*') this.emit('MUL');
@@ -551,13 +406,6 @@ class BytecodeCompiler {
       if (node.value === 'not') this.emit('NOT');
       else if (node.value === '-') this.emit('NEG');
       else if (node.value === '#') this.emit('LEN');
-    } else if (node.type === 'STATE_BLOCK') {
-      this.labels.set('STATE_' + node.value, this.bytecode.length);
-      if (node.children) {
-        for (const c of node.children) {
-          this.visitIR(c);
-        }
-      }
     } else {
       if (node.children) {
         for (const c of node.children) {
@@ -566,28 +414,6 @@ class BytecodeCompiler {
       }
       if (node.left) this.visitIR(node.left);
       if (node.right) this.visitIR(node.right);
-    }
-  }
-  private compileStateMachine(node: IRNode): void {
-    const stateVar = node.value;
-    this.emit('LOADK', this.addConstant(1));
-    this.emit('SETGLOBAL', this.addConstant('__' + stateVar));
-    const startLabel = this.label();
-    this.emit('GETGLOBAL', this.addConstant('__' + stateVar));
-    const jumpTable: string[] = [];
-    for (let i = 1; i <= (node.children?.length || 0); i++) {
-      jumpTable[i] = 'STATE_' + i;
-    }
-    for (let i = 1; i <= jumpTable.length; i++) {
-      const stateNode = node.children![i - 1];
-      this.visitIR(stateNode);
-      this.emit('JMP');
-      const pos = this.bytecode.length;
-      this.bytecode.push(0);
-      this.bytecode.push(0);
-      const fix = { label: startLabel, positions: [pos] };
-      this.fixups.push(fix);
-      this.labels.set(jumpTable[i], this.bytecode.length);
     }
   }
 }
@@ -602,68 +428,142 @@ class VMGenerator {
     layers: any
   ): string {
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + rng.range(1000, 9999).toString(36);
+    
+    // Generate random variable names
+    const vars = {
+      bc: rng.letter() + rng.letter() + rng.letter(),
+      consts: rng.letter() + rng.letter(),
+      key: rng.letter() + rng.letter() + rng.letter(),
+      pc: rng.letter(),
+      stack: rng.letter() + rng.letter(),
+      env: rng.letter() + rng.letter(),
+      result: rng.letter() + rng.letter() + rng.letter(),
+    };
 
-    // Encrypt bytecode with a key
+    // Encrypt bytecode
     const key = rng.bytes(32);
-    const encrypted: number[] = [];
+    const encrypted: string[] = [];
     for (let i = 0; i < bytecode.length; i++) {
-      encrypted[i] = bytecode[i] ^ key[i % key.length];
+      const val = bytecode[i] ^ key[i % key.length];
+      // Randomly format numbers as hex, binary, or decimal
+      const fmt = rng.range(0, 2);
+      if (fmt === 0) encrypted.push('0x' + val.toString(16));
+      else if (fmt === 1) encrypted.push('0b' + val.toString(2));
+      else encrypted.push(val.toString());
     }
 
-    // Generate hash for anti-tamper
-    let hash = 0;
-    for (let i = 0; i < bytecode.length; i++) {
-      hash = ((hash << 5) - hash + bytecode[i]) & 0xffffffff;
-    }
-
-    // Get opcode mappings
-    const opList = opMap.getAll();
-    const dynamicKey = opMap.getDynamicKey();
-
-    // Convert constants to a compact representation
+    // Format constants
     const constStr = JSON.stringify(constants)
       .replace(/"([^"]+)":/g, '$1:')
       .replace(/"/g, "'");
 
-    // Create a mapping of opcodes to their handler indices
-    const opHandlerMap: { [key: number]: string } = {};
-    for (const [name, num] of opList) {
-      opHandlerMap[num] = name;
-    }
-
-    // Generate the compact VM
-    const vmSource = `--[[ XZX Build: ${buildId} ]]
+    // Create the VM with multiple layers of obfuscation
+    return `--[[ XZX Build: ${buildId} ]]
+${vars.result}=${vars.bc}and${vars.pc}or${vars.env}${vars.consts}${vars.key}${vars.stack} 
 load=load or loadstring
-return load("-- XZX VM\\n"..((function(...)local a={${encrypted.join(',')}}local b=${constStr}local c={${key.join(',')}}local d=${hash}local e=${dynamicKey}local f={${opList.map(([name, num]) => `${num}=${JSON.stringify(name)}`).join(',')}}return(function(...)local g=setmetatable or function(t)return t end local h=getfenv or function()return _ENV end local i=string local j=table local k=unpack or table.unpack local l=math local m=type local n=pcall local o=error local p=rawget local q=rawset local r=next local s=select local t=tonumber local u=tostring local v=0 local w={}local x=1 while x<=#a do local y=a[x]x=x+1 if y==${opMap.get('LOADK')}then local z=a[x]+(a[x+1]<<8)x=x+2 local A=b[z]if m(A)=='table'then if A.t=='s-multi'then local B=''for C=1,#A.c do local D=A.c[C]local E=A.k[C]for F=1,#D do B=B..i.char(D[F]~E)end end A=B elseif A.t=='n3'then local G=(A.d+A.k[3])&0xffffffff local H=(G~A.k[2])&0xffffffff local I=(H>>3)|((H&7)<<29)A=(I-A.k[1])&0xffffffff elseif A.t=='b'then A=(A.v~A.k)==1 end end w[x-1]=A elseif y==${opMap.get('PUSH')}then local z=a[x]+(a[x+1]<<8)x=x+2 w[x-1]=b[z]elseif y==${opMap.get('POP')}then x=x-1 elseif y==${opMap.get('ADD')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J+K elseif y==${opMap.get('SUB')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J-K elseif y==${opMap.get('MUL')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J*K elseif y==${opMap.get('DIV')}then local J=w[x-2]local K=w[x-1]x=x-2 w[x-1]=J/K elseif y==${opMap.get('JMP')}then local L=a[x]+(a[x+1]<<8)x=L+2 elseif y==${opMap.get('JIF')}then local L=a[x]+(a[x+1]<<8)x=x+2 local M=w[x-1]x=x-1 if not M then x=L end elseif y==${opMap.get('CALL')}then local N=a[x]x=x+2 local O=w[x-1]x=x-1 local P={}for Q=1,N do P[N-Q+1]=w[x-1]x=x-1 end local R={O(k(P))}for _,S in ipairs(R)do w[x]=S x=x+1 end elseif y==${opMap.get('RET')}then break end end return w[1]or(w[1]==nil and nil)or w[1]end)end)()".."",nil,"bt")()`;
-
-    // Add final obfuscation layer with hex/binary numbers
-    return this.addFinalObfuscationLayer(vmSource, rng);
-  }
-
-  private static addFinalObfuscationLayer(code: string, rng: SeededRandom): string {
-    // Convert decimal numbers to hex/binary where appropriate
-    code = code.replace(/\b(\d+)\b/g, (num) => {
-      const n = parseInt(num);
-      // Skip small numbers and common indices
-      if (n < 10 || n > 10000) return num;
-      
-      // Randomly choose between hex, binary, or decimal
-      const choice = rng.range(0, 2);
-      if (choice === 0) {
-        return '0x' + n.toString(16);
-      } else if (choice === 1) {
-        return '0b' + n.toString(2);
-      }
-      return num;
-    });
-
-    // Add junk code and wrap in loader
-    const junkVars = ['Y', 'g', 'Z', 'P', 'R', 'x', 'v', 'X', 'V', 'B'];
-    const junkValues = junkVars.map(v => rng.range(100, 999));
-    const junkCode = junkVars.map((v, i) => `local ${v}=${junkValues[i]}`).join(';');
-
-    // Create the final output with multiple layers of wrapping
-    return `(function(...)${junkCode};local function ${String.fromCharCode(rng.range(65, 90))}()${code}end;return ${String.fromCharCode(rng.range(65, 90))}()end)(...)`;
+return load((function(${vars.bc},${vars.consts},${vars.key},${vars.pc},${vars.stack},${vars.env},${vars.result},...)local ${vars.pc}=${vars.pc}or 0 ${vars.stack}=${vars.stack}or{} ${vars.env}=${vars.env}or getfenv and getfenv()or _ENV 
+${vars.bc}=${vars.bc}or{${encrypted.join(',')}} 
+${vars.consts}=${vars.consts}or${constStr} 
+${vars.key}=${vars.key}or{${key.join(',')}} 
+for ${vars.result}=1,#${vars.bc}do ${vars.bc}[${vars.result}]=${vars.bc}[${vars.result}]~${vars.key}[((${vars.result}-1)%#${vars.key})+1]end 
+${vars.result}=nil 
+local function ${vars.pc}${vars.stack}() 
+while ${vars.pc}<=#${vars.bc}do 
+local ${vars.env}=${vars.bc}[${vars.pc}] 
+${vars.pc}=${vars.pc}+1 
+if ${vars.env}==${opMap.get('LOADK')}then 
+local ${vars.result}=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8) 
+${vars.pc}=${vars.pc}+2 
+local ${vars.consts}=${vars.consts}[${vars.result}] 
+if type(${vars.consts})=='table'then 
+if ${vars.consts}.t=='s-multi'then 
+local ${vars.key}='' 
+for ${vars.stack}=1,#${vars.consts}.c do 
+local ${vars.env}=${vars.consts}.c[${vars.stack}] 
+local ${vars.result}=${vars.consts}.k[${vars.stack}] 
+for ${vars.bc}=1,#${vars.env}do 
+${vars.key}=${vars.key}..string.char(${vars.env}[${vars.bc}]~${vars.result}) 
+end 
+end 
+${vars.consts}=${vars.key} 
+elseif ${vars.consts}.t=='n3'then 
+local ${vars.key}=(${vars.consts}.d+${vars.consts}.k[3])&0xffffffff 
+local ${vars.stack}=(${vars.key}~${vars.consts}.k[2])&0xffffffff 
+local ${vars.env}=(${vars.stack}>>3)|((${vars.stack}&7)<<29) 
+${vars.consts}=(${vars.env}-${vars.consts}.k[1])&0xffffffff 
+elseif ${vars.consts}.t=='b'then 
+${vars.consts}=(${vars.consts}.v~${vars.consts}.k)==1 
+end 
+end 
+${vars.stack}[${vars.pc}-1]=${vars.consts} 
+elseif ${vars.env}==${opMap.get('ADD')}then 
+local ${vars.key}=${vars.stack}[${vars.pc}-2] 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-2 
+${vars.stack}[${vars.pc}-1]=${vars.key}+${vars.consts} 
+elseif ${vars.env}==${opMap.get('SUB')}then 
+local ${vars.key}=${vars.stack}[${vars.pc}-2] 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-2 
+${vars.stack}[${vars.pc}-1]=${vars.key}-${vars.consts} 
+elseif ${vars.env}==${opMap.get('MUL')}then 
+local ${vars.key}=${vars.stack}[${vars.pc}-2] 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-2 
+${vars.stack}[${vars.pc}-1]=${vars.key}*${vars.consts} 
+elseif ${vars.env}==${opMap.get('DIV')}then 
+local ${vars.key}=${vars.stack}[${vars.pc}-2] 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-2 
+${vars.stack}[${vars.pc}-1]=${vars.key}/${vars.consts} 
+elseif ${vars.env}==${opMap.get('MOD')}then 
+local ${vars.key}=${vars.stack}[${vars.pc}-2] 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-2 
+${vars.stack}[${vars.pc}-1]=${vars.key}%${vars.consts} 
+elseif ${vars.env}==${opMap.get('POW')}then 
+local ${vars.key}=${vars.stack}[${vars.pc}-2] 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-2 
+${vars.stack}[${vars.pc}-1]=${vars.key}^${vars.consts} 
+elseif ${vars.env}==${opMap.get('CONCAT')}then 
+local ${vars.key}=${vars.stack}[${vars.pc}-2] 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-2 
+${vars.stack}[${vars.pc}-1]=${vars.key}..${vars.consts} 
+elseif ${vars.env}==${opMap.get('CALL')}then 
+local ${vars.key}=${vars.bc}[${vars.pc}] 
+${vars.pc}=${vars.pc}+2 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-1 
+local ${vars.env}={} 
+for ${vars.result}=1,${vars.key}do 
+${vars.env}[${vars.key}-${vars.result}+1]=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-1 
+end 
+local ${vars.bc}={${vars.consts}(unpack(${vars.env}))} 
+for _,${vars.stack}in ipairs(${vars.bc})do 
+${vars.stack}[${vars.pc}]=${vars.stack} 
+${vars.pc}=${vars.pc}+1 
+end 
+elseif ${vars.env}==${opMap.get('GETGLOBAL')}then 
+local ${vars.key}=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8) 
+${vars.pc}=${vars.pc}+2 
+${vars.stack}[${vars.pc}-1]=${vars.env}[${vars.consts}[${vars.key}]] 
+elseif ${vars.env}==${opMap.get('SETGLOBAL')}then 
+local ${vars.key}=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8) 
+${vars.pc}=${vars.pc}+2 
+local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
+${vars.pc}=${vars.pc}-1 
+${vars.env}[${vars.consts}[${vars.key}]]=${vars.consts} 
+elseif ${vars.env}==${opMap.get('RET')}then 
+return ${vars.stack}[${vars.pc}-1]or${vars.stack}[1] 
+end 
+end 
+return ${vars.stack}[1]or${vars.stack}[${vars.pc}-1] 
+end 
+return ${vars.pc}${vars.stack}() 
+end)('','','',0,{},nil,nil,nil)()`;
   }
 }
 
@@ -673,17 +573,17 @@ export class XZXUltimateObfuscator {
     const defaultLayers = {
       constants: true,
       identifiers: true,
-      controlFlow: true,
+      controlFlow: false,
       garbage: true,
       polymorphism: true,
       antiTamper: true,
       strings: true,
       expressions: true,
-      stack: true,
-      advanced: false
+      stack: false,
+      advanced: true
     };
     const layers = { ...defaultLayers, ...(options.layers || {}) };
-    const rng = new SeededRandom(options.seed);
+    const rng = new SeededRandom(options.seed || Math.floor(Math.random() * 0x7fffffff));
 
     try {
       const ast = luaparse.parse(source, { comments: false, luaVersion: '5.1' });
