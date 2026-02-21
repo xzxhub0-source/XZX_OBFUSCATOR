@@ -81,58 +81,10 @@ export async function getCounterStats(): Promise<{
   };
 }
 
-/**
- * Force set the counter to a specific value
- * @param value New counter value
- */
-export async function setTotalObfuscations(value: number): Promise<number> {
-  if (typeof window !== 'undefined') {
-    try {
-      // Ensure value is a positive integer
-      const newValue = Math.max(0, Math.floor(value));
-      localStorage.setItem('xzx-total-obfuscations', newValue.toString());
-      return newValue;
-    } catch (error) {
-      console.error('Error setting counter:', error);
-    }
-  }
-  return value;
-}
-
-/**
- * Check if counter exists in localStorage
- */
-export async function hasCounter(): Promise<boolean> {
-  if (typeof window !== 'undefined') {
-    try {
-      return localStorage.getItem('xzx-total-obfuscations') !== null;
-    } catch (error) {
-      console.error('Error checking counter:', error);
-    }
-  }
-  return false;
-}
-
-/**
- * Clear the counter from localStorage
- */
-export async function clearCounter(): Promise<void> {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.removeItem('xzx-total-obfuscations');
-    } catch (error) {
-      console.error('Error clearing counter:', error);
-    }
-  }
-}
-
 // Default export for convenience
 export default {
   getTotalObfuscations,
   incrementTotalObfuscations,
   resetTotalObfuscations,
-  getCounterStats,
-  setTotalObfuscations,
-  hasCounter,
-  clearCounter
+  getCounterStats
 };
