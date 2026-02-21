@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,9 +48,37 @@ import {
   Moon,
   Sun,
   TrendingUp,
+  Play,
+  Pause,
+  RotateCw,
+  Wifi,
+  WifiOff,
+  Gauge,
+  Network,
+  BarChart3,
+  LineChart,
+  PieChart,
+  Activity,
+  Circle,
+  Square,
+  Triangle,
+  Hexagon,
+  Octagon,
+  Diamond,
+  CircleDot,
+  CircleDashed,
+  CircleOff,
+  CircleSlashed,
+  CircleEllipsis,
+  CircleFadingPlus,
+  CircleFadingArrowUp,
+  CircleFadingArrowDown,
+  CircleStop,
+  CirclePause,
+  CirclePlay,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
-import { obfuscateLua } from "@/lib/obfuscator";
+import { Progress } from "@/components/ui/progress";
 import {
   trackObfuscation,
   trackCopy,
@@ -69,8 +97,6 @@ import type { EncryptionAlgorithm } from "@/lib/encryption";
 import type { FormattingStyle } from "@/lib/formatter";
 import type { ObfuscationMetrics } from "@/lib/metrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-// Import the counter API
 import { getTotalObfuscations, incrementTotalObfuscations } from "@/lib/counter-api";
 
 const DEFAULT_LUA_CODE = `-- Welcome to XZX Obfuscator
@@ -124,6 +150,13 @@ interface ObfuscatorSettings {
   integrityChecks: boolean;
 }
 
+interface ObfuscationProgress {
+  stage: string;
+  percent: number;
+  currentStep: number;
+  totalSteps: number;
+}
+
 export default function Home() {
   const [inputCode, setInputCode] = useState(DEFAULT_LUA_CODE);
   const [outputCode, setOutputCode] = useState("");
@@ -140,9 +173,16 @@ export default function Home() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [obfuscationCount, setObfuscationCount] = useState(0);
-  const [totalObfuscations, setTotalObfuscations] = useState(150); // Start at 150
+  const [totalObfuscations, setTotalObfuscations] = useState(150);
   const [pageStartTime] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(true);
+  const [progress, setProgress] = useState<ObfuscationProgress | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [webWorker, setWebWorker] = useState<Worker | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'slow'>('online');
+  const [networkSpeed, setNetworkSpeed] = useState<number | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -176,7 +216,97 @@ export default function Home() {
     integrityChecks: true,
   });
 
-  // Fetch total obfuscations on mount
+  // Initialize web worker
+  useEffect(() => {
+    const worker = new Worker(new URL('../workers/obfuscator.worker.ts', import.meta.url));
+    setWebWorker(worker);
+
+    worker.onmessage = (event) => {
+      const { type, data } = event.data;
+      
+      switch (type) {
+        case 'progress':
+          setProgress(data);
+          break;
+        
+        case 'complete':
+          handleObfuscationComplete(data);
+          break;
+        
+        case 'error':
+          handleObfuscationError(data);
+          break;
+      }
+    };
+
+    worker.onerror = (error) => {
+      console.error('Worker error:', error);
+      handleObfuscationError({ message: 'Worker error occurred' });
+    };
+
+    return () => {
+      worker.terminate();
+    };
+  }, []);
+
+  // Connection monitoring
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      setConnectionStatus('online');
+      measureNetworkSpeed();
+    };
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      setConnectionStatus('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    measureNetworkSpeed();
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const measureNetworkSpeed = useCallback(async () => {
+    const startTime = Date.now();
+    try {
+      const response = await fetch('/api/ping');
+      await response.json();
+      const endTime = Date.now();
+      const speed = endTime - startTime;
+      setNetworkSpeed(speed);
+      setConnectionStatus(speed > 1000 ? 'slow' : 'online');
+    } catch {
+      setNetworkSpeed(null);
+    }
+  }, []);
+
+  // Timer for obfuscation
+  useEffect(() => {
+    if (isProcessing) {
+      timerRef.current = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      setElapsedTime(0);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isProcessing]);
+
   useEffect(() => {
     const fetchTotal = async () => {
       try {
@@ -220,6 +350,79 @@ export default function Home() {
     }
   }, [outputCode, error]);
 
+  const handleObfuscationComplete = useCallback((result: any) => {
+    if (result.success && result.code) {
+      const finalCode = OUTPUT_HEADER + result.code;
+      setOutputCode(finalCode);
+      
+      const transformedMetrics: ObfuscationMetrics = {
+        inputSize: result.metrics?.inputSize || inputCode.length,
+        outputSize: result.metrics?.outputSize || result.code.length,
+        duration: result.metrics?.duration || 0,
+        sizeRatio: (result.metrics?.outputSize || result.code.length) / inputCode.length,
+        transformations: {
+          namesMangled: settings.mangleNames ? 50 : 0,
+          stringsEncoded: settings.encodeStrings ? 25 : 0,
+          numbersEncoded: settings.encodeNumbers ? 15 : 0,
+          deadCodeBlocks: settings.deadCodeInjection ? 30 : 0,
+          antiDebugChecks: settings.antiDebugging ? 5 : 0
+        }
+      };
+      
+      setMetrics(transformedMetrics);
+      setError(null);
+      setInputError(undefined);
+      setIsProcessing(false);
+      setProgress(null);
+
+      // Update counters
+      setObfuscationCount(prev => prev + 1);
+      
+      incrementTotalObfuscations().then(newTotal => {
+        setTotalObfuscations(newTotal);
+      }).catch(() => {
+        setTotalObfuscations(prev => prev + 1);
+      });
+
+      // Track analytics
+      trackObfuscation({
+        obfuscationType: settings.controlFlowFlattening ? "advanced" : "standard",
+        codeSize: inputCode.length,
+        protectionLevel: settings.compressionLevel,
+      }).catch(err => console.error("Analytics tracking failed:", err));
+
+      trackObfuscationPerformance({
+        inputSize: inputCode.length,
+        outputSize: result.code.length,
+        duration: result.metrics?.duration || 0,
+        sizeRatio: result.code.length / inputCode.length,
+      }).catch(err => console.error("Analytics tracking failed:", err));
+
+      trackFeatureCombination({
+        mangleNames: settings.mangleNames,
+        encodeStrings: settings.encodeStrings,
+        encodeNumbers: settings.encodeNumbers,
+        controlFlow: settings.controlFlow,
+        minify: settings.minify,
+        protectionLevel: settings.compressionLevel,
+      }).catch(err => console.error("Analytics tracking failed:", err));
+    } else {
+      setError(result.error || "Failed to obfuscate code");
+      setOutputCode("");
+      setMetrics(null);
+      setIsProcessing(false);
+      setProgress(null);
+    }
+  }, [inputCode.length, settings]);
+
+  const handleObfuscationError = useCallback((error: any) => {
+    setError(error.message || "An unexpected error occurred");
+    setOutputCode("");
+    setMetrics(null);
+    setIsProcessing(false);
+    setProgress(null);
+  }, []);
+
   const handleInputChange = (newCode: string) => {
     setInputCode(newCode);
     if (inputError) setInputError(undefined);
@@ -229,15 +432,30 @@ export default function Home() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    
     const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > 5) setWarning(`File size: ${fileSizeMB.toFixed(2)}MB. Large files may take longer.`);
+    if (fileSizeMB > 5) {
+      setWarning(`File size: ${fileSizeMB.toFixed(2)}MB. Large files may take longer.`);
+    }
+    
     setFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (e) => setInputCode(e.target?.result as string);
+    
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setInputCode(content);
+      
+      // Auto-detect large files and adjust settings
+      if (content.length > 50000) {
+        setWarning("Large file detected. Consider reducing protection level for better performance.");
+      }
+    };
+    
     reader.readAsText(file);
   };
 
   const triggerFileUpload = () => fileInputRef.current?.click();
+
   const clearFile = () => {
     setFileName("");
     setInputCode(DEFAULT_LUA_CODE);
@@ -246,10 +464,25 @@ export default function Home() {
 
   const cancelObfuscation = () => {
     abortControllerRef.current?.abort();
+    if (webWorker) {
+      webWorker.postMessage({ type: 'cancel' });
+    }
     setIsProcessing(false);
+    setProgress(null);
+    setElapsedTime(0);
   };
 
   const obfuscateCode = async () => {
+    if (isOffline) {
+      setError("You are offline. Please check your internet connection.");
+      return;
+    }
+
+    if (!inputCode || inputCode.trim().length === 0) {
+      setError("Please enter some code to obfuscate");
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
     setInputError(undefined);
@@ -257,113 +490,46 @@ export default function Home() {
     setMetrics(null);
     setWarning(null);
     setOutputCode("");
+    setProgress({ stage: "Initializing", percent: 0, currentStep: 0, totalSteps: 10 });
 
     abortControllerRef.current = new AbortController();
 
-    try {
-      const startTime = Date.now();
-      const options = {
-        mangleNames: settings.mangleNames,
-        encodeStrings: settings.encodeStrings,
-        encodeNumbers: settings.encodeNumbers,
-        controlFlow: settings.controlFlowFlattening,
-        antiDebugging: settings.antiDebugging,
-        protectionLevel: settings.compressionLevel,
-        deadCodeInjection: settings.deadCodeInjection,
-        opaquePredicates: settings.opaquePredicates,
-        controlFlowFlattening: settings.controlFlowFlattening,
-        targetVersion: settings.targetVersion,
-        optimizationLevel: settings.optimizationLevel,
-      };
+    const options = {
+      mangleNames: settings.mangleNames,
+      encodeStrings: settings.encodeStrings,
+      encodeNumbers: settings.encodeNumbers,
+      controlFlow: settings.controlFlowFlattening,
+      antiDebugging: settings.antiDebugging,
+      protectionLevel: settings.compressionLevel,
+      deadCodeInjection: settings.deadCodeInjection,
+      opaquePredicates: settings.opaquePredicates,
+      controlFlowFlattening: settings.controlFlowFlattening,
+      targetVersion: settings.targetVersion,
+      optimizationLevel: settings.optimizationLevel,
+      encryptionAlgorithm: settings.encryptionAlgorithm,
+      formattingStyle: settings.formattingStyle,
+    };
 
-      // Use setTimeout to prevent UI blocking
-      const result = await new Promise<any>((resolve) => {
-        setTimeout(() => {
-          try {
-            resolve(obfuscateLua(inputCode, options));
-          } catch (e) {
-            resolve({ success: false, error: e.message });
-          }
-        }, 100);
+    if (webWorker) {
+      webWorker.postMessage({
+        type: 'obfuscate',
+        data: {
+          source: inputCode,
+          options,
+          startTime: Date.now()
+        }
       });
-
-      const duration = Date.now() - startTime;
-
-      if (result.success && result.code) {
-        const finalCode = OUTPUT_HEADER + result.code;
-        setOutputCode(finalCode);
-        const transformedMetrics: ObfuscationMetrics = {
-          inputSize: result.metrics?.inputSize || inputCode.length,
-          outputSize: result.metrics?.outputSize || result.code.length,
-          duration: duration,
-          sizeRatio: (result.metrics?.outputSize || result.code.length) / inputCode.length,
-          transformations: {
-            namesMangled: settings.mangleNames ? 50 : 0,
-            stringsEncoded: settings.encodeStrings ? 25 : 0,
-            numbersEncoded: settings.encodeNumbers ? 15 : 0,
-            deadCodeBlocks: settings.deadCodeInjection ? 30 : 0,
-            antiDebugChecks: settings.antiDebugging ? 5 : 0
-          }
-        };
-        setMetrics(transformedMetrics);
-        setError(null);
-        setInputError(undefined);
-
-        // Increment local count
-        setObfuscationCount(prev => prev + 1);
-        
-        // Increment global count
+    } else {
+      // Fallback if worker not available
+      setTimeout(() => {
         try {
-          const newTotal = await incrementTotalObfuscations();
-          setTotalObfuscations(newTotal);
+          const { obfuscateLua } = require('@/lib/obfuscator');
+          const result = obfuscateLua(inputCode, options);
+          handleObfuscationComplete(result);
         } catch (error) {
-          console.error('Failed to increment global count:', error);
-          // Fallback: increment locally
-          setTotalObfuscations(prev => prev + 1);
+          handleObfuscationError(error);
         }
-
-        trackObfuscation({
-          obfuscationType: settings.controlFlowFlattening ? "advanced" : "standard",
-          codeSize: inputCode.length,
-          protectionLevel: settings.compressionLevel,
-        }).catch(err => console.error("Analytics tracking failed:", err));
-
-        trackObfuscationPerformance({
-          inputSize: inputCode.length,
-          outputSize: result.code.length,
-          duration: duration,
-          sizeRatio: result.code.length / inputCode.length,
-        }).catch(err => console.error("Analytics tracking failed:", err));
-
-        trackFeatureCombination({
-          mangleNames: settings.mangleNames,
-          encodeStrings: settings.encodeStrings,
-          encodeNumbers: settings.encodeNumbers,
-          controlFlow: settings.controlFlow,
-          minify: settings.minify,
-          protectionLevel: settings.compressionLevel,
-        }).catch(err => console.error("Analytics tracking failed:", err));
-
-        const newCount = obfuscationCount + 1;
-        if ([1, 5, 10, 25, 50].includes(newCount)) {
-          trackObfuscationMilestone(newCount).catch(err => console.error("Analytics tracking failed:", err));
-        }
-      } else {
-        setError(result.error || "Failed to obfuscate code");
-        setOutputCode("");
-        setMetrics(null);
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        setError("Obfuscation cancelled");
-      } else {
-        setError(error instanceof Error ? error.message : "An unexpected error occurred");
-      }
-      setOutputCode("");
-      setMetrics(null);
-    } finally {
-      setIsProcessing(false);
-      abortControllerRef.current = null;
+      }, 100);
     }
   };
 
@@ -383,7 +549,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = fileName ? `obfuscated_${fileName}` : "obfuscated.lua";
+    a.download = fileName ? `obfuscated_${fileName.replace(/\.lua$/, '')}.lua` : "obfuscated.lua";
     a.click();
     URL.revokeObjectURL(url);
     trackDownload(outputCode.length).catch(err => console.error("Analytics tracking failed:", err));
@@ -421,6 +587,12 @@ export default function Home() {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const renderSwitch = (
@@ -527,6 +699,20 @@ export default function Home() {
               </div>
 
               <div className="flex items-center gap-3">
+                {isOffline && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 rounded-full">
+                    <WifiOff className="w-3.5 h-3.5 text-yellow-400" />
+                    <span className="text-xs text-yellow-300">Offline</span>
+                  </div>
+                )}
+                
+                {networkSpeed && networkSpeed > 1000 && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 rounded-full">
+                    <Gauge className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-xs text-orange-300">Slow Connection</span>
+                  </div>
+                )}
+
                 <a
                   href="https://discord.gg/5q5bEKmYqF"
                   target="_blank"
@@ -591,14 +777,15 @@ export default function Home() {
                       variant="outline"
                       size="sm"
                       className="border-white/10 hover:bg-white/5"
+                      disabled={isProcessing}
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       Upload
                     </Button>
                     <Button
                       onClick={obfuscateCode}
-                      disabled={!inputCode || isProcessing}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group"
+                      disabled={!inputCode || isProcessing || isOffline}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                       {isProcessing ? (
@@ -613,11 +800,22 @@ export default function Home() {
                         </div>
                       )}
                     </Button>
+                    {isProcessing && (
+                      <Button
+                        onClick={cancelObfuscation}
+                        variant="outline"
+                        size="sm"
+                        className="border-white/10 hover:bg-white/5"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel
+                      </Button>
+                    )}
                     {fileName && (
                       <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
                         <File className="w-3 h-3 text-purple-400" />
-                        <span className="text-xs text-purple-300">{fileName}</span>
-                        <button onClick={clearFile} className="hover:text-white">
+                        <span className="text-xs text-purple-300 truncate max-w-[100px]">{fileName}</span>
+                        <button onClick={clearFile} className="hover:text-white" disabled={isProcessing}>
                           <X className="w-3 h-3" />
                         </button>
                       </div>
@@ -641,6 +839,43 @@ export default function Home() {
                 </div>
               </Card>
 
+              {isProcessing && progress && (
+                <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Obfuscation Progress</h3>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-400">{formatTime(elapsedTime)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-400">{progress.stage}</span>
+                      <span className="text-sm font-semibold text-purple-400">{progress.percent}%</span>
+                    </div>
+                    
+                    <Progress value={progress.percent} className="h-2 bg-white/5" />
+                    
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Step {progress.currentStep} of {progress.totalSteps}</span>
+                      <span>Estimated: {formatTime(Math.round((elapsedTime / progress.percent) * (100 - progress.percent)))}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="p-3 bg-white/5 rounded-lg">
+                        <div className="text-xs text-gray-400 mb-1">Input Size</div>
+                        <div className="text-sm font-semibold">{formatBytes(inputCode.length)}</div>
+                      </div>
+                      <div className="p-3 bg-white/5 rounded-lg">
+                        <div className="text-xs text-gray-400 mb-1">Processing</div>
+                        <div className="text-sm font-semibold">{Math.round(inputCode.length * progress.percent / 100).toLocaleString()} chars</div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
               {outputCode && (
                 <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
@@ -654,6 +889,7 @@ export default function Home() {
                         variant="outline"
                         size="sm"
                         className="border-white/10 hover:bg-white/5"
+                        disabled={isProcessing}
                       >
                         {copySuccess ? (
                           <>
@@ -672,6 +908,7 @@ export default function Home() {
                         variant="outline"
                         size="sm"
                         className="border-white/10 hover:bg-white/5"
+                        disabled={isProcessing}
                       >
                         <Download className="w-4 h-4 mr-2" />
                         Download
@@ -713,7 +950,7 @@ export default function Home() {
                     </div>
                     <div className="p-4 bg-white/5 rounded-xl">
                       <div className="text-sm text-gray-400 mb-1">Time</div>
-                      <div className="text-xl font-bold">{(metrics.duration / 1000).toFixed(2)}s</div>
+                      <div className="text-xl font-bold">{(metrics.duration).toFixed(1)}s</div>
                     </div>
                   </div>
 
@@ -909,6 +1146,7 @@ export default function Home() {
                       onValueChange={(value: any) => {
                         setSettings({ ...settings, targetVersion: value });
                       }}
+                      disabled={isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/5 border-white/10">
                         <SelectValue />
@@ -930,6 +1168,7 @@ export default function Home() {
                       onValueChange={(value: string) => {
                         setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
                       }}
+                      disabled={isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/5 border-white/10">
                         <SelectValue />
@@ -950,7 +1189,7 @@ export default function Home() {
                       onValueChange={(value: EncryptionAlgorithm) => {
                         setSettings({ ...settings, encryptionAlgorithm: value });
                       }}
-                      disabled={!settings.encodeStrings}
+                      disabled={!settings.encodeStrings || isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/5 border-white/10">
                         <SelectValue />
@@ -972,6 +1211,7 @@ export default function Home() {
                       onValueChange={(value: FormattingStyle) => {
                         setSettings({ ...settings, formattingStyle: value });
                       }}
+                      disabled={isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/5 border-white/10">
                         <SelectValue />
@@ -1026,6 +1266,7 @@ export default function Home() {
                       max={100}
                       step={5}
                       className="w-full"
+                      disabled={isProcessing}
                     />
                   </div>
                 </div>
