@@ -1,17 +1,27 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  output: 'standalone',
   images: {
     unoptimized: true,
   },
-  trailingSlash: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // Remove exportPathMap - it doesn't work with App Router
-}
+  webpack: (config, { isServer }) => {
+    // Add worker loader
+    config.module.rules.push({
+      test: /\.worker\.(ts|js)$/,
+      loader: 'worker-loader',
+      options: {
+        filename: 'static/[hash].worker.js',
+        publicPath: '/_next/',
+      },
+    });
 
-export default nextConfig
+    // Fix for worker in Next.js
+    if (!isServer) {
+      config.output.globalObject = 'self';
+    }
+
+    return config;
+  },
+};
+
+module.exports = nextConfig;
