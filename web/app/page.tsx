@@ -40,6 +40,25 @@ import {
 } from "@/components/ui/select";
 import { obfuscateLua } from "@/lib/obfuscator";
 
+// Simple counter API without Firebase
+const getTotalObfuscations = async (): Promise<number> => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('xzx-total-obfuscations');
+    return stored ? parseInt(stored, 10) : 150;
+  }
+  return 150;
+};
+
+const incrementTotalObfuscations = async (): Promise<number> => {
+  if (typeof window !== 'undefined') {
+    const current = await getTotalObfuscations();
+    const newCount = current + 1;
+    localStorage.setItem('xzx-total-obfuscations', newCount.toString());
+    return newCount;
+  }
+  return 151;
+};
+
 // Types
 interface ObfuscationMetrics {
   inputSize: number;
@@ -129,6 +148,16 @@ export default function Home() {
     integrityChecks: false,
   });
 
+  // Load total obfuscations on mount
+  useEffect(() => {
+    const loadTotal = async () => {
+      const total = await getTotalObfuscations();
+      setTotalObfuscations(total);
+      setIsLoading(false);
+    };
+    loadTotal();
+  }, []);
+
   // Timer for obfuscation
   useEffect(() => {
     if (isProcessing) {
@@ -173,9 +202,6 @@ export default function Home() {
       });
     };
     window.addEventListener('mousemove', handleMouseMove);
-    
-    // Simulate loading
-    setTimeout(() => setIsLoading(false), 1000);
     
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
@@ -245,7 +271,10 @@ export default function Home() {
         const finalCode = OUTPUT_HEADER + result.code;
         setOutputCode(finalCode);
         setMetrics(result.metrics || null);
-        setTotalObfuscations(prev => prev + 1);
+        
+        // Increment counter
+        const newTotal = await incrementTotalObfuscations();
+        setTotalObfuscations(newTotal);
       } else {
         setError(result.error || "Failed to obfuscate code");
       }
