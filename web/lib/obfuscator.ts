@@ -1334,77 +1334,91 @@ end)()..'')()`;
         ${env}[name] = val
       `,
       'ADD': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
-        ${stack}[${sp}] = (a + b) ~ ${keyExpr
+        ${stack}[${sp}] = (a + b) ~ ${keyExpr}
       `,
       'SUB': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a - b) ~ ${keyExpr}
       `,
       'MUL': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a * b) ~ ${keyExpr}
       `,
       'DIV': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a / b) ~ ${keyExpr}
       `,
       'MOD': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a % b) ~ ${keyExpr}
       `,
       'POW': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a ^ b) ~ ${keyExpr}
       `,
       'CONCAT': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a .. b) ~ ${keyExpr}
       `,
       'EQ': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a == b) and 1 or 0
         ${stack}[${sp}] = ${stack}[${sp}] ~ ${keyExpr}
       `,
       'LT': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a < b) and 1 or 0
         ${stack}[${sp}] = ${stack}[${sp}] ~ ${keyExpr}
       `,
       'LE': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a <= b) and 1 or 0
         ${stack}[${sp}] = ${stack}[${sp}] ~ ${keyExpr}
       `,
       'GT': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a > b) and 1 or 0
         ${stack}[${sp}] = ${stack}[${sp}] ~ ${keyExpr}
       `,
       'GE': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a >= b) and 1 or 0
         ${stack}[${sp}] = ${stack}[${sp}] ~ ${keyExpr}
       `,
       'AND': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a and b) ~ ${keyExpr}
       `,
       'OR': `
-        local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local b = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (a or b) ~ ${keyExpr}
       `,
@@ -1422,20 +1436,24 @@ end)()..'')()`;
         ${stack}[${sp}] = {} ~ ${keyExpr}
       `,
       'GETTABLE': `
-        local key = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local key = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local tbl = ${stack}[${sp}] ~ ${keyExpr}
         ${stack}[${sp}] = (tbl[key]) ~ ${keyExpr}
       `,
       'SETTABLE': `
-        local val = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
-        local key = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local val = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
+        local key = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local tbl = ${stack}[${sp}] ~ ${keyExpr}
         tbl[key] = val
       `,
       'CALL': `
         local nargs = ${bc}[${pc}]
         ${pc} = ${pc} + 2
-        local func = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
+        local func = ${stack}[${sp}] ~ ${keyExpr}
+        ${sp} = ${sp} - 1
         local args = {}
         for i = 1, nargs do
           args[nargs - i + 1] = ${stack}[${sp}] ~ ${keyExpr}
@@ -1492,6 +1510,40 @@ end)()..'')()`;
     ];
     return this.rng.choice(ops);
   }
+}
+
+// ---------- Obfuscation Options Interface ----------
+export interface ObfuscationOptions {
+  seed?: number;
+  mode?: 'standard' | 'isolated' | 'sandbox';
+  debug?: boolean;
+  optimization?: 'none' | 'basic' | 'aggressive';
+  layers?: {
+    constants?: boolean;
+    identifiers?: boolean;
+    controlFlow?: boolean;
+    garbage?: boolean;
+    polymorphism?: boolean;
+    antiTamper?: boolean;
+    strings?: boolean;
+    expressions?: boolean;
+    stack?: boolean;
+    advanced?: boolean;
+  };
+}
+
+export interface ObfuscationResult {
+  success: boolean;
+  code?: string;
+  error?: string;
+  metrics?: {
+    inputSize: number;
+    outputSize: number;
+    duration: number;
+    instructionCount: number;
+    buildId: string;
+    layersApplied: string[];
+  };
 }
 
 // ---------- Main Obfuscator ----------
