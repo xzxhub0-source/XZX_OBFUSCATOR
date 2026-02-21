@@ -28,7 +28,6 @@ import {
   Moon,
   Sun,
   WifiOff,
-  Gauge,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
@@ -39,36 +38,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { obfuscateLua } from "@/lib/obfuscator";
 
 // Types
-interface ObfuscationOptions {
-  mangleNames?: boolean;
-  encodeStrings?: boolean;
-  encodeNumbers?: boolean;
-  controlFlow?: boolean;
-  antiDebugging?: boolean;
-  protectionLevel?: number;
-  deadCodeInjection?: boolean;
-  opaquePredicates?: boolean;
-  controlFlowFlattening?: boolean;
-  targetVersion?: string;
-  optimizationLevel?: number;
-  encryptionAlgorithm?: string;
-  formattingStyle?: string;
-}
-
-interface ObfuscationResult {
-  success: boolean;
-  code?: string;
-  error?: string;
-  metrics?: {
-    inputSize: number;
-    outputSize: number;
-    duration: number;
-    instructionCount: number;
-    buildId: string;
-    layersApplied: string[];
-  };
+interface ObfuscationMetrics {
+  inputSize: number;
+  outputSize: number;
+  duration: number;
+  instructionCount: number;
+  buildId: string;
+  layersApplied: string[];
 }
 
 interface ObfuscationProgress {
@@ -121,7 +100,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [metrics, setMetrics] = useState<any>(null);
+  const [metrics, setMetrics] = useState<ObfuscationMetrics | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -131,7 +110,6 @@ export default function Home() {
   const [progress, setProgress] = useState<ObfuscationProgress | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const workerRef = useRef<Worker | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
@@ -150,49 +128,6 @@ export default function Home() {
     antiTamper: false,
     integrityChecks: false,
   });
-
-  // Initialize web worker
-  useEffect(() => {
-    // Create worker with correct path
-    if (typeof window !== 'undefined') {
-      try {
-        workerRef.current = new Worker(new URL('../workers/obfuscator.worker.ts', import.meta.url));
-        
-        workerRef.current.onmessage = (event) => {
-          const { type, data } = event.data;
-          
-          switch (type) {
-            case 'progress':
-              setProgress(data);
-              break;
-            
-            case 'complete':
-              handleObfuscationComplete(data);
-              break;
-            
-            case 'error':
-              handleObfuscationError(data);
-              break;
-          }
-        };
-
-        workerRef.current.onerror = (error) => {
-          console.error('Worker error:', error);
-          handleObfuscationError({ message: 'Worker error occurred, falling back to main thread...' });
-          // Fallback to main thread obfuscation
-          fallbackObfuscate();
-        };
-      } catch (error) {
-        console.error('Failed to create worker:', error);
-      }
-    }
-
-    return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-      }
-    };
-  }, []);
 
   // Timer for obfuscation
   useEffect(() => {
@@ -245,58 +180,6 @@ export default function Home() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  const handleObfuscationComplete = useCallback((result: any) => {
-    if (result.success && result.code) {
-      const finalCode = OUTPUT_HEADER + result.code;
-      setOutputCode(finalCode);
-      
-      setMetrics(result.metrics);
-      setError(null);
-      setIsProcessing(false);
-      setProgress(null);
-      setTotalObfuscations(prev => prev + 1);
-    } else {
-      setError(result.error || "Failed to obfuscate code");
-      setOutputCode("");
-      setMetrics(null);
-      setIsProcessing(false);
-      setProgress(null);
-    }
-  }, []);
-
-  const handleObfuscationError = useCallback((error: any) => {
-    setError(error.message || "An unexpected error occurred");
-    setOutputCode("");
-    setMetrics(null);
-    setIsProcessing(false);
-    setProgress(null);
-  }, []);
-
-  const fallbackObfuscate = async () => {
-    try {
-      const { obfuscateLua } = await import('@/lib/obfuscator');
-      const options = {
-        mangleNames: settings.mangleNames,
-        encodeStrings: settings.encodeStrings,
-        encodeNumbers: settings.encodeNumbers,
-        controlFlow: settings.controlFlowFlattening,
-        antiDebugging: settings.antiDebugging,
-        protectionLevel: settings.compressionLevel,
-        deadCodeInjection: settings.deadCodeInjection,
-        controlFlowFlattening: settings.controlFlowFlattening,
-        targetVersion: settings.targetVersion,
-        optimizationLevel: settings.optimizationLevel,
-        encryptionAlgorithm: settings.encryptionAlgorithm,
-        formattingStyle: settings.formattingStyle,
-      };
-      
-      const result = await obfuscateLua(inputCode, options);
-      handleObfuscationComplete(result);
-    } catch (error) {
-      handleObfuscationError(error);
-    }
-  };
-
   const handleInputChange = (newCode: string) => {
     setInputCode(newCode);
   };
@@ -334,15 +217,44 @@ export default function Home() {
   };
 
   const cancelObfuscation = () => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'cancel' });
-      workerRef.current.terminate();
-      // Recreate worker
-      workerRef.current = new Worker(new URL('../workers/obfuscator.worker.ts', import.meta.url));
-    }
     setIsProcessing(false);
     setProgress(null);
     setElapsedTime(0);
+  };
+
+  const performObfuscation = async () => {
+    try {
+      const options = {
+        mangleNames: settings.mangleNames,
+        encodeStrings: settings.encodeStrings,
+        encodeNumbers: settings.encodeNumbers,
+        protectionLevel: settings.compressionLevel,
+        deadCodeInjection: settings.deadCodeInjection,
+        controlFlowFlattening: settings.controlFlowFlattening,
+        targetVersion: settings.targetVersion,
+        optimizationLevel: settings.optimizationLevel,
+        encryptionAlgorithm: settings.encryptionAlgorithm,
+        formattingStyle: settings.formattingStyle,
+      };
+      
+      const result = await obfuscateLua(inputCode, options);
+      
+      setProgress({ stage: "Finalizing", percent: 100, currentStep: 5, totalSteps: 5 });
+      
+      if (result.success && result.code) {
+        const finalCode = OUTPUT_HEADER + result.code;
+        setOutputCode(finalCode);
+        setMetrics(result.metrics || null);
+        setTotalObfuscations(prev => prev + 1);
+      } else {
+        setError(result.error || "Failed to obfuscate code");
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unknown error occurred");
+    } finally {
+      setIsProcessing(false);
+      setProgress(null);
+    }
   };
 
   const obfuscateCode = async () => {
@@ -362,36 +274,18 @@ export default function Home() {
     setMetrics(null);
     setWarning(null);
     setOutputCode("");
-    setProgress({ stage: "Initializing", percent: 0, currentStep: 0, totalSteps: 10 });
-
-    const options = {
-      mangleNames: settings.mangleNames,
-      encodeStrings: settings.encodeStrings,
-      encodeNumbers: settings.encodeNumbers,
-      controlFlow: settings.controlFlowFlattening,
-      antiDebugging: settings.antiDebugging,
-      protectionLevel: settings.compressionLevel,
-      deadCodeInjection: settings.deadCodeInjection,
-      controlFlowFlattening: settings.controlFlowFlattening,
-      targetVersion: settings.targetVersion,
-      optimizationLevel: settings.optimizationLevel,
-      encryptionAlgorithm: settings.encryptionAlgorithm,
-      formattingStyle: settings.formattingStyle,
-    };
-
-    if (workerRef.current) {
-      workerRef.current.postMessage({
-        type: 'obfuscate',
-        data: {
-          source: inputCode,
-          options,
-          startTime: Date.now()
-        }
-      });
-    } else {
-      // Fallback if worker not available
-      fallbackObfuscate();
-    }
+    
+    // Simple progress simulation
+    setProgress({ stage: "Initializing", percent: 5, currentStep: 1, totalSteps: 5 });
+    
+    setTimeout(() => setProgress({ stage: "Analyzing", percent: 25, currentStep: 2, totalSteps: 5 }), 100);
+    setTimeout(() => setProgress({ stage: "Obfuscating", percent: 50, currentStep: 3, totalSteps: 5 }), 300);
+    setTimeout(() => setProgress({ stage: "Optimizing", percent: 75, currentStep: 4, totalSteps: 5 }), 600);
+    
+    // Use setTimeout to prevent UI blocking
+    setTimeout(() => {
+      performObfuscation();
+    }, 800);
   };
 
   const copyToClipboard = async () => {
