@@ -1,294 +1,60 @@
-@import "tailwindcss";
+/* web/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-card: var(--card);
-	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-primary: var(--primary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-secondary: var(--secondary);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-destructive: var(--destructive);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
-}
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
 
-@variant dark (&:is(.dark *));
-
-:root {
-	--radius: 0.75rem;
-	--background: oklch(0.12 0.04 300); /* Dark purple base */
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.15 0.05 300); /* Slightly lighter purple */
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.15 0.05 300);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.65 0.25 320); /* Vibrant purple (#8b5cf6) */
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.65 0.22 340); /* Pinkish purple (#ec4899) */
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.2 0.03 300);
-	--muted-foreground: oklch(0.6 0.05 300);
-	--accent: oklch(0.65 0.25 320); /* Match primary */
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(1 0 0 / 15%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.65 0.25 320); /* Primary purple */
-}
-
-/* XZX Theme Custom Properties */
-:root {
-	--xzx-purple: #8b5cf6;
-	--xzx-pink: #ec4899;
-	--xzx-dark: #0a0a0f;
-	--xzx-darker: #050508;
-	--xzx-glow-purple: rgba(139, 92, 246, 0.5);
-	--xzx-glow-pink: rgba(236, 72, 153, 0.5);
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
 }
 
 @layer base {
-	* {
-		@apply border-border outline-ring/50;
-	}
-
-	body {
-		@apply bg-[#050508] text-foreground;
-		margin: 0;
-		font-family:
-			-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans",
-			"Droid Sans", "Helvetica Neue", sans-serif;
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
-		text-rendering: optimizeLegibility;
-		background: linear-gradient(135deg, #050508 0%, #0a0a0f 100%);
-	}
-
-	/* Smooth scrolling */
-	html {
-		scroll-behavior: smooth;
-	}
-}
-
-/* Enhanced code typography */
-code,
-pre,
-.monaco-editor {
-	font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", "Fira Code", "Cascadia Code", monospace !important;
-	font-feature-settings:
-		"liga" 1,
-		"calt" 1;
-}
-
-/* XZX Gradient Animation Keyframes */
-@keyframes first {
-	0% {
-		transform: rotate(0deg) scale(1);
-	}
-	50% {
-		transform: rotate(180deg) scale(1.1);
-	}
-	100% {
-		transform: rotate(360deg) scale(1);
-	}
-}
-
-@keyframes second {
-	0% {
-		transform: rotate(0deg) scale(1);
-	}
-	50% {
-		transform: rotate(-180deg) scale(1.05);
-	}
-	100% {
-		transform: rotate(-360deg) scale(1);
-	}
-}
-
-@keyframes third {
-	0% {
-		transform: rotate(0deg) scale(1);
-	}
-	50% {
-		transform: rotate(180deg) scale(1.15);
-	}
-	100% {
-		transform: rotate(360deg) scale(1);
-	}
-}
-
-@keyframes fourth {
-	0% {
-		transform: rotate(0deg) scale(1);
-	}
-	50% {
-		transform: rotate(-180deg) scale(1.08);
-	}
-	100% {
-		transform: rotate(-360deg) scale(1);
-	}
-}
-
-@keyframes fifth {
-	0% {
-		transform: rotate(0deg) scale(1);
-	}
-	50% {
-		transform: rotate(180deg) scale(1.12);
-	}
-	100% {
-		transform: rotate(360deg) scale(1);
-	}
-}
-
-/* XZX Gradient Classes */
-.animate-first {
-	animation: first 35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-	filter: blur(50px) saturate(150%);
-}
-
-.animate-second {
-	animation: second 30s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-	filter: blur(50px) saturate(150%);
-}
-
-.animate-third {
-	animation: third 25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-	filter: blur(50px) saturate(150%);
-}
-
-.animate-fourth {
-	animation: fourth 40s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-	filter: blur(50px) saturate(150%);
-}
-
-.animate-fifth {
-	animation: fifth 32s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-	filter: blur(50px) saturate(150%);
-}
-
-/* XZX Custom Components */
-@layer components {
-	.xzx-gradient-text {
-		@apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-purple-400;
-	}
-
-	.xzx-gradient-bg {
-		@apply bg-gradient-to-r from-purple-600 to-pink-600;
-	}
-
-	.xzx-glow {
-		box-shadow: 0 0 30px var(--xzx-glow-purple);
-	}
-
-	.xzx-glow-pink {
-		box-shadow: 0 0 30px var(--xzx-glow-pink);
-	}
-
-	.xzx-card {
-		@apply bg-gradient-to-br from-purple-900/20 via-purple-800/10 to-pink-900/20 
-               backdrop-blur-2xl border border-purple-500/30 
-               shadow-2xl shadow-black/30 hover:shadow-purple-500/20 
-               transition-all duration-500;
-	}
-
-	.xzx-button {
-		@apply bg-gradient-to-r from-purple-600 to-pink-600 
-               hover:from-purple-700 hover:to-pink-700 
-               text-white font-semibold py-2 px-4 rounded-lg
-               transition-all duration-300 transform hover:scale-105
-               shadow-lg hover:shadow-xl shadow-purple-500/40;
-	}
-
-	.xzx-border {
-		@apply border border-purple-500/30 hover:border-purple-500/50;
-	}
-}
-
-/* Custom scrollbar styles - XZX themed */
-::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
-}
-
-::-webkit-scrollbar-track {
-	background: rgba(10, 10, 15, 0.8);
-	border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-	background: linear-gradient(135deg, #8b5cf6, #ec4899);
-	border-radius: 10px;
-	transition: opacity 0.2s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-	opacity: 0.8;
-}
-
-/* Enhanced focus styles - XZX themed */
-*:focus-visible {
-	outline: 2px solid #8b5cf6;
-	outline-offset: 2px;
-	border-radius: 0.375rem;
-	box-shadow: 0 0 15px rgba(139, 92, 246, 0.3);
-}
-
-/* Selection styles - XZX themed */
-::selection {
-	background: rgba(139, 92, 246, 0.3);
-	color: white;
-}
-
-/* Smooth transitions for interactive elements */
-button,
-a,
-input,
-textarea,
-select {
-	transition:
-		all 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-		transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* XZX Switch Component Styling */
-[data-state="checked"][class*="bg-primary"] {
-	background: linear-gradient(135deg, #8b5cf6, #ec4899) !important;
-}
-
-/* XZX Slider Component Styling */
-[class*="Slider"] [class*="range"] {
-	background: linear-gradient(to right, #8b5cf6, #ec4899) !important;
-}
-
-/* Reduce motion for accessibility */
-@media (prefers-reduced-motion: reduce) {
-	*,
-	*::before,
-	*::after {
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-		transition-duration: 0.01ms !important;
-		scroll-behavior: auto !important;
-	}
-
-	.animate-first,
-	.animate-second,
-	.animate-third,
-	.animate-fourth,
-	.animate-fifth {
-		animation: none !important;
-	}
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
