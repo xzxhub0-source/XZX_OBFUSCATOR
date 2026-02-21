@@ -48,6 +48,7 @@ class SimpleCrypto {
   }
 
   static simpleHash(str: string): number {
+    if (!str) return 0;
     let hash = 0x811c9dc5;
     for (let i = 0; i < str.length; i++) {
       hash ^= str.charCodeAt(i);
@@ -83,10 +84,12 @@ class SeededRandom {
   }
   
   choice<T>(arr: T[]): T {
+    if (!arr || arr.length === 0) return null as any;
     return arr[this.range(0, arr.length - 1)];
   }
   
   shuffle<T>(arr: T[]): T[] {
+    if (!arr) return arr;
     for (let i = arr.length - 1; i > 0; i--) {
       const j = this.range(0, i);
       [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -131,7 +134,9 @@ class NameGenerator {
     'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
     'then', 'true', 'until', 'while', 'getfenv', 'setfenv', '_ENV', 'load',
     'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
-    'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8'
+    'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8',
+    'rawget', 'rawset', 'rawlen', 'rawequal', 'next', 'pairs', 'ipairs',
+    'select', 'unpack', 'tonumber', 'tostring', 'type', 'typeof'
   ]);
   
   constructor(rng: SeededRandom) { 
@@ -166,6 +171,7 @@ class NameGenerator {
 // ---------- String Splitter for Large Strings ----------
 class StringSplitter {
   static split(str: string, chunkSize: number): string[] {
+    if (!str) return [];
     const chunks: string[] = [];
     for (let i = 0; i < str.length; i += chunkSize) {
       chunks.push(str.slice(i, i + chunkSize));
@@ -174,7 +180,7 @@ class StringSplitter {
   }
 
   static encodeForLua(str: string): string {
-    // Convert string to byte array format to avoid string length limits
+    if (!str) return '{}';
     const bytes: number[] = [];
     for (let i = 0; i < str.length; i++) {
       bytes.push(str.charCodeAt(i));
@@ -183,12 +189,12 @@ class StringSplitter {
   }
 
   static encodeWithMixedRadix(str: string, rng: SeededRandom): string {
+    if (!str) return '{}';
     const bytes: number[] = [];
     for (let i = 0; i < str.length; i++) {
       bytes.push(str.charCodeAt(i));
     }
     
-    // Mix radix representations to make it harder to analyze
     const parts: string[] = [];
     for (let i = 0; i < bytes.length; i++) {
       const fmt = rng.range(0, 3);
@@ -201,7 +207,47 @@ class StringSplitter {
   }
 }
 
-// ---------- AST Transformer ----------
+// ---------- Safe AST Walker ----------
+class SafeASTWalker {
+  static walk(node: any, callback: (node: any) => void): void {
+    if (!node) return;
+    
+    callback(node);
+    
+    // Walk through all properties
+    for (const key in node) {
+      if (node.hasOwnProperty(key)) {
+        const value = node[key];
+        
+        if (Array.isArray(value)) {
+          // Walk array items
+          for (let i = 0; i < value.length; i++) {
+            if (value[i] && typeof value[i] === 'object') {
+              this.walk(value[i], callback);
+            }
+          }
+        } else if (value && typeof value === 'object') {
+          // Walk object
+          this.walk(value, callback);
+        }
+      }
+    }
+  }
+
+  static findNodes(node: any, type: string): any[] {
+    const results: any[] = [];
+    
+    this.walk(node, (n) => {
+      if (n && n.type === type) {
+        results.push(n);
+      }
+    });
+    
+    return results;
+  }
+}
+
+// ---------- AST Transformer with Null Safety ----------
 class ASTTransformer {
   private rng: SeededRandom;
   private nameGen: NameGenerator;
@@ -214,7 +260,9 @@ class ASTTransformer {
   }
 
   transform(ast: any, options: ObfuscationOptions): any {
-    // Apply transformations in order
+    if (!ast) return ast;
+
+    // Apply transformations in order with null safety
     if (options.layers?.identifiers) {
       this.renameIdentifiers(ast);
     }
@@ -227,7 +275,7 @@ class ASTTransformer {
       this.transformConstants(ast);
     }
 
-    if (options.layers?.garbage) {
+    if (options.layers?.garbage && ast.body) {
       this.addJunkCode(ast);
     }
 
@@ -241,22 +289,48 @@ class ASTTransformer {
   private renameIdentifiers(node: any): void {
     if (!node) return;
 
-    if (node.type === 'Identifier' && !this.isReserved(node.name)) {
+    // Process based on node type
+    if (node.type === 'Identifier' && node.name && !this.isReserved(node.name)) {
       if (!this.renamedIdentifiers.has(node.name)) {
         this.renamedIdentifiers.set(node.name, this.nameGen.generate());
       }
       node.name = this.renamedIdentifiers.get(node.name)!;
     }
 
-    // Recursively process all properties
-    for (const key in node) {
-      if (typeof node[key] === 'object') {
-        this.renameIdentifiers(node[key]);
-      }
+    // Handle function parameters
+    if (node.parameters && Array.isArray(node.parameters)) {
+      node.parameters.forEach((param: any) => {
+        if (param && param.type === 'Identifier' && param.name) {
+          if (!this.renamedIdentifiers.has(param.name)) {
+            this.renamedIdentifiers.set(param.name, this.nameGen.generate());
+          }
+          param.name = this.renamedIdentifiers.get(param.name)!;
+        }
+      });
     }
+
+    // Handle local variables
+    if (node.type === 'LocalStatement' && node.variables) {
+      node.variables.forEach((variable: any) => {
+        if (variable && variable.type === 'Identifier' && variable.name) {
+          if (!this.renamedIdentifiers.has(variable.name)) {
+            this.renamedIdentifiers.set(variable.name, this.nameGen.generate());
+          }
+          variable.name = this.renamedIdentifiers.get(variable.name)!;
+        }
+      });
+    }
+
+    // Recursively process children
+    SafeASTWalker.walk(node, (child) => {
+      if (child !== node) {
+        this.renameIdentifiers(child);
+      }
+    });
   }
 
   private isReserved(name: string): boolean {
+    if (!name) return true;
     const reserved = new Set([
       'true', 'false', 'nil', 'and', 'or', 'not',
       'if', 'then', 'else', 'elseif', 'end',
@@ -267,7 +341,8 @@ class ASTTransformer {
       'string', 'table', 'math', 'os', 'debug', 'coroutine',
       'bit32', 'utf8', 'rawget', 'rawset', 'rawlen', 'rawequal',
       'next', 'pairs', 'ipairs', 'select', 'unpack', 'tonumber',
-      'tostring', 'type', 'typeof', 'getmetatable', 'setmetatable'
+      'tostring', 'type', 'typeof', 'getmetatable', 'setmetatable',
+      'collectgarbage', 'gcinfo', 'newproxy'
     ]);
     return reserved.has(name);
   }
@@ -275,34 +350,29 @@ class ASTTransformer {
   private transformStrings(node: any): void {
     if (!node) return;
 
-    if (node.type === 'StringLiteral' && node.value.length > 20) {
-      // Split long strings
+    if (node.type === 'StringLiteral' && node.value && typeof node.value === 'string' && node.value.length > 20) {
       const chunks = this.splitIntoChunks(node.value, 15);
       if (chunks.length > 1) {
-        node.type = 'BinaryExpression';
-        node.operator = '..';
-        node.left = { type: 'StringLiteral', value: chunks[0] };
-        node.right = { type: 'StringLiteral', value: chunks[1] };
-        
-        for (let i = 2; i < chunks.length; i++) {
-          node.right = {
-            type: 'BinaryExpression',
-            operator: '..',
-            left: node.right,
-            right: { type: 'StringLiteral', value: chunks[i] }
-          };
+        // Replace with concatenation
+        const newNodes = this.buildStringConcat(chunks);
+        if (newNodes) {
+          node.type = newNodes.type;
+          node.operator = newNodes.operator;
+          node.left = newNodes.left;
+          node.right = newNodes.right;
         }
       }
     }
 
-    for (const key in node) {
-      if (typeof node[key] === 'object') {
-        this.transformStrings(node[key]);
+    SafeASTWalker.walk(node, (child) => {
+      if (child !== node) {
+        this.transformStrings(child);
       }
-    }
+    });
   }
 
   private splitIntoChunks(str: string, size: number): string[] {
+    if (!str) return [];
     const chunks: string[] = [];
     for (let i = 0; i < str.length; i += size) {
       chunks.push(str.slice(i, i + size));
@@ -310,83 +380,104 @@ class ASTTransformer {
     return chunks;
   }
 
+  private buildStringConcat(chunks: string[]): any {
+    if (!chunks || chunks.length === 0) return null;
+    
+    let result = {
+      type: 'StringLiteral',
+      value: chunks[0]
+    };
+    
+    for (let i = 1; i < chunks.length; i++) {
+      result = {
+        type: 'BinaryExpression',
+        operator: '..',
+        left: result,
+        right: {
+          type: 'StringLiteral',
+          value: chunks[i]
+        }
+      };
+    }
+    
+    return result;
+  }
+
   private transformConstants(node: any): void {
     if (!node) return;
 
-    if (node.type === 'NumericLiteral') {
-      // Transform numbers with mathematical equivalents
+    if (node.type === 'NumericLiteral' && node.value !== undefined) {
       if (this.rng.range(0, 1) === 0) {
+        // Transform number
+        const val = node.value;
         const transformations = [
-          `(${node.value} + 0)`,
-          `(${node.value} * 1)`,
-          `(0x${node.value.toString(16)})`,
-          `(0b${node.value.toString(2)})`,
-          `(0${node.value.toString(8)})`,
-          `(${node.value / 2} + ${node.value / 2})`,
-          `(${node.value} - 0)`
+          { type: 'NumericLiteral', value: val },
+          { type: 'NumericLiteral', value: val, raw: '0x' + val.toString(16) },
+          { type: 'NumericLiteral', value: val, raw: '0b' + val.toString(2) }
         ];
-        node.type = 'BinaryExpression';
-        // This is simplified - in practice you'd build proper AST nodes
-        node.value = this.rng.choice(transformations);
+        const selected = this.rng.choice(transformations);
+        if (selected) {
+          node.raw = selected.raw;
+        }
       }
     }
 
-    for (const key in node) {
-      if (typeof node[key] === 'object') {
-        this.transformConstants(node[key]);
+    SafeASTWalker.walk(node, (child) => {
+      if (child !== node) {
+        this.transformConstants(child);
       }
-    }
+    });
   }
 
   private addJunkCode(node: any): void {
-    if (!node) return;
+    if (!node || !node.body || !Array.isArray(node.body)) return;
 
-    if (node.type === 'Chunk' && node.body) {
-      const junkCount = this.rng.range(1, 3);
-      for (let i = 0; i < junkCount; i++) {
-        const pos = this.rng.range(0, node.body.length);
-        node.body.splice(pos, 0, this.createJunkStatement());
-      }
-    }
-
-    for (const key in node) {
-      if (typeof node[key] === 'object') {
-        this.addJunkCode(node[key]);
+    const junkCount = this.rng.range(1, 3);
+    for (let i = 0; i < junkCount; i++) {
+      const pos = this.rng.range(0, node.body.length);
+      const junk = this.createJunkStatement();
+      if (junk) {
+        node.body.splice(pos, 0, junk);
       }
     }
   }
 
   private createJunkStatement(): any {
-    const types = ['assign', 'call', 'if', 'local'];
+    const types = ['assign', 'local', 'if'];
     const type = this.rng.choice(types);
     
     switch (type) {
       case 'assign':
         return {
           type: 'AssignmentStatement',
-          variables: [{ type: 'Identifier', name: '_' + this.rng.randomHex(3) }],
-          init: [{ type: 'NumericLiteral', value: this.rng.range(0, 999) }]
+          variables: [{
+            type: 'Identifier',
+            name: '_' + this.rng.randomHex(3)
+          }],
+          init: [{
+            type: 'NumericLiteral',
+            value: this.rng.range(0, 999)
+          }]
         };
-      case 'call':
+      case 'local':
         return {
-          type: 'CallStatement',
-          expression: {
-            type: 'CallExpression',
-            base: { type: 'Identifier', name: 'print' },
-            arguments: [{ type: 'StringLiteral', value: '' }]
-          }
-        };
-      case 'if':
-        return {
-          type: 'IfStatement',
-          condition: { type: 'BooleanLiteral', value: false },
-          then: []
+          type: 'LocalStatement',
+          variables: [{
+            type: 'Identifier',
+            name: '_' + this.rng.randomHex(2)
+          }],
+          init: [{
+            type: 'NilLiteral'
+          }]
         };
       default:
         return {
-          type: 'LocalStatement',
-          variables: [{ type: 'Identifier', name: '_' + this.rng.randomHex(2) }],
-          init: [{ type: 'NilLiteral' }]
+          type: 'IfStatement',
+          condition: {
+            type: 'BooleanLiteral',
+            value: false
+          },
+          then: []
         };
     }
   }
@@ -394,159 +485,187 @@ class ASTTransformer {
   private complicateExpressions(node: any): void {
     if (!node) return;
 
-    if (node.type === 'BinaryExpression') {
-      // Add redundant operations
+    if (node.type === 'BinaryExpression' && node.left && node.right) {
       if (this.rng.range(0, 2) === 0) {
-        // Transform a + b into (a + b) + 0
+        // Add redundant operation
         const newNode = {
           type: 'BinaryExpression',
           operator: '+',
-          left: node,
+          left: { ...node },
           right: { type: 'NumericLiteral', value: 0 }
         };
-        Object.assign(node, newNode);
+        node.type = newNode.type;
+        node.operator = newNode.operator;
+        node.left = newNode.left;
+        node.right = newNode.right;
       }
     }
 
-    for (const key in node) {
-      if (typeof node[key] === 'object') {
-        this.complicateExpressions(node[key]);
+    SafeASTWalker.walk(node, (child) => {
+      if (child !== node) {
+        this.complicateExpressions(child);
       }
-    }
+    });
   }
 }
 
-// ---------- Code Generator ----------
+// ---------- Safe Code Generator ----------
 class CodeGenerator {
   generate(ast: any): string {
+    if (!ast) return '';
     return this.visitNode(ast);
   }
 
   private visitNode(node: any): string {
-    if (!node) return 'nil';
+    if (!node) return '';
 
-    switch (node.type) {
-      case 'Chunk':
-        return (node.body || []).map((stmt: any) => this.visitNode(stmt)).join('\n');
+    try {
+      switch (node.type) {
+        case 'Chunk':
+          return this.visitNodes(node.body);
 
-      case 'AssignmentStatement':
-        return this.visitNodes(node.variables) + ' = ' + this.visitNodes(node.init);
+        case 'AssignmentStatement':
+          return this.visitNodes(node.variables) + ' = ' + this.visitNodes(node.init);
 
-      case 'LocalStatement':
-        return 'local ' + this.visitNodes(node.variables) + 
-               (node.init && node.init.length ? ' = ' + this.visitNodes(node.init) : '');
+        case 'LocalStatement':
+          return 'local ' + this.visitNodes(node.variables) + 
+                 (node.init && node.init.length ? ' = ' + this.visitNodes(node.init) : '');
 
-      case 'CallStatement':
-        return this.visitNode(node.expression);
+        case 'CallStatement':
+          return this.visitNode(node.expression);
 
-      case 'CallExpression':
-        return this.visitNode(node.base) + '(' + 
-               (node.arguments || []).map((arg: any) => this.visitNode(arg)).join(', ') + ')';
+        case 'CallExpression':
+          return this.visitNode(node.base) + '(' + 
+                 this.visitNodes(node.arguments) + ')';
 
-      case 'StringLiteral':
-        return this.escapeString(node.value);
+        case 'StringLiteral':
+          return this.escapeString(node.value);
 
-      case 'NumericLiteral':
-        return node.value.toString();
+        case 'NumericLiteral':
+          return node.raw || node.value.toString();
 
-      case 'BooleanLiteral':
-        return node.value ? 'true' : 'false';
+        case 'BooleanLiteral':
+          return node.value ? 'true' : 'false';
 
-      case 'NilLiteral':
-        return 'nil';
+        case 'NilLiteral':
+          return 'nil';
 
-      case 'Identifier':
-        return node.name;
+        case 'Identifier':
+          return node.name || '';
 
-      case 'BinaryExpression':
-        return '(' + this.visitNode(node.left) + ' ' + node.operator + ' ' + this.visitNode(node.right) + ')';
+        case 'BinaryExpression':
+          return '(' + this.visitNode(node.left) + ' ' + node.operator + ' ' + this.visitNode(node.right) + ')';
 
-      case 'UnaryExpression':
-        return node.operator + ' ' + this.visitNode(node.argument);
+        case 'UnaryExpression':
+          return node.operator + ' ' + this.visitNode(node.argument);
 
-      case 'IfStatement':
-        let code = 'if ' + this.visitNode(node.condition) + ' then\n';
-        code += this.visitNodes(node.then).split('\n').map(line => '  ' + line).join('\n');
-        if (node.else) {
-          code += '\nelse\n';
-          const elseBody = Array.isArray(node.else) ? node.else : [node.else];
-          code += this.visitNodes(elseBody).split('\n').map(line => '  ' + line).join('\n');
-        }
-        code += '\nend';
-        return code;
+        case 'IfStatement':
+          return this.generateIfStatement(node);
 
-      case 'WhileStatement':
-        return 'while ' + this.visitNode(node.condition) + ' do\n' +
-               this.visitNodes(node.body).split('\n').map(line => '  ' + line).join('\n') + '\nend';
+        case 'WhileStatement':
+          return 'while ' + this.visitNode(node.condition) + ' do\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
 
-      case 'RepeatStatement':
-        return 'repeat\n' +
-               this.visitNodes(node.body).split('\n').map(line => '  ' + line).join('\n') + '\n' +
-               'until ' + this.visitNode(node.condition);
+        case 'RepeatStatement':
+          return 'repeat\n' +
+                 this.indent(this.visitNodes(node.body)) + '\n' +
+                 'until ' + this.visitNode(node.condition);
 
-      case 'ForStatement':
-        return 'for ' + this.visitNode(node.variable) + ' = ' +
-               this.visitNode(node.start) + ', ' + this.visitNode(node.end) +
-               (node.step ? ', ' + this.visitNode(node.step) : '') + ' do\n' +
-               this.visitNodes(node.body).split('\n').map(line => '  ' + line).join('\n') + '\nend';
+        case 'ForStatement':
+          return 'for ' + this.visitNode(node.variable) + ' = ' +
+                 this.visitNode(node.start) + ', ' + this.visitNode(node.end) +
+                 (node.step ? ', ' + this.visitNode(node.step) : '') + ' do\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
 
-      case 'ForInStatement':
-        return 'for ' + this.visitNodes(node.variables) + ' in ' +
-               this.visitNodes(node.iterators) + ' do\n' +
-               this.visitNodes(node.body).split('\n').map(line => '  ' + line).join('\n') + '\nend';
+        case 'ForInStatement':
+          return 'for ' + this.visitNodes(node.variables) + ' in ' +
+                 this.visitNodes(node.iterators) + ' do\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
 
-      case 'FunctionDeclaration':
-        return 'function ' + this.visitNode(node.identifier) + '(' +
-               (node.parameters || []).map((p: any) => this.visitNode(p)).join(', ') + ')\n' +
-               this.visitNodes(node.body).split('\n').map(line => '  ' + line).join('\n') + '\nend';
+        case 'FunctionDeclaration':
+          return 'function ' + this.visitNode(node.identifier) + '(' +
+                 this.visitNodes(node.parameters) + ')\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
 
-      case 'LocalFunction':
-        return 'local function ' + this.visitNode(node.identifier) + '(' +
-               (node.parameters || []).map((p: any) => this.visitNode(p)).join(', ') + ')\n' +
-               this.visitNodes(node.body).split('\n').map(line => '  ' + line).join('\n') + '\nend';
+        case 'LocalFunction':
+          return 'local function ' + this.visitNode(node.identifier) + '(' +
+                 this.visitNodes(node.parameters) + ')\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
 
-      case 'ReturnStatement':
-        return 'return ' + (node.arguments || []).map((arg: any) => this.visitNode(arg)).join(', ');
+        case 'ReturnStatement':
+          return 'return ' + this.visitNodes(node.arguments);
 
-      case 'BreakStatement':
-        return 'break';
+        case 'BreakStatement':
+          return 'break';
 
-      case 'GotoStatement':
-        return 'goto ' + node.label;
+        case 'GotoStatement':
+          return 'goto ' + node.label;
 
-      case 'LabelStatement':
-        return '::' + node.label + '::';
+        case 'LabelStatement':
+          return '::' + node.label + '::';
 
-      case 'TableConstructorExpression':
-        return '{' + (node.fields || []).map((field: any) => this.visitNode(field)).join(', ') + '}';
+        case 'TableConstructorExpression':
+          return '{' + this.visitNodes(node.fields) + '}';
 
-      case 'TableKey':
-        return '[' + this.visitNode(node.key) + '] = ' + this.visitNode(node.value);
+        case 'TableKey':
+          return '[' + this.visitNode(node.key) + '] = ' + this.visitNode(node.value);
 
-      case 'TableKeyString':
-        return node.key.name + ' = ' + this.visitNode(node.value);
+        case 'TableKeyString':
+          return (node.key && node.key.name || '') + ' = ' + this.visitNode(node.value);
 
-      case 'TableValue':
-        return this.visitNode(node.value);
+        case 'TableValue':
+          return this.visitNode(node.value);
 
-      case 'IndexExpression':
-        return this.visitNode(node.base) + '[' + this.visitNode(node.index) + ']';
+        case 'IndexExpression':
+          return this.visitNode(node.base) + '[' + this.visitNode(node.index) + ']';
 
-      case 'MemberExpression':
-        return this.visitNode(node.base) + '.' + node.identifier.name;
+        case 'MemberExpression':
+          return this.visitNode(node.base) + '.' + (node.identifier ? node.identifier.name : '');
 
-      default:
-        return '-- unknown node type: ' + node.type;
+        default:
+          return '';
+      }
+    } catch (e) {
+      console.warn('Error generating code for node:', node.type, e);
+      return '';
     }
   }
 
+  private generateIfStatement(node: any): string {
+    let code = 'if ' + this.visitNode(node.condition) + ' then\n';
+    code += this.indent(this.visitNodes(node.then));
+    
+    if (node.else) {
+      code += '\nelse\n';
+      const elseBody = Array.isArray(node.else) ? node.else : [node.else];
+      code += this.indent(this.visitNodes(elseBody));
+    }
+    
+    code += '\nend';
+    return code;
+  }
+
   private visitNodes(nodes: any[]): string {
-    return (nodes || []).map((node: any) => this.visitNode(node)).join(', ');
+    if (!nodes || !Array.isArray(nodes)) return '';
+    return nodes
+      .map(node => this.visitNode(node))
+      .filter(line => line && line.trim())
+      .join(', ');
   }
 
   private escapeString(str: string): string {
-    // Simple string escaping
-    return '"' + str.replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+    if (!str) return '""';
+    return '"' + str
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t') + '"';
+  }
+
+  private indent(code: string): string {
+    if (!code) return '';
+    return code.split('\n').map(line => '  ' + line).join('\n');
   }
 }
 
@@ -557,13 +676,29 @@ export class LightweightObfuscator {
     const rng = new SeededRandom(options.seed || Math.floor(Math.random() * 0x7fffffff));
     
     try {
-      // Parse source to AST
-      const ast = luaparse.parse(source, { 
-        comments: false, 
-        luaVersion: '5.1',
-        locations: false,
-        ranges: false
-      });
+      // Validate input
+      if (!source || source.trim().length === 0) {
+        throw new Error('Empty source code');
+      }
+
+      // Parse source to AST with error handling
+      let ast;
+      try {
+        ast = luaparse.parse(source, { 
+          comments: false, 
+          luaVersion: '5.1',
+          locations: false,
+          ranges: false,
+          scope: false,
+          wait: false
+        });
+      } catch (parseError) {
+        throw new Error(`Failed to parse Lua: ${parseError.message}`);
+      }
+      
+      if (!ast) {
+        throw new Error('Failed to parse AST');
+      }
       
       // Transform AST
       const transformer = new ASTTransformer(rng);
@@ -573,9 +708,9 @@ export class LightweightObfuscator {
       const generator = new CodeGenerator();
       let obfuscatedCode = generator.generate(transformedAst);
       
-      // If strings layer is enabled, also encrypt strings in the final output
-      if (options.layers?.strings) {
-        obfuscatedCode = this.encryptStrings(obfuscatedCode, rng);
+      // If no code generated, use original
+      if (!obfuscatedCode || obfuscatedCode.trim().length === 0) {
+        obfuscatedCode = source;
       }
       
       // Generate random names for loader
@@ -636,29 +771,6 @@ export class LightweightObfuscator {
         error: error instanceof Error ? error.message : String(error)
       };
     }
-  }
-
-  private encryptStrings(code: string, rng: SeededRandom): string {
-    // Find and encrypt string literals
-    return code.replace(/"([^"\\]*(\\.[^"\\]*)*)"|'([^'\\]*(\\.[^'\\]*)*)'/g, (match) => {
-      if (rng.range(0, 2) === 0) {
-        // Keep as is
-        return match;
-      }
-      
-      // Encrypt the string content
-      const content = match.slice(1, -1);
-      const key = rng.range(1, 0xff);
-      const encrypted: number[] = [];
-      
-      for (let i = 0; i < content.length; i++) {
-        encrypted.push(content.charCodeAt(i) ^ ((key + i) & 0xff));
-      }
-      
-      // Generate decoder
-      const decryptVar = '_' + rng.randomHex(3);
-      return `((function(${decryptVar}) local s='';for i=1,#${decryptVar} do s=s..string.char(${decryptVar}[i]~(${key}+i-1));end;return s;end)(${JSON.stringify(encrypted)}))`;
-    });
   }
 
   private buildLoader(
@@ -795,16 +907,17 @@ return result
   }
 
   private generateJunkCode(vars: string[], rng: SeededRandom): string {
+    if (!vars || vars.length === 0) return '';
+    
     const ops = [
-      `local ${vars[0]} = ${vars[1]} or 0; ${vars[2]} = (${vars[0]} + ${rng.range(1, 100)}) & 0xff;`,
-      `for i = 1, ${rng.range(2, 4)} do ${vars[3]} = i end;`,
-      `local ${vars[4]} = {${vars[0]}, ${vars[1]}, ${vars[2]}};`,
-      `if (${vars[0]} > 0) then ${vars[1]} = nil else ${vars[2]} = false end;`,
-      `local ${vars[0]} = string.char(${rng.range(65, 90)});`,
-      `local ${vars[1]} = math.random(${rng.range(1, 100)});`,
-      `local ${vars[2]} = tostring(${vars[1]});`,
+      `local ${vars[0] || '_'} = ${vars[1] || '_'} or 0; ${vars[2] || '_'} = (${vars[0] || '_'} + ${rng.range(1, 100)}) & 0xff;`,
+      `for i = 1, ${rng.range(2, 4)} do ${vars[3] || '_'} = i end;`,
+      `local ${vars[4] || '_'} = {${vars[0] || '_'}, ${vars[1] || '_'}, ${vars[2] || '_'}};`,
+      `if (${vars[0] || '_'} > 0) then ${vars[1] || '_'} = nil else ${vars[2] || '_'} = false end;`,
+      `local ${vars[0] || '_'} = string.char(${rng.range(65, 90)});`,
+      `local ${vars[1] || '_'} = math.random(${rng.range(1, 100)});`,
     ];
-    return rng.choice(ops);
+    return rng.choice(ops) || '';
   }
 }
 
