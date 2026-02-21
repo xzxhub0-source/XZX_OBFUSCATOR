@@ -357,6 +357,9 @@ class BytecodeCompiler {
         this.visitIR(node.children![i]);
       }
       for (let i = 0; i < half; i++) {
+        this.visitIR(node.children![i]);
+      }
+      for (let i = 0; i < half; i++) {
         const varNode = node.children![i];
         if (varNode.type === 'IDENT') {
           this.emit('SETGLOBAL', this.addConstant(varNode.value));
@@ -365,6 +368,9 @@ class BytecodeCompiler {
     } else if (node.type === 'LOCAL') {
       const half = (node.children?.length || 0) / 2;
       for (let i = half; i < (node.children?.length || 0); i++) {
+        this.visitIR(node.children![i]);
+      }
+      for (let i = 0; i < half; i++) {
         this.visitIR(node.children![i]);
       }
       for (let i = 0; i < half; i++) {
@@ -437,7 +443,11 @@ class VMGenerator {
       pc: rng.letter(),
       stack: rng.letter() + rng.letter(),
       env: rng.letter() + rng.letter(),
-      result: rng.letter() + rng.letter() + rng.letter(),
+      tmp: rng.letter() + rng.letter(),
+      i: rng.letter(),
+      j: rng.letter(),
+      x: rng.letter(),
+      y: rng.letter(),
     };
 
     // Encrypt bytecode
@@ -445,7 +455,6 @@ class VMGenerator {
     const encrypted: string[] = [];
     for (let i = 0; i < bytecode.length; i++) {
       const val = bytecode[i] ^ key[i % key.length];
-      // Randomly format numbers as hex, binary, or decimal
       const fmt = rng.range(0, 2);
       if (fmt === 0) encrypted.push('0x' + val.toString(16));
       else if (fmt === 1) encrypted.push('0b' + val.toString(2));
@@ -457,113 +466,203 @@ class VMGenerator {
       .replace(/"([^"]+)":/g, '$1:')
       .replace(/"/g, "'");
 
-    // Create the VM with multiple layers of obfuscation
+    // Create the VM with full constant decryption at start
     return `--[[ XZX Build: ${buildId} ]]
-${vars.result}=${vars.bc}and${vars.pc}or${vars.env}${vars.consts}${vars.key}${vars.stack} 
 load=load or loadstring
-return load((function(${vars.bc},${vars.consts},${vars.key},${vars.pc},${vars.stack},${vars.env},${vars.result},...)local ${vars.pc}=${vars.pc}or 0 ${vars.stack}=${vars.stack}or{} ${vars.env}=${vars.env}or getfenv and getfenv()or _ENV 
-${vars.bc}=${vars.bc}or{${encrypted.join(',')}} 
-${vars.consts}=${vars.consts}or${constStr} 
-${vars.key}=${vars.key}or{${key.join(',')}} 
-for ${vars.result}=1,#${vars.bc}do ${vars.bc}[${vars.result}]=${vars.bc}[${vars.result}]~${vars.key}[((${vars.result}-1)%#${vars.key})+1]end 
-${vars.result}=nil 
-local function ${vars.pc}${vars.stack}() 
-while ${vars.pc}<=#${vars.bc}do 
-local ${vars.env}=${vars.bc}[${vars.pc}] 
-${vars.pc}=${vars.pc}+1 
-if ${vars.env}==${opMap.get('LOADK')}then 
-local ${vars.result}=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8) 
-${vars.pc}=${vars.pc}+2 
-local ${vars.consts}=${vars.consts}[${vars.result}] 
-if type(${vars.consts})=='table'then 
-if ${vars.consts}.t=='s-multi'then 
-local ${vars.key}='' 
-for ${vars.stack}=1,#${vars.consts}.c do 
-local ${vars.env}=${vars.consts}.c[${vars.stack}] 
-local ${vars.result}=${vars.consts}.k[${vars.stack}] 
-for ${vars.bc}=1,#${vars.env}do 
-${vars.key}=${vars.key}..string.char(${vars.env}[${vars.bc}]~${vars.result}) 
-end 
-end 
-${vars.consts}=${vars.key} 
-elseif ${vars.consts}.t=='n3'then 
-local ${vars.key}=(${vars.consts}.d+${vars.consts}.k[3])&0xffffffff 
-local ${vars.stack}=(${vars.key}~${vars.consts}.k[2])&0xffffffff 
-local ${vars.env}=(${vars.stack}>>3)|((${vars.stack}&7)<<29) 
-${vars.consts}=(${vars.env}-${vars.consts}.k[1])&0xffffffff 
-elseif ${vars.consts}.t=='b'then 
-${vars.consts}=(${vars.consts}.v~${vars.consts}.k)==1 
-end 
-end 
-${vars.stack}[${vars.pc}-1]=${vars.consts} 
-elseif ${vars.env}==${opMap.get('ADD')}then 
-local ${vars.key}=${vars.stack}[${vars.pc}-2] 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-2 
-${vars.stack}[${vars.pc}-1]=${vars.key}+${vars.consts} 
-elseif ${vars.env}==${opMap.get('SUB')}then 
-local ${vars.key}=${vars.stack}[${vars.pc}-2] 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-2 
-${vars.stack}[${vars.pc}-1]=${vars.key}-${vars.consts} 
-elseif ${vars.env}==${opMap.get('MUL')}then 
-local ${vars.key}=${vars.stack}[${vars.pc}-2] 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-2 
-${vars.stack}[${vars.pc}-1]=${vars.key}*${vars.consts} 
-elseif ${vars.env}==${opMap.get('DIV')}then 
-local ${vars.key}=${vars.stack}[${vars.pc}-2] 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-2 
-${vars.stack}[${vars.pc}-1]=${vars.key}/${vars.consts} 
-elseif ${vars.env}==${opMap.get('MOD')}then 
-local ${vars.key}=${vars.stack}[${vars.pc}-2] 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-2 
-${vars.stack}[${vars.pc}-1]=${vars.key}%${vars.consts} 
-elseif ${vars.env}==${opMap.get('POW')}then 
-local ${vars.key}=${vars.stack}[${vars.pc}-2] 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-2 
-${vars.stack}[${vars.pc}-1]=${vars.key}^${vars.consts} 
-elseif ${vars.env}==${opMap.get('CONCAT')}then 
-local ${vars.key}=${vars.stack}[${vars.pc}-2] 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-2 
-${vars.stack}[${vars.pc}-1]=${vars.key}..${vars.consts} 
-elseif ${vars.env}==${opMap.get('CALL')}then 
-local ${vars.key}=${vars.bc}[${vars.pc}] 
-${vars.pc}=${vars.pc}+2 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-1 
-local ${vars.env}={} 
-for ${vars.result}=1,${vars.key}do 
-${vars.env}[${vars.key}-${vars.result}+1]=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-1 
-end 
-local ${vars.bc}={${vars.consts}(unpack(${vars.env}))} 
-for _,${vars.stack}in ipairs(${vars.bc})do 
-${vars.stack}[${vars.pc}]=${vars.stack} 
-${vars.pc}=${vars.pc}+1 
-end 
-elseif ${vars.env}==${opMap.get('GETGLOBAL')}then 
-local ${vars.key}=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8) 
-${vars.pc}=${vars.pc}+2 
-${vars.stack}[${vars.pc}-1]=${vars.env}[${vars.consts}[${vars.key}]] 
-elseif ${vars.env}==${opMap.get('SETGLOBAL')}then 
-local ${vars.key}=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8) 
-${vars.pc}=${vars.pc}+2 
-local ${vars.consts}=${vars.stack}[${vars.pc}-1] 
-${vars.pc}=${vars.pc}-1 
-${vars.env}[${vars.consts}[${vars.key}]]=${vars.consts} 
-elseif ${vars.env}==${opMap.get('RET')}then 
-return ${vars.stack}[${vars.pc}-1]or${vars.stack}[1] 
-end 
-end 
-return ${vars.stack}[1]or${vars.stack}[${vars.pc}-1] 
-end 
-return ${vars.pc}${vars.stack}() 
-end)('','','',0,{},nil,nil,nil)()`;
+return load((function(${vars.bc},${vars.consts},${vars.key},${vars.pc},${vars.stack},${vars.env},${vars.tmp},${vars.i},${vars.j},${vars.x},${vars.y},...)
+${vars.bc}=${vars.bc}or{${encrypted.join(',')}}
+${vars.consts}=${vars.consts}or${constStr}
+${vars.key}=${vars.key}or{${key.join(',')}}
+${vars.pc}=${vars.pc}or 1
+${vars.stack}=${vars.stack}or{}
+${vars.env}=${vars.env}or(getfenv and getfenv() or _ENV)
+
+-- Decrypt bytecode
+for ${vars.i}=1,#${vars.bc} do
+  ${vars.bc}[${vars.i}]=${vars.bc}[${vars.i}]~${vars.key}[(${vars.i}-1)%#${vars.key}+1]
+end
+
+-- Decrypt all constants upfront
+for ${vars.i}=1,#${vars.consts} do
+  local c=${vars.consts}[${vars.i}]
+  if type(c)=='table' then
+    if c.t=='s-multi' then
+      local s=''
+      for ${vars.j}=1,#c.c do
+        local chunk=c.c[${vars.j}]
+        local k=c.k[${vars.j}]
+        for ${vars.tmp}=1,#chunk do
+          s=s..string.char(chunk[${vars.tmp}]~k)
+        end
+      end
+      ${vars.consts}[${vars.i}]=s
+    elseif c.t=='n3' then
+      local a=(c.d+c.k[3])&0xffffffff
+      local b=(a~c.k[2])&0xffffffff
+      local d=(b>>3)|((b&7)<<29)
+      ${vars.consts}[${vars.i}]=(d-c.k[1])&0xffffffff
+    elseif c.t=='b' then
+      ${vars.consts}[${vars.i}]=(c.v~c.k)==1
+    end
+  end
+end
+
+-- VM interpreter
+while ${vars.pc}<=#${vars.bc} do
+  local op=${vars.bc}[${vars.pc}]
+  ${vars.pc}=${vars.pc}+1
+
+  if op==${opMap.get('LOADK')} then
+    local idx=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8)
+    ${vars.pc}=${vars.pc}+2
+    ${vars.stack}[${vars.pc}-1]=${vars.consts}[idx]
+
+  elseif op==${opMap.get('ADD')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a+b
+
+  elseif op==${opMap.get('SUB')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a-b
+
+  elseif op==${opMap.get('MUL')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a*b
+
+  elseif op==${opMap.get('DIV')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a/b
+
+  elseif op==${opMap.get('MOD')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a%b
+
+  elseif op==${opMap.get('POW')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a^b
+
+  elseif op==${opMap.get('CONCAT')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a..b
+
+  elseif op==${opMap.get('EQ')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a==b
+
+  elseif op==${opMap.get('LT')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a<b
+
+  elseif op==${opMap.get('LE')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a<=b
+
+  elseif op==${opMap.get('GT')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a>b
+
+  elseif op==${opMap.get('GE')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a>=b
+
+  elseif op==${opMap.get('AND')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a and b
+
+  elseif op==${opMap.get('OR')} then
+    local b=${vars.stack}[${vars.pc}-1]
+    local a=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=a or b
+
+  elseif op==${opMap.get('NOT')} then
+    local a=${vars.stack}[${vars.pc}-1]
+    ${vars.pc}=${vars.pc}-1
+    ${vars.stack}[${vars.pc}-1]=not a
+
+  elseif op==${opMap.get('LEN')} then
+    local a=${vars.stack}[${vars.pc}-1]
+    ${vars.pc}=${vars.pc}-1
+    ${vars.stack}[${vars.pc}-1]=#a
+
+  elseif op==${opMap.get('NEWTABLE')} then
+    ${vars.stack}[${vars.pc}-1]={}
+
+  elseif op==${opMap.get('GETTABLE')} then
+    local key=${vars.stack}[${vars.pc}-1]
+    local tbl=${vars.stack}[${vars.pc}-2]
+    ${vars.pc}=${vars.pc}-2
+    ${vars.stack}[${vars.pc}-1]=tbl[key]
+
+  elseif op==${opMap.get('SETTABLE')} then
+    local val=${vars.stack}[${vars.pc}-1]
+    local key=${vars.stack}[${vars.pc}-2]
+    local tbl=${vars.stack}[${vars.pc}-3]
+    ${vars.pc}=${vars.pc}-3
+    tbl[key]=val
+
+  elseif op==${opMap.get('CALL')} then
+    local nargs=${vars.bc}[${vars.pc}]
+    ${vars.pc}=${vars.pc}+2
+    local func=${vars.stack}[${vars.pc}-1]
+    ${vars.pc}=${vars.pc}-1
+    local args={}
+    for ${vars.i}=1,nargs do
+      args[nargs-${vars.i}+1]=${vars.stack}[${vars.pc}-1]
+      ${vars.pc}=${vars.pc}-1
+    end
+    local results={func(unpack(args))}
+    for _,v in ipairs(results) do
+      ${vars.stack}[${vars.pc}]=v
+      ${vars.pc}=${vars.pc}+1
+    end
+
+  elseif op==${opMap.get('GETGLOBAL')} then
+    local idx=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8)
+    ${vars.pc}=${vars.pc}+2
+    local name=${vars.consts}[idx]
+    ${vars.stack}[${vars.pc}-1]=${vars.env}[name]
+
+  elseif op==${opMap.get('SETGLOBAL')} then
+    local idx=${vars.bc}[${vars.pc}]+(${vars.bc}[${vars.pc}+1]<<8)
+    ${vars.pc}=${vars.pc}+2
+    local val=${vars.stack}[${vars.pc}-1]
+    ${vars.pc}=${vars.pc}-1
+    local name=${vars.consts}[idx]
+    ${vars.env}[name]=val
+
+  elseif op==${opMap.get('RET')} then
+    return ${vars.stack}[${vars.pc}-1] or ${vars.stack}[1]
+  end
+end
+return ${vars.stack}[1] or ${vars.stack}[${vars.pc}-1]
+end)('','','',1,{},nil,nil,nil,nil,nil)()`;
   }
 }
 
