@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,94 +10,90 @@ import { Slider } from "@/components/ui/slider";
 import {
   Copy,
   Download,
-  Settings,
-  Code,
-  Lock,
-  Shuffle,
-  CheckCircle,
-  AlertCircle,
-  Zap,
-  Shield,
-  Sparkles,
   Upload,
   File,
   X,
-  Cpu,
-  Globe,
-  HardDrive,
-  Eye,
-  Bug,
-  Layers,
-  ShieldAlert,
+  Shield,
+  Zap,
   Loader2,
+  AlertCircle,
   AlertTriangle,
-  Info,
+  CheckCircle,
   Clock,
-  Database,
-  CpuIcon,
-  Hash,
-  Key,
-  ZapOff,
-  BrainCircuit,
-  FileWarning,
-  CheckCheck,
-  MessageCircle,
-  Award,
   Users,
+  Award,
+  TrendingUp,
+  MessageCircle,
   ExternalLink,
   Moon,
   Sun,
-  TrendingUp,
-  Play,
-  Pause,
-  RotateCw,
-  Wifi,
   WifiOff,
   Gauge,
-  Network,
-  BarChart3,
-  LineChart,
-  PieChart,
-  Activity,
-  Circle,
-  Square,
-  Triangle,
-  Hexagon,
-  Octagon,
-  Diamond,
-  CircleDot,
-  CircleDashed,
-  CircleOff,
-  CircleSlashed,
-  CircleEllipsis,
-  CircleFadingPlus,
-  CircleFadingArrowUp,
-  CircleFadingArrowDown,
-  CircleStop,
-  CirclePause,
-  CirclePlay,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
 import {
-  trackObfuscation,
-  trackCopy,
-  trackDownload,
-  trackSessionStart,
-  trackProtectionLevelChange,
-  trackFeatureCombination,
-  trackObfuscationPerformance,
-  trackObfuscationMilestone,
-  trackTimeOnPage,
-  trackError,
-  trackSettingsChange,
-} from "@/lib/analytics-client";
-import type { ParseError } from "@/lib/parser";
-import type { EncryptionAlgorithm } from "@/lib/encryption";
-import type { FormattingStyle } from "@/lib/formatter";
-import type { ObfuscationMetrics } from "@/lib/metrics";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getTotalObfuscations, incrementTotalObfuscations } from "@/lib/counter-api";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Types
+interface ObfuscationOptions {
+  mangleNames?: boolean;
+  encodeStrings?: boolean;
+  encodeNumbers?: boolean;
+  controlFlow?: boolean;
+  antiDebugging?: boolean;
+  protectionLevel?: number;
+  deadCodeInjection?: boolean;
+  opaquePredicates?: boolean;
+  controlFlowFlattening?: boolean;
+  targetVersion?: string;
+  optimizationLevel?: number;
+  encryptionAlgorithm?: string;
+  formattingStyle?: string;
+}
+
+interface ObfuscationResult {
+  success: boolean;
+  code?: string;
+  error?: string;
+  metrics?: {
+    inputSize: number;
+    outputSize: number;
+    duration: number;
+    instructionCount: number;
+    buildId: string;
+    layersApplied: string[];
+  };
+}
+
+interface ObfuscationProgress {
+  stage: string;
+  percent: number;
+  currentStep: number;
+  totalSteps: number;
+}
+
+interface ObfuscatorSettings {
+  mangleNames: boolean;
+  encodeStrings: boolean;
+  encodeNumbers: boolean;
+  minify: boolean;
+  compressionLevel: number;
+  encryptionAlgorithm: string;
+  controlFlowFlattening: boolean;
+  deadCodeInjection: boolean;
+  antiDebugging: boolean;
+  formattingStyle: string;
+  targetVersion: string;
+  optimizationLevel: number;
+  antiTamper: boolean;
+  integrityChecks: boolean;
+}
 
 const DEFAULT_LUA_CODE = `-- Welcome to XZX Obfuscator
 -- Paste your Lua code below
@@ -118,173 +114,84 @@ print("Score: " .. calculateScore(100, 5))`;
 
 const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2 [https://discord.gg/5q5bEKmYqF]\n\n";
 
-interface ObfuscatorSettings {
-  mangleNames: boolean;
-  encodeStrings: boolean;
-  encodeNumbers: boolean;
-  controlFlow: boolean;
-  minify: boolean;
-  compressionLevel: number;
-  encryptionAlgorithm: EncryptionAlgorithm;
-  controlFlowFlattening: boolean;
-  deadCodeInjection: boolean;
-  antiDebugging: boolean;
-  formattingStyle: FormattingStyle;
-  intenseVM: boolean;
-  gcFixes: boolean;
-  targetVersion: "5.1" | "5.2" | "5.3" | "5.4" | "luajit";
-  hardcodeGlobals: boolean;
-  optimizationLevel: 0 | 1 | 2 | 3;
-  staticEnvironment: boolean;
-  vmCompression: boolean;
-  disableLineInfo: boolean;
-  useDebugLibrary: boolean;
-  opaquePredicates: boolean;
-  virtualization: boolean;
-  bytecodeEncryption: boolean;
-  antiTamper: boolean;
-  selfModifying: boolean;
-  mutation: boolean;
-  codeSplitting: boolean;
-  environmentLock: boolean;
-  integrityChecks: boolean;
-}
-
-interface ObfuscationProgress {
-  stage: string;
-  percent: number;
-  currentStep: number;
-  totalSteps: number;
-}
-
 export default function Home() {
   const [inputCode, setInputCode] = useState(DEFAULT_LUA_CODE);
   const [outputCode, setOutputCode] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  const [inputError, setInputError] = useState<ParseError | undefined>(undefined);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-  const [metrics, setMetrics] = useState<ObfuscationMetrics | null>(null);
+  const [metrics, setMetrics] = useState<any>(null);
   const [fileName, setFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [obfuscationCount, setObfuscationCount] = useState(0);
   const [totalObfuscations, setTotalObfuscations] = useState(150);
-  const [pageStartTime] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(true);
   const [progress, setProgress] = useState<ObfuscationProgress | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [webWorker, setWebWorker] = useState<Worker | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'slow'>('online');
-  const [networkSpeed, setNetworkSpeed] = useState<number | null>(null);
+  const workerRef = useRef<Worker | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
     encodeStrings: true,
     encodeNumbers: true,
-    controlFlow: true,
-    minify: false,
+    minify: true,
     compressionLevel: 50,
     encryptionAlgorithm: "xor",
-    controlFlowFlattening: true,
+    controlFlowFlattening: false,
     deadCodeInjection: true,
-    antiDebugging: true,
+    antiDebugging: false,
     formattingStyle: "minified",
-    intenseVM: false,
-    gcFixes: false,
     targetVersion: "5.1",
-    hardcodeGlobals: false,
     optimizationLevel: 2,
-    staticEnvironment: false,
-    vmCompression: false,
-    disableLineInfo: false,
-    useDebugLibrary: false,
-    opaquePredicates: true,
-    virtualization: false,
-    bytecodeEncryption: false,
-    antiTamper: true,
-    selfModifying: false,
-    mutation: false,
-    codeSplitting: false,
-    environmentLock: false,
-    integrityChecks: true,
+    antiTamper: false,
+    integrityChecks: false,
   });
 
   // Initialize web worker
   useEffect(() => {
-    const worker = new Worker(new URL('../workers/obfuscator.worker.ts', import.meta.url));
-    setWebWorker(worker);
+    // Create worker with correct path
+    if (typeof window !== 'undefined') {
+      try {
+        workerRef.current = new Worker(new URL('../workers/obfuscator.worker.ts', import.meta.url));
+        
+        workerRef.current.onmessage = (event) => {
+          const { type, data } = event.data;
+          
+          switch (type) {
+            case 'progress':
+              setProgress(data);
+              break;
+            
+            case 'complete':
+              handleObfuscationComplete(data);
+              break;
+            
+            case 'error':
+              handleObfuscationError(data);
+              break;
+          }
+        };
 
-    worker.onmessage = (event) => {
-      const { type, data } = event.data;
-      
-      switch (type) {
-        case 'progress':
-          setProgress(data);
-          break;
-        
-        case 'complete':
-          handleObfuscationComplete(data);
-          break;
-        
-        case 'error':
-          handleObfuscationError(data);
-          break;
+        workerRef.current.onerror = (error) => {
+          console.error('Worker error:', error);
+          handleObfuscationError({ message: 'Worker error occurred, falling back to main thread...' });
+          // Fallback to main thread obfuscation
+          fallbackObfuscate();
+        };
+      } catch (error) {
+        console.error('Failed to create worker:', error);
+      }
+    }
+
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
       }
     };
-
-    worker.onerror = (error) => {
-      console.error('Worker error:', error);
-      handleObfuscationError({ message: 'Worker error occurred' });
-    };
-
-    return () => {
-      worker.terminate();
-    };
-  }, []);
-
-  // Connection monitoring
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOffline(false);
-      setConnectionStatus('online');
-      measureNetworkSpeed();
-    };
-
-    const handleOffline = () => {
-      setIsOffline(true);
-      setConnectionStatus('offline');
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    measureNetworkSpeed();
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  const measureNetworkSpeed = useCallback(async () => {
-    const startTime = Date.now();
-    try {
-      const response = await fetch('/api/ping');
-      await response.json();
-      const endTime = Date.now();
-      const speed = endTime - startTime;
-      setNetworkSpeed(speed);
-      setConnectionStatus(speed > 1000 ? 'slow' : 'online');
-    } catch {
-      setNetworkSpeed(null);
-    }
   }, []);
 
   // Timer for obfuscation
@@ -307,18 +214,18 @@ export default function Home() {
     };
   }, [isProcessing]);
 
+  // Connection monitoring
   useEffect(() => {
-    const fetchTotal = async () => {
-      try {
-        const count = await getTotalObfuscations();
-        setTotalObfuscations(count);
-      } catch (error) {
-        console.error('Failed to fetch total obfuscations:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-    fetchTotal();
   }, []);
 
   useEffect(() => {
@@ -331,81 +238,23 @@ export default function Home() {
       });
     };
     window.addEventListener('mousemove', handleMouseMove);
+    
+    // Simulate loading
+    setTimeout(() => setIsLoading(false), 1000);
+    
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
-
-  useEffect(() => {
-    trackSessionStart().catch(err => console.error("Analytics tracking failed:", err));
-    return () => {
-      const timeOnPage = Math.floor((Date.now() - pageStartTime) / 1000);
-      trackTimeOnPage(timeOnPage).catch(err => console.error("Analytics tracking failed:", err));
-    };
-  }, [pageStartTime]);
-
-  useEffect(() => {
-    if (outputCode && !error) {
-      setShowSuccessAnimation(true);
-      const timer = setTimeout(() => setShowSuccessAnimation(false), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [outputCode, error]);
 
   const handleObfuscationComplete = useCallback((result: any) => {
     if (result.success && result.code) {
       const finalCode = OUTPUT_HEADER + result.code;
       setOutputCode(finalCode);
       
-      const transformedMetrics: ObfuscationMetrics = {
-        inputSize: result.metrics?.inputSize || inputCode.length,
-        outputSize: result.metrics?.outputSize || result.code.length,
-        duration: result.metrics?.duration || 0,
-        sizeRatio: (result.metrics?.outputSize || result.code.length) / inputCode.length,
-        transformations: {
-          namesMangled: settings.mangleNames ? 50 : 0,
-          stringsEncoded: settings.encodeStrings ? 25 : 0,
-          numbersEncoded: settings.encodeNumbers ? 15 : 0,
-          deadCodeBlocks: settings.deadCodeInjection ? 30 : 0,
-          antiDebugChecks: settings.antiDebugging ? 5 : 0
-        }
-      };
-      
-      setMetrics(transformedMetrics);
+      setMetrics(result.metrics);
       setError(null);
-      setInputError(undefined);
       setIsProcessing(false);
       setProgress(null);
-
-      // Update counters
-      setObfuscationCount(prev => prev + 1);
-      
-      incrementTotalObfuscations().then(newTotal => {
-        setTotalObfuscations(newTotal);
-      }).catch(() => {
-        setTotalObfuscations(prev => prev + 1);
-      });
-
-      // Track analytics
-      trackObfuscation({
-        obfuscationType: settings.controlFlowFlattening ? "advanced" : "standard",
-        codeSize: inputCode.length,
-        protectionLevel: settings.compressionLevel,
-      }).catch(err => console.error("Analytics tracking failed:", err));
-
-      trackObfuscationPerformance({
-        inputSize: inputCode.length,
-        outputSize: result.code.length,
-        duration: result.metrics?.duration || 0,
-        sizeRatio: result.code.length / inputCode.length,
-      }).catch(err => console.error("Analytics tracking failed:", err));
-
-      trackFeatureCombination({
-        mangleNames: settings.mangleNames,
-        encodeStrings: settings.encodeStrings,
-        encodeNumbers: settings.encodeNumbers,
-        controlFlow: settings.controlFlow,
-        minify: settings.minify,
-        protectionLevel: settings.compressionLevel,
-      }).catch(err => console.error("Analytics tracking failed:", err));
+      setTotalObfuscations(prev => prev + 1);
     } else {
       setError(result.error || "Failed to obfuscate code");
       setOutputCode("");
@@ -413,7 +262,7 @@ export default function Home() {
       setIsProcessing(false);
       setProgress(null);
     }
-  }, [inputCode.length, settings]);
+  }, []);
 
   const handleObfuscationError = useCallback((error: any) => {
     setError(error.message || "An unexpected error occurred");
@@ -423,10 +272,33 @@ export default function Home() {
     setProgress(null);
   }, []);
 
+  const fallbackObfuscate = async () => {
+    try {
+      const { obfuscateLua } = await import('@/lib/obfuscator');
+      const options = {
+        mangleNames: settings.mangleNames,
+        encodeStrings: settings.encodeStrings,
+        encodeNumbers: settings.encodeNumbers,
+        controlFlow: settings.controlFlowFlattening,
+        antiDebugging: settings.antiDebugging,
+        protectionLevel: settings.compressionLevel,
+        deadCodeInjection: settings.deadCodeInjection,
+        controlFlowFlattening: settings.controlFlowFlattening,
+        targetVersion: settings.targetVersion,
+        optimizationLevel: settings.optimizationLevel,
+        encryptionAlgorithm: settings.encryptionAlgorithm,
+        formattingStyle: settings.formattingStyle,
+      };
+      
+      const result = await obfuscateLua(inputCode, options);
+      handleObfuscationComplete(result);
+    } catch (error) {
+      handleObfuscationError(error);
+    }
+  };
+
   const handleInputChange = (newCode: string) => {
     setInputCode(newCode);
-    if (inputError) setInputError(undefined);
-    setWarning(null);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -445,7 +317,6 @@ export default function Home() {
       const content = e.target?.result as string;
       setInputCode(content);
       
-      // Auto-detect large files and adjust settings
       if (content.length > 50000) {
         setWarning("Large file detected. Consider reducing protection level for better performance.");
       }
@@ -463,9 +334,11 @@ export default function Home() {
   };
 
   const cancelObfuscation = () => {
-    abortControllerRef.current?.abort();
-    if (webWorker) {
-      webWorker.postMessage({ type: 'cancel' });
+    if (workerRef.current) {
+      workerRef.current.postMessage({ type: 'cancel' });
+      workerRef.current.terminate();
+      // Recreate worker
+      workerRef.current = new Worker(new URL('../workers/obfuscator.worker.ts', import.meta.url));
     }
     setIsProcessing(false);
     setProgress(null);
@@ -485,14 +358,11 @@ export default function Home() {
 
     setIsProcessing(true);
     setError(null);
-    setInputError(undefined);
     setCopySuccess(false);
     setMetrics(null);
     setWarning(null);
     setOutputCode("");
     setProgress({ stage: "Initializing", percent: 0, currentStep: 0, totalSteps: 10 });
-
-    abortControllerRef.current = new AbortController();
 
     const options = {
       mangleNames: settings.mangleNames,
@@ -502,7 +372,6 @@ export default function Home() {
       antiDebugging: settings.antiDebugging,
       protectionLevel: settings.compressionLevel,
       deadCodeInjection: settings.deadCodeInjection,
-      opaquePredicates: settings.opaquePredicates,
       controlFlowFlattening: settings.controlFlowFlattening,
       targetVersion: settings.targetVersion,
       optimizationLevel: settings.optimizationLevel,
@@ -510,8 +379,8 @@ export default function Home() {
       formattingStyle: settings.formattingStyle,
     };
 
-    if (webWorker) {
-      webWorker.postMessage({
+    if (workerRef.current) {
+      workerRef.current.postMessage({
         type: 'obfuscate',
         data: {
           source: inputCode,
@@ -521,15 +390,7 @@ export default function Home() {
       });
     } else {
       // Fallback if worker not available
-      setTimeout(() => {
-        try {
-          const { obfuscateLua } = require('@/lib/obfuscator');
-          const result = obfuscateLua(inputCode, options);
-          handleObfuscationComplete(result);
-        } catch (error) {
-          handleObfuscationError(error);
-        }
-      }, 100);
+      fallbackObfuscate();
     }
   };
 
@@ -538,7 +399,6 @@ export default function Home() {
       await navigator.clipboard.writeText(outputCode);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
-      trackCopy(outputCode.length).catch(err => console.error("Analytics tracking failed:", err));
     } catch (err) {
       setError("Failed to copy to clipboard");
     }
@@ -552,7 +412,6 @@ export default function Home() {
     a.download = fileName ? `obfuscated_${fileName.replace(/\.lua$/, '')}.lua` : "obfuscated.lua";
     a.click();
     URL.revokeObjectURL(url);
-    trackDownload(outputCode.length).catch(err => console.error("Analytics tracking failed:", err));
   };
 
   const getProtectionStrength = () => {
@@ -567,19 +426,11 @@ export default function Home() {
 
   const getActiveAdvancedCount = () => {
     let count = 0;
-    if (settings.intenseVM) count++;
-    if (settings.opaquePredicates) count++;
-    if (settings.virtualization) count++;
-    if (settings.bytecodeEncryption) count++;
-    if (settings.antiTamper) count++;
-    if (settings.selfModifying) count++;
-    if (settings.mutation) count++;
-    if (settings.codeSplitting) count++;
-    if (settings.environmentLock) count++;
-    if (settings.integrityChecks) count++;
     if (settings.controlFlowFlattening) count++;
     if (settings.deadCodeInjection) count++;
     if (settings.antiDebugging) count++;
+    if (settings.antiTamper) count++;
+    if (settings.integrityChecks) count++;
     return count;
   };
 
@@ -667,15 +518,9 @@ export default function Home() {
             transform: `translate(${mousePosition.x * -0.01}px, ${mousePosition.y * -0.01}px)`,
           }}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(59,130,246,0.1),transparent_50%)]" />
         <div className="absolute top-20 left-20 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-pink-600/20 rounded-full blur-3xl animate-pulse delay-1000" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-600/10 rounded-full blur-3xl" />
       </div>
-
-      <div className="fixed inset-0 opacity-20 pointer-events-none" style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='1' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E")`,
-      }} />
 
       <div className="relative z-10">
         <nav className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/10 bg-black/20">
@@ -703,13 +548,6 @@ export default function Home() {
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 rounded-full">
                     <WifiOff className="w-3.5 h-3.5 text-yellow-400" />
                     <span className="text-xs text-yellow-300">Offline</span>
-                  </div>
-                )}
-                
-                {networkSpeed && networkSpeed > 1000 && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 rounded-full">
-                    <Gauge className="w-3.5 h-3.5 text-orange-400" />
-                    <span className="text-xs text-orange-300">Slow Connection</span>
                   </div>
                 )}
 
@@ -826,7 +664,6 @@ export default function Home() {
                   <CodeEditor
                     value={inputCode}
                     onChange={handleInputChange}
-                    error={inputError}
                     options={{
                       readOnly: isProcessing,
                       automaticLayout: true,
@@ -860,17 +697,6 @@ export default function Home() {
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <span>Step {progress.currentStep} of {progress.totalSteps}</span>
                       <span>Estimated: {formatTime(Math.round((elapsedTime / progress.percent) * (100 - progress.percent)))}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="p-3 bg-white/5 rounded-lg">
-                        <div className="text-xs text-gray-400 mb-1">Input Size</div>
-                        <div className="text-sm font-semibold">{formatBytes(inputCode.length)}</div>
-                      </div>
-                      <div className="p-3 bg-white/5 rounded-lg">
-                        <div className="text-xs text-gray-400 mb-1">Processing</div>
-                        <div className="text-sm font-semibold">{Math.round(inputCode.length * progress.percent / 100).toLocaleString()} chars</div>
-                      </div>
                     </div>
                   </div>
                 </Card>
@@ -946,23 +772,23 @@ export default function Home() {
                     </div>
                     <div className="p-4 bg-white/5 rounded-xl">
                       <div className="text-sm text-gray-400 mb-1">Ratio</div>
-                      <div className="text-xl font-bold text-purple-400">{metrics.sizeRatio.toFixed(2)}x</div>
+                      <div className="text-xl font-bold text-purple-400">{(metrics.outputSize / metrics.inputSize).toFixed(2)}x</div>
                     </div>
                     <div className="p-4 bg-white/5 rounded-xl">
                       <div className="text-sm text-gray-400 mb-1">Time</div>
-                      <div className="text-xl font-bold">{(metrics.duration).toFixed(1)}s</div>
+                      <div className="text-xl font-bold">{metrics.duration.toFixed(1)}s</div>
                     </div>
                   </div>
 
-                  <div className="mt-6 grid grid-cols-2 gap-4">
-                    {Object.entries(metrics.transformations).map(([key, value]) => (
-                      <div key={key} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                        <span className="text-sm text-gray-400 capitalize">
-                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                  <div className="mt-6">
+                    <h4 className="text-sm font-medium text-gray-400 mb-3">Applied Layers</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {metrics.layersApplied.map((layer: string) => (
+                        <span key={layer} className="px-2 py-1 bg-purple-500/20 rounded-full text-xs text-purple-300">
+                          {layer}
                         </span>
-                        <span className="text-sm font-semibold text-purple-400">{value}</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </Card>
               )}
@@ -985,155 +811,60 @@ export default function Home() {
                     {renderSwitch(
                       "mangle-names",
                       "Mangle Names",
-                      "Replace identifiers with random hex strings",
+                      "Replace identifiers with random strings",
                       settings.mangleNames,
-                      (checked) => {
-                        setSettings({ ...settings, mangleNames: checked });
-                        trackSettingsChange({ setting: "mangleNames", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }
+                      (checked) => setSettings({ ...settings, mangleNames: checked })
                     )}
                     {renderSwitch(
                       "encode-strings",
                       "Encode Strings",
                       "Convert strings to encrypted byte arrays",
                       settings.encodeStrings,
-                      (checked) => {
-                        setSettings({ ...settings, encodeStrings: checked });
-                        trackSettingsChange({ setting: "encodeStrings", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
+                      (checked) => setSettings({ ...settings, encodeStrings: checked }),
                       "pink"
                     )}
                     {renderSwitch(
                       "encode-numbers",
                       "Encode Numbers",
-                      "Transform numbers into complex expressions",
+                      "Transform numbers into expressions",
                       settings.encodeNumbers,
-                      (checked) => {
-                        setSettings({ ...settings, encodeNumbers: checked });
-                        trackSettingsChange({ setting: "encodeNumbers", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }
+                      (checked) => setSettings({ ...settings, encodeNumbers: checked })
                     )}
                     {renderSwitch(
                       "minify",
                       "Minify",
                       "Remove whitespace and comments",
                       settings.minify,
-                      (checked) => {
-                        setSettings({ ...settings, minify: checked });
-                        trackSettingsChange({ setting: "minify", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      }
+                      (checked) => setSettings({ ...settings, minify: checked })
                     )}
                   </div>
 
                   <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">VM & Core</h4>
+                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Advanced</h4>
                     {renderSwitch(
-                      "control-flow-flattening",
-                      "Control Flow Flattening",
-                      "Transform into state machine",
-                      settings.controlFlowFlattening,
-                      (checked) => {
-                        setSettings({ ...settings, controlFlowFlattening: checked });
-                        trackSettingsChange({ setting: "controlFlowFlattening", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
-                      "orange",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "opaque-predicates",
-                      "Opaque Predicates",
-                      "Insert complex always-true conditions",
-                      settings.opaquePredicates,
-                      (checked) => {
-                        setSettings({ ...settings, opaquePredicates: checked });
-                        trackSettingsChange({ setting: "opaquePredicates", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
-                      "purple",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "dead-code-injection",
+                      "dead-code",
                       "Dead Code Injection",
                       "Inject unreachable code blocks",
                       settings.deadCodeInjection,
-                      (checked) => {
-                        setSettings({ ...settings, deadCodeInjection: checked });
-                        trackSettingsChange({ setting: "deadCodeInjection", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
+                      (checked) => setSettings({ ...settings, deadCodeInjection: checked }),
                       "orange",
                       "Advanced"
                     )}
                     {renderSwitch(
-                      "intense-vm",
-                      "Intense VM",
-                      "Multi-layer VM processing",
-                      settings.intenseVM,
-                      (checked) => {
-                        setSettings({ ...settings, intenseVM: checked });
-                        trackSettingsChange({ setting: "intenseVM", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
+                      "control-flow",
+                      "Control Flow Flattening",
+                      "Transform into state machine",
+                      settings.controlFlowFlattening,
+                      (checked) => setSettings({ ...settings, controlFlowFlattening: checked }),
                       "purple",
                       "Advanced"
                     )}
-                  </div>
-
-                  <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Anti-Analysis</h4>
                     {renderSwitch(
-                      "anti-debugging",
+                      "anti-debug",
                       "Anti-Debugging",
                       "Runtime debugger detection",
                       settings.antiDebugging,
-                      (checked) => {
-                        setSettings({ ...settings, antiDebugging: checked });
-                        trackSettingsChange({ setting: "antiDebugging", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
-                      "red",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "anti-tamper",
-                      "Anti-Tamper",
-                      "Detect code modification",
-                      settings.antiTamper,
-                      (checked) => {
-                        setSettings({ ...settings, antiTamper: checked });
-                        trackSettingsChange({ setting: "antiTamper", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
-                      "red",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "integrity-checks",
-                      "Integrity Checks",
-                      "Verify code integrity",
-                      settings.integrityChecks,
-                      (checked) => {
-                        setSettings({ ...settings, integrityChecks: checked });
-                        trackSettingsChange({ setting: "integrityChecks", value: checked }).catch(err =>
-                          console.error("Analytics tracking failed:", err)
-                        );
-                      },
+                      (checked) => setSettings({ ...settings, antiDebugging: checked }),
                       "red",
                       "Advanced"
                     )}
@@ -1143,9 +874,7 @@ export default function Home() {
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Target</h4>
                     <Select
                       value={settings.targetVersion}
-                      onValueChange={(value: any) => {
-                        setSettings({ ...settings, targetVersion: value });
-                      }}
+                      onValueChange={(value: string) => setSettings({ ...settings, targetVersion: value })}
                       disabled={isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/5 border-white/10">
@@ -1165,9 +894,7 @@ export default function Home() {
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
                     <Select
                       value={settings.optimizationLevel.toString()}
-                      onValueChange={(value: string) => {
-                        setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 });
-                      }}
+                      onValueChange={(value: string) => setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 })}
                       disabled={isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/5 border-white/10">
@@ -1186,9 +913,7 @@ export default function Home() {
                     <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Encryption</h4>
                     <Select
                       value={settings.encryptionAlgorithm}
-                      onValueChange={(value: EncryptionAlgorithm) => {
-                        setSettings({ ...settings, encryptionAlgorithm: value });
-                      }}
+                      onValueChange={(value: string) => setSettings({ ...settings, encryptionAlgorithm: value })}
                       disabled={!settings.encodeStrings || isProcessing}
                     >
                       <SelectTrigger className="w-full bg-white/5 border-white/10">
@@ -1198,29 +923,6 @@ export default function Home() {
                         <SelectItem value="none">None</SelectItem>
                         <SelectItem value="xor">XOR</SelectItem>
                         <SelectItem value="base64">Base64</SelectItem>
-                        <SelectItem value="huffman">Huffman</SelectItem>
-                        <SelectItem value="chunked">Chunked</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Format</h4>
-                    <Select
-                      value={settings.formattingStyle}
-                      onValueChange={(value: FormattingStyle) => {
-                        setSettings({ ...settings, formattingStyle: value });
-                      }}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-white/5 border-white/10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="minified">Minified</SelectItem>
-                        <SelectItem value="pretty">Pretty</SelectItem>
-                        <SelectItem value="obfuscated">Obfuscated</SelectItem>
-                        <SelectItem value="single-line">Single Line</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1250,16 +952,9 @@ export default function Home() {
                           mangleNames: level >= 20,
                           encodeStrings: level >= 30,
                           encodeNumbers: level >= 40,
-                          controlFlow: level >= 50,
-                          encryptionAlgorithm: level >= 60 ? "xor" : "none",
                           deadCodeInjection: level >= 65,
                           controlFlowFlattening: level >= 70,
-                          intenseVM: level >= 75,
                           antiDebugging: level >= 80,
-                          opaquePredicates: level >= 80,
-                          virtualization: level >= 85,
-                          bytecodeEncryption: level >= 85,
-                          antiTamper: level >= 90,
                           optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
                         });
                       }}
