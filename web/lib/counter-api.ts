@@ -1,26 +1,138 @@
 // lib/counter-api.ts
-const API_URL = 'https://api.countapi.xyz'; // Free counting API
-const NAMESPACE = 'xzx-obfuscator';
-const KEY = 'total-obfuscations';
+// Simple counter implementation without Firebase dependencies
 
+/**
+ * Get the total number of obfuscations performed
+ * Uses localStorage in browser, returns default value on server
+ */
 export async function getTotalObfuscations(): Promise<number> {
-  try {
-    const response = await fetch(`${API_URL}/get/${NAMESPACE}/${KEY}`);
-    const data = await response.json();
-    return data.value || 150;
-  } catch (error) {
-    console.error('Failed to fetch count:', error);
-    return 150; // Fallback to 150
+  // Check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('xzx-total-obfuscations');
+      if (stored) {
+        const parsed = parseInt(stored, 10);
+        // Validate it's a number
+        if (!isNaN(parsed) && parsed > 0) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.error('Error reading from localStorage:', error);
+    }
+    // Default starting value
+    return 150;
+  }
+  // Server-side rendering fallback
+  return 150;
+}
+
+/**
+ * Increment the total obfuscations counter
+ * Returns the new count
+ */
+export async function incrementTotalObfuscations(): Promise<number> {
+  // Check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    try {
+      const current = await getTotalObfuscations();
+      const newCount = current + 1;
+      localStorage.setItem('xzx-total-obfuscations', newCount.toString());
+      return newCount;
+    } catch (error) {
+      console.error('Error writing to localStorage:', error);
+    }
+  }
+  // Fallback if localStorage fails or on server
+  return 151;
+}
+
+/**
+ * Reset the counter to its default value
+ * Useful for testing or admin purposes
+ */
+export async function resetTotalObfuscations(): Promise<number> {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('xzx-total-obfuscations', '150');
+      return 150;
+    } catch (error) {
+      console.error('Error resetting counter:', error);
+    }
+  }
+  return 150;
+}
+
+/**
+ * Get counter statistics
+ * Returns object with count and metadata
+ */
+export async function getCounterStats(): Promise<{
+  count: number;
+  lastUpdated: string;
+  source: 'local' | 'server';
+}> {
+  const count = await getTotalObfuscations();
+  
+  return {
+    count,
+    lastUpdated: new Date().toISOString(),
+    source: typeof window !== 'undefined' ? 'local' : 'server'
+  };
+}
+
+/**
+ * Force set the counter to a specific value
+ * @param value New counter value
+ */
+export async function setTotalObfuscations(value: number): Promise<number> {
+  if (typeof window !== 'undefined') {
+    try {
+      // Ensure value is a positive integer
+      const newValue = Math.max(0, Math.floor(value));
+      localStorage.setItem('xzx-total-obfuscations', newValue.toString());
+      return newValue;
+    } catch (error) {
+      console.error('Error setting counter:', error);
+    }
+  }
+  return value;
+}
+
+/**
+ * Check if counter exists in localStorage
+ */
+export async function hasCounter(): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    try {
+      return localStorage.getItem('xzx-total-obfuscations') !== null;
+    } catch (error) {
+      console.error('Error checking counter:', error);
+    }
+  }
+  return false;
+}
+
+/**
+ * Clear the counter from localStorage
+ */
+export async function clearCounter(): Promise<void> {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('xzx-total-obfuscations');
+    } catch (error) {
+      console.error('Error clearing counter:', error);
+    }
   }
 }
 
-export async function incrementTotalObfuscations(): Promise<number> {
-  try {
-    const response = await fetch(`${API_URL}/hit/${NAMESPACE}/${KEY}`);
-    const data = await response.json();
-    return data.value;
-  } catch (error) {
-    console.error('Failed to increment count:', error);
-    return 151; // Fallback
-  }
-}
+// Default export for convenience
+export default {
+  getTotalObfuscations,
+  incrementTotalObfuscations,
+  resetTotalObfuscations,
+  getCounterStats,
+  setTotalObfuscations,
+  hasCounter,
+  clearCounter
+};
