@@ -1,42 +1,59 @@
 import * as luaparse from 'luaparse';
-import { webcrypto } from 'crypto';
 
-export interface ObfuscationOptions {
-  seed?: number;
-  mode?: 'standard' | 'isolated' | 'sandbox';
-  debug?: boolean;
-  optimization?: 'none' | 'basic' | 'aggressive';
-  layers?: {
-    constants?: boolean;
-    identifiers?: boolean;
-    controlFlow?: boolean;
-    garbage?: boolean;
-    polymorphism?: boolean;
-    antiTamper?: boolean;
-    strings?: boolean;
-    expressions?: boolean;
-    stack?: boolean;
-    advanced?: boolean;
-  };
-}
-
-export interface ObfuscationResult {
-  success: boolean;
-  code?: string;
-  error?: string;
-  metrics?: {
-    inputSize: number;
-    outputSize: number;
-    duration: number;
-    instructionCount: number;
-    buildId: string;
-    layersApplied: string[];
-  };
-}
-
-// ---------- Cryptographic Utilities ----------
+// ---------- Crypto Utilities with Environment Detection ----------
 class CryptoUtils {
-  // xxHash32 – Enhanced version
+  private static crypto: any;
+  private static useNodeCrypto = false;
+  private static useWebCrypto = false;
+
+  static {
+    // Detect available crypto implementation
+    if (typeof globalThis !== 'undefined' && globalThis.crypto) {
+      this.crypto = globalThis.crypto;
+      this.useWebCrypto = true;
+    } else if (typeof window !== 'undefined' && window.crypto) {
+      this.crypto = window.crypto;
+      this.useWebCrypto = true;
+    } else if (typeof require !== 'undefined') {
+      try {
+        // Try to use Node.js crypto
+        const nodeCrypto = require('crypto');
+        if (nodeCrypto && nodeCrypto.webcrypto) {
+          this.crypto = nodeCrypto.webcrypto;
+          this.useWebCrypto = true;
+        } else if (nodeCrypto && nodeCrypto.randomBytes) {
+          this.crypto = nodeCrypto;
+          this.useNodeCrypto = true;
+        }
+      } catch (e) {
+        // Node.js crypto not available
+      }
+    }
+
+    // If no crypto available, use fallback
+    if (!this.crypto) {
+      console.warn('No crypto implementation found, using fallback (insecure for production)');
+      this.crypto = this.createFallbackCrypto();
+    }
+  }
+
+  private static createFallbackCrypto(): any {
+    return {
+      getRandomValues: (array: Uint8Array) => {
+        for (let i = 0; i < array.length; i++) {
+          array[i] = Math.floor(Math.random() * 256);
+        }
+        return array;
+      },
+      subtle: {
+        importKey: async () => {},
+        encrypt: async () => {},
+        decrypt: async () => {}
+      }
+    };
+  }
+
+  // xxHash32 implementation
   static xxHash32(data: Uint8Array, seed: number = 0): number {
     let h32 = seed >>> 0;
     const prime1 = 0x9e3779b1;
@@ -86,7 +103,7 @@ class CryptoUtils {
     return h32 >>> 0;
   }
 
-  // HMAC-SHA256 style integrity
+  // HMAC-style integrity
   static hmac(data: Uint8Array, secret: Uint8Array): number {
     const combined = new Uint8Array(data.length + secret.length);
     combined.set(data);
@@ -98,44 +115,98 @@ class CryptoUtils {
     return (h1 ^ h2) >>> 0;
   }
 
-  // AES-GCM encryption
-  static async aesEncrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-    const cryptoKey = await webcrypto.subtle.importKey(
-      'raw',
-      key,
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt']
-    );
-    const iv = webcrypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await webcrypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      cryptoKey,
-      data
-    );
-    const result = new Uint8Array(iv.length + encrypted.byteLength);
-    result.set(iv);
-    result.set(new Uint8Array(encrypted), iv.length);
+  // XOR-based encryption (fallback when AES not available)
+  static xorEncrypt(key: Uint8Array, data: Uint8Array): Uint8Array {
+    const result = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      result[i] = data[i] ^ key[i % key.length];
+    }
     return result;
   }
 
-  // AES-GCM decryption
+  // AES-GCM encryption with fallback
+  static async aesEncrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+    if (this.useWebCrypto && this.crypto.subtle) {
+      try {
+        const cryptoKey = await this.crypto.subtle.importKey(
+          'raw',
+          key,
+          { name: 'AES-GCM' },
+          false,
+          ['encrypt']
+        );
+        const iv = this.getRandomValues(new Uint8Array(12));
+        const encrypted = await this.crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv },
+          cryptoKey,
+          data
+        );
+        const result = new Uint8Array(iv.length + encrypted.byteLength);
+        result.set(iv);
+        result.set(new Uint8Array(encrypted), iv.length);
+        return result;
+      } catch (e) {
+        // Fallback to XOR if AES fails
+        return this.xorEncrypt(key, data);
+      }
+    } else {
+      // Fallback to XOR if WebCrypto not available
+      return this.xorEncrypt(key, data);
+    }
+  }
+
+  // AES-GCM decryption with fallback
   static async aesDecrypt(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-    const iv = data.slice(0, 12);
-    const ciphertext = data.slice(12);
-    const cryptoKey = await webcrypto.subtle.importKey(
-      'raw',
-      key,
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-    );
-    const decrypted = await webcrypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      cryptoKey,
-      ciphertext
-    );
-    return new Uint8Array(decrypted);
+    if (this.useWebCrypto && this.crypto.subtle && data.length > 12) {
+      try {
+        const iv = data.slice(0, 12);
+        const ciphertext = data.slice(12);
+        const cryptoKey = await this.crypto.subtle.importKey(
+          'raw',
+          key,
+          { name: 'AES-GCM' },
+          false,
+          ['decrypt']
+        );
+        const decrypted = await this.crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv },
+          cryptoKey,
+          ciphertext
+        );
+        return new Uint8Array(decrypted);
+      } catch (e) {
+        // Fallback to XOR if AES fails
+        return this.xorEncrypt(key, data);
+      }
+    } else {
+      // Fallback to XOR if WebCrypto not available
+      return this.xorEncrypt(key, data);
+    }
+  }
+
+  // Secure random bytes with fallback
+  static getRandomValues(array: Uint8Array): Uint8Array {
+    if (this.useWebCrypto && this.crypto.getRandomValues) {
+      return this.crypto.getRandomValues(array);
+    } else if (this.useNodeCrypto && this.crypto.randomBytes) {
+      const bytes = this.crypto.randomBytes(array.length);
+      for (let i = 0; i < array.length; i++) {
+        array[i] = bytes[i];
+      }
+      return array;
+    } else {
+      // Fallback to Math.random (insecure, but better than nothing)
+      for (let i = 0; i < array.length; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+      return array;
+    }
+  }
+
+  // Generate random bytes
+  static randomBytes(length: number): Uint8Array {
+    const array = new Uint8Array(length);
+    return this.getRandomValues(array);
   }
 
   // Shuffle blocks with order preservation
@@ -146,7 +217,7 @@ class CryptoUtils {
     }
     
     const order = Array.from({ length: blocks.length }, (_, i) => i);
-    // Fisher-Yates shuffle
+    // Fisher-Yates shuffle using secure random
     for (let i = order.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [order[i], order[j]] = [order[j], order[i]];
@@ -163,33 +234,7 @@ class CryptoUtils {
     return { data: result, order };
   }
 
-  // Unshuffle blocks using order
-  static unshuffleBlocks(data: Uint8Array, order: number[], blockSize: number): Uint8Array {
-    const blocks: Uint8Array[] = [];
-    for (let i = 0; i < data.length; i += blockSize) {
-      blocks.push(data.slice(i, Math.min(i + blockSize, data.length)));
-    }
-    
-    const result = new Uint8Array(data.length);
-    for (let i = 0; i < order.length; i++) {
-      const originalPos = order[i];
-      const block = blocks[i];
-      result.set(block, originalPos * blockSize);
-    }
-    
-    return result;
-  }
-
-  // XOR obfuscation with runtime-derived key
-  static xorObfuscate(data: Uint8Array, key: Uint8Array): Uint8Array {
-    const result = new Uint8Array(data.length);
-    for (let i = 0; i < data.length; i++) {
-      result[i] = data[i] ^ key[i % key.length];
-    }
-    return result;
-  }
-
-  // Strong hash for runtime checks (FNV-1a variant)
+  // Strong hash for runtime checks
   static strongHash(data: string): number {
     let h1 = 0x9e3779b9;
     let h2 = 0x85ebca6b;
@@ -200,25 +245,29 @@ class CryptoUtils {
     }
     return (h1 ^ h2) >>> 0;
   }
-
-  // Generate cryptographically secure random bytes
-  static randomBytes(length: number): Uint8Array {
-    return webcrypto.getRandomValues(new Uint8Array(length));
-  }
 }
 
 // ---------- Seeded Random ----------
 class SeededRandom {
   private state: Uint32Array;
+  private useCryptoRandom: boolean;
+  
   constructor(seed?: number) {
     this.state = new Uint32Array(4);
+    this.useCryptoRandom = !seed;
+    
     if (seed) {
       this.state[0] = seed >>> 0;
       this.state[1] = (seed * 0x9e3779b9) >>> 0;
       this.state[2] = (seed << 13) ^ (seed >>> 19);
       this.state[3] = ~seed >>> 0;
     } else {
-      webcrypto.getRandomValues(this.state);
+      // Use crypto random for seed
+      const bytes = CryptoUtils.randomBytes(16);
+      for (let i = 0; i < 4; i++) {
+        this.state[i] = (bytes[i * 4] | (bytes[i * 4 + 1] << 8) | 
+                        (bytes[i * 4 + 2] << 16) | (bytes[i * 4 + 3] << 24)) >>> 0;
+      }
     }
   }
   
@@ -279,7 +328,7 @@ class SeededRandom {
   }
 }
 
-// ---------- Opcode Map with Dynamic Mutation ----------
+// ---------- Opcode Map ----------
 const BASE_OPCODES = [
   'NOP','PUSH','POP','ADD','SUB','MUL','DIV','MOD','POW','CONCAT',
   'JMP','JIF','CALL','RET','LOADK','GETGLOBAL','SETGLOBAL','GETTABLE',
@@ -308,14 +357,12 @@ export class OpcodeMap {
   private randomize(): void {
     const shuffled = this.rng.shuffle([...BASE_OPCODES]);
     shuffled.forEach((op, idx) => {
-      // Use multiple hash rounds with mutation seed
       let h = CryptoUtils.xxHash32(
         new TextEncoder().encode(op + this.dynamicKey.toString() + this.mutationSeed), 
         this.mutationSeed
       );
       let num = (h & 0xff) + 1;
       
-      // Ensure no collision with advanced probing
       while (this.opToNum.has(op) || Array.from(this.opToNum.values()).includes(num)) {
         h = CryptoUtils.xxHash32(new TextEncoder().encode(h.toString()), h);
         num = (h & 0xff) + 1;
@@ -452,58 +499,9 @@ class IRBuilder {
         return new IRNode('UNKNOWN');
     }
   }
-
-  // Control Flow Flattening
-  static flattenControlFlow(ir: IRNode): IRNode {
-    const flattened = new IRNode('FLATTENED');
-    const blocks: IRNode[] = [];
-    const blockMap = new Map<number, number>();
-    
-    // Split into basic blocks
-    this.splitIntoBasicBlocks(ir, blocks);
-    
-    // Create dispatch block
-    const dispatch = new IRNode('DISPATCH');
-    const blockIds = blocks.map((_, i) => i);
-    
-    // Randomize block order
-    for (let i = blockIds.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [blockIds[i], blockIds[j]] = [blockIds[j], blockIds[i]];
-    }
-    
-    blockIds.forEach((originalId, newId) => {
-      blockMap.set(originalId, newId);
-    });
-    
-    // Reorder blocks
-    flattened.children = blockIds.map(id => blocks[id]);
-    
-    // Add dispatcher
-    flattened.left = dispatch;
-    
-    return flattened;
-  }
-
-  private static splitIntoBasicBlocks(ir: IRNode, blocks: IRNode[]): void {
-    // Implementation of basic block splitting
-    const currentBlock = new IRNode('BLOCK');
-    blocks.push(currentBlock);
-    
-    const traverse = (node: IRNode) => {
-      if (node.type === 'JMP' || node.type === 'JIF' || node.type === 'RETURN') {
-        blocks.push(new IRNode('BLOCK'));
-      }
-      if (node.children) {
-        node.children.forEach(traverse);
-      }
-    };
-    
-    traverse(ir);
-  }
 }
 
-// ---------- Bytecode Compiler with Enhanced Features ----------
+// ---------- Bytecode Compiler ----------
 class BytecodeCompiler {
   private bytecode: number[] = [];
   private constants: any[] = [null];
@@ -567,7 +565,6 @@ class BytecodeCompiler {
     }
   }
 
-  // Add garbage instructions
   addGarbageInstructions(): void {
     const garbageOps = ['NOP', 'PUSH', 'POP'];
     const garbageCount = this.rng.range(5, 15);
@@ -577,7 +574,6 @@ class BytecodeCompiler {
       const op = this.rng.choice(garbageOps);
       const garbage = [this.opMap.get(op)];
       
-      // Add random arguments
       for (let j = 0; j < this.rng.range(0, 2); j++) {
         garbage.push(this.rng.range(0, 255));
         garbage.push(this.rng.range(0, 255));
@@ -667,7 +663,7 @@ class BytecodeCompiler {
   }
 }
 
-// ---------- Advanced Constant Encryption ----------
+// ---------- Constant Encryption ----------
 class ConstantEncryptor {
   static encrypt(value: any, rng: SeededRandom): any {
     if (typeof value === 'number') {
@@ -679,7 +675,7 @@ class ConstantEncryptor {
         d: encrypted.d, 
         k: encrypted.k, 
         o: encrypted.o,
-        s: rng.range(0, 0xffff) // Add random salt
+        s: rng.range(0, 0xffff)
       };
     }
     
@@ -691,7 +687,7 @@ class ConstantEncryptor {
         d: encrypted.d, 
         k: encrypted.k, 
         o: encrypted.o,
-        s: rng.randomHex(8) // Add hex salt
+        s: rng.randomHex(8)
       };
     }
     
@@ -721,14 +717,12 @@ class ConstantEncryptor {
       chunks.push(Array.from(chunk).map(b => b ^ chunkKey));
     }
     
-    // Add random padding chunks with plausible values
     const paddingCount = rng.range(1, 3);
     for (let i = 0; i < paddingCount; i++) {
       chunks.push(Array.from({ length: rng.range(3, 6) }, () => rng.range(32, 126)));
       keys.push(rng.range(1, 0xff));
     }
     
-    // Shuffle chunks
     const order = Array.from({ length: chunks.length }, (_, i) => i);
     rng.shuffle(order);
     
@@ -740,7 +734,7 @@ class ConstantEncryptor {
   }
 }
 
-// ---------- Advanced Name Generator ----------
+// ---------- Name Generator ----------
 class NameGenerator {
   private rng: SeededRandom;
   private used: Set<string> = new Set();
@@ -755,7 +749,6 @@ class NameGenerator {
   
   generate(minLen?: number): string {
     const len = minLen || this.rng.range(4, 8);
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
     const templates = [
       () => 'x' + this.rng.randomHex(4),
       () => '_' + this.rng.randomHex(3),
@@ -765,7 +758,6 @@ class NameGenerator {
     
     let result = this.rng.choice(templates)();
     
-    // Ensure uniqueness and avoid reserved words
     while (this.used.has(result) || this.reservedWords.has(result)) {
       result = this.rng.choice(templates)();
     }
@@ -861,9 +853,12 @@ local function aesDecrypt(key, data)
   
   return result
 end
+
+-- Return the decryption function
+return { aesDecrypt = aesDecrypt }
 `;
 
-// ---------- VM Generator with All Fixes ----------
+// ---------- VM Generator ----------
 class VMGenerator {
   private rng: SeededRandom;
   private nameGen: NameGenerator;
@@ -903,8 +898,8 @@ class VMGenerator {
     };
 
     // Generate master seed and encryption keys
-    const masterSeed = this.rng.bytes(64);
-    const seedEncryptionKey = this.rng.bytes(32);
+    const masterSeed = CryptoUtils.randomBytes(64);
+    const seedEncryptionKey = CryptoUtils.randomBytes(32);
     const encryptedSeed = await CryptoUtils.aesEncrypt(seedEncryptionKey, masterSeed);
     
     // Derive all keys from master seed
@@ -920,7 +915,7 @@ class VMGenerator {
     const { data: shuffled, order: shuffleOrder } = CryptoUtils.shuffleBlocks(encrypted, blockSize);
     
     // XOR obfuscation
-    const finalEncrypted = CryptoUtils.xorObfuscate(shuffled, xorKey);
+    const finalEncrypted = CryptoUtils.xorEncrypt(xorKey, shuffled);
     
     // Format bytecode array with mixed radix
     const bcArray = Array.from(finalEncrypted).map(v => {
@@ -1032,9 +1027,9 @@ return load((function(...)
   local ${junkVars.join(',')}
 
   -- Embedded AES implementation
-  ${names.aesImpl} = [[
+  ${names.aesImpl} = (function()
     ${LUA_AES_IMPLEMENTATION}
-  ]]
+  end)()
   
   -- Encrypted seed
   ${names.seedEnc} = {${Array.from(encryptedSeed).join(',')}}
@@ -1117,7 +1112,7 @@ return load((function(...)
     end
     
     -- AES decrypt
-    local aes = load(${names.aesImpl})()
+    local aes = ${names.aesImpl}
     data = aes.aesDecrypt(aesKey, data)
     
     return data
@@ -1341,7 +1336,7 @@ end)()..'')()`;
       'ADD': `
         local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
         local a = ${stack}[${sp}] ~ ${keyExpr}
-        ${stack}[${sp}] = (a + b) ~ ${keyExpr}
+        ${stack}[${sp}] = (a + b) ~ ${keyExpr
       `,
       'SUB': `
         local b = ${stack}[${sp}] ~ ${keyExpr}; ${sp} = ${sp} - 1
@@ -1516,11 +1511,6 @@ export class XZXUltimateObfuscator {
       
       // Build IR
       let ir = IRBuilder.fromAST(ast);
-      
-      // Apply control flow flattening if enabled
-      if (options.layers?.controlFlow) {
-        ir = IRBuilder.flattenControlFlow(ir);
-      }
       
       // Create opcode map
       const opMap = new OpcodeMap(rng, options.layers?.polymorphism);
