@@ -1,22 +1,20 @@
+// lib/obfuscator.ts
 import * as luaparse from 'luaparse';
 
 export interface ObfuscationOptions {
-  seed?: number;
-  mode?: 'standard' | 'isolated' | 'sandbox';
-  debug?: boolean;
-  optimization?: 'none' | 'basic' | 'aggressive';
-  layers?: {
-    constants?: boolean;
-    identifiers?: boolean;
-    controlFlow?: boolean;
-    garbage?: boolean;
-    polymorphism?: boolean;
-    antiTamper?: boolean;
-    strings?: boolean;
-    expressions?: boolean;
-    stack?: boolean;
-    advanced?: boolean;
-  };
+  mangleNames?: boolean;
+  encodeStrings?: boolean;
+  encodeNumbers?: boolean;
+  controlFlow?: boolean;
+  antiDebugging?: boolean;
+  protectionLevel?: number;
+  deadCodeInjection?: boolean;
+  opaquePredicates?: boolean;
+  controlFlowFlattening?: boolean;
+  targetVersion?: string;
+  optimizationLevel?: number;
+  encryptionAlgorithm?: string;
+  formattingStyle?: string;
 }
 
 export interface ObfuscationResult {
@@ -33,184 +31,91 @@ export interface ObfuscationResult {
   };
 }
 
-// ---------- Simple XOR Crypto for Executors ----------
-class SimpleCrypto {
-  static xorEncode(data: string, key: number): string {
-    let result = '';
-    for (let i = 0; i < data.length; i++) {
-      result += String.fromCharCode(data.charCodeAt(i) ^ ((key + i) & 0xff));
-    }
-    return result;
-  }
+// ---------- Utility Functions ----------
 
-  static xorDecode(data: string, key: number): string {
-    return this.xorEncode(data, key); // XOR is symmetric
+/**
+ * Generate a random string of specified length
+ */
+function randomString(length: number): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
   }
-
-  static simpleHash(str: string): number {
-    if (!str) return 0;
-    let hash = 0x811c9dc5;
-    for (let i = 0; i < str.length; i++) {
-      hash ^= str.charCodeAt(i);
-      hash = (hash * 0x1000193) >>> 0;
-    }
-    return hash;
-  }
-
-  static randomBytes(length: number): number[] {
-    const bytes: number[] = [];
-    for (let i = 0; i < length; i++) {
-      bytes.push(Math.floor(Math.random() * 256));
-    }
-    return bytes;
-  }
+  return result;
 }
 
-// ---------- Seeded Random (executor-safe) ----------
-class SeededRandom {
-  private state: number;
-  
-  constructor(seed?: number) {
-    this.state = seed || Math.floor(Math.random() * 0x7fffffff);
+/**
+ * Generate a random hex string
+ */
+function randomHex(length: number): string {
+  const chars = '0123456789abcdef';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
   }
-  
-  next(): number {
-    this.state = (this.state * 0x9e3779b9 + 0x9e3779b9) >>> 0;
-    return this.state;
-  }
-  
-  range(min: number, max: number): number {
-    return min + (this.next() % (max - min + 1));
-  }
-  
-  choice<T>(arr: T[]): T {
-    if (!arr || arr.length === 0) return null as any;
-    return arr[this.range(0, arr.length - 1)];
-  }
-  
-  shuffle<T>(arr: T[]): T[] {
-    if (!arr) return arr;
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = this.range(0, i);
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-  
-  randomString(min: number, max: number): string {
-    const len = this.range(min, max);
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-    let result = '';
-    for (let i = 0; i < len; i++) {
-      result += chars[this.range(0, chars.length - 1)];
-    }
-    return result;
-  }
-
-  randomHex(length: number): string {
-    const chars = '0123456789abcdef';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-      result += chars[this.range(0, 15)];
-    }
-    return result;
-  }
-
-  randomBytes(length: number): number[] {
-    const bytes: number[] = [];
-    for (let i = 0; i < length; i++) {
-      bytes.push(this.range(0, 255));
-    }
-    return bytes;
-  }
+  return result;
 }
 
-// ---------- Name Generator ----------
-class NameGenerator {
-  private rng: SeededRandom;
-  private used: Set<string> = new Set();
-  private reservedWords = new Set([
-    'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
-    'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
-    'then', 'true', 'until', 'while', 'getfenv', 'setfenv', '_ENV', 'load',
-    'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
-    'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8',
-    'rawget', 'rawset', 'rawlen', 'rawequal', 'next', 'pairs', 'ipairs',
-    'select', 'unpack', 'tonumber', 'tostring', 'type', 'typeof'
-  ]);
-  
-  constructor(rng: SeededRandom) { 
-    this.rng = rng; 
+/**
+ * Simple XOR encryption/decryption
+ */
+function xorEncode(str: string, key: number): string {
+  let result = '';
+  for (let i = 0; i < str.length; i++) {
+    result += String.fromCharCode(str.charCodeAt(i) ^ ((key + i) & 0xff));
   }
-  
-  generate(): string {
-    const templates = [
-      () => '_' + this.rng.randomHex(4),
-      () => 'x' + this.rng.range(1000, 9999).toString(36),
-      () => this.rng.choice(['a','b','c','d']) + this.rng.randomHex(3),
-      () => 'v' + this.rng.range(100, 999).toString(36),
-      () => '_' + this.rng.randomString(2, 3),
-      () => this.rng.choice(['k','l','m','n']) + this.rng.range(100, 999).toString(36)
-    ];
-    
-    let result = this.rng.choice(templates)();
-    
-    while (this.used.has(result) || this.reservedWords.has(result)) {
-      result = this.rng.choice(templates)();
-    }
-    
-    this.used.add(result);
-    return result;
-  }
-  
-  generateTable(count: number): string[] {
-    return Array.from({ length: count }, () => this.generate());
-  }
+  return result;
 }
 
-// ---------- String Splitter for Large Strings ----------
-class StringSplitter {
-  static split(str: string, chunkSize: number): string[] {
-    if (!str) return [];
-    const chunks: string[] = [];
-    for (let i = 0; i < str.length; i += chunkSize) {
-      chunks.push(str.slice(i, i + chunkSize));
-    }
-    return chunks;
+/**
+ * Calculate simple hash of a string
+ */
+function simpleHash(str: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash * 0x1000193) >>> 0;
   }
-
-  static encodeForLua(str: string): string {
-    if (!str) return '{}';
-    const bytes: number[] = [];
-    for (let i = 0; i < str.length; i++) {
-      bytes.push(str.charCodeAt(i));
-    }
-    return '{' + bytes.join(',') + '}';
-  }
-
-  static encodeWithMixedRadix(str: string, rng: SeededRandom): string {
-    if (!str) return '{}';
-    const bytes: number[] = [];
-    for (let i = 0; i < str.length; i++) {
-      bytes.push(str.charCodeAt(i));
-    }
-    
-    const parts: string[] = [];
-    for (let i = 0; i < bytes.length; i++) {
-      const fmt = rng.range(0, 3);
-      if (fmt === 0) parts.push(bytes[i].toString());
-      else if (fmt === 1) parts.push('0x' + bytes[i].toString(16));
-      else if (fmt === 2) parts.push('0b' + bytes[i].toString(2));
-      else parts.push('0' + bytes[i].toString(8));
-    }
-    return '{' + parts.join(',') + '}';
-  }
+  return hash;
 }
 
-// ---------- Safe AST Walker ----------
-class SafeASTWalker {
+/**
+ * Split string into chunks
+ */
+function splitIntoChunks(str: string, chunkSize: number): string[] {
+  const chunks: string[] = [];
+  for (let i = 0; i < str.length; i += chunkSize) {
+    chunks.push(str.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+// ---------- Reserved Words ----------
+const RESERVED_WORDS = new Set([
+  'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
+  'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
+  'then', 'true', 'until', 'while', 'getfenv', 'setfenv', '_ENV', 'load',
+  'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
+  'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8',
+  'rawget', 'rawset', 'rawlen', 'rawequal', 'next', 'pairs', 'ipairs',
+  'select', 'unpack', 'tonumber', 'tostring', 'type', 'typeof',
+  'collectgarbage', 'gcinfo', 'newproxy'
+]);
+
+// ---------- AST Transformer ----------
+
+interface ASTNode {
+  type: string;
+  [key: string]: any;
+}
+
+/**
+ * Safe AST walker with null checks
+ */
+class ASTWalker {
   static walk(node: any, callback: (node: any) => void): void {
-    if (!node) return;
+    if (!node || typeof node !== 'object') return;
     
     callback(node);
     
@@ -236,75 +141,77 @@ class SafeASTWalker {
 
   static findNodes(node: any, type: string): any[] {
     const results: any[] = [];
-    
     this.walk(node, (n) => {
       if (n && n.type === type) {
         results.push(n);
       }
     });
-    
     return results;
   }
 }
 
-// ---------- AST Transformer with Null Safety ----------
-class ASTTransformer {
-  private rng: SeededRandom;
-  private nameGen: NameGenerator;
-  private renamedIdentifiers: Map<string, string>;
+/**
+ * AST Transformer for Lua code
+ */
+class LuaTransformer {
+  private nameMap: Map<string, string> = new Map();
+  private stringMap: Map<string, string> = new Map();
+  private numberTransformations: Map<string, string> = new Map();
 
-  constructor(rng: SeededRandom) {
-    this.rng = rng;
-    this.nameGen = new NameGenerator(rng);
-    this.renamedIdentifiers = new Map();
-  }
-
+  /**
+   * Transform Lua AST with various obfuscation techniques
+   */
   transform(ast: any, options: ObfuscationOptions): any {
     if (!ast) return ast;
 
-    // Apply transformations in order with null safety
-    if (options.layers?.identifiers) {
-      this.renameIdentifiers(ast);
+    const level = options.protectionLevel || 50;
+
+    // Apply transformations based on protection level
+    if (options.mangleNames !== false && level >= 20) {
+      this.mangleIdentifiers(ast);
     }
 
-    if (options.layers?.strings) {
-      this.transformStrings(ast);
+    if (options.encodeStrings !== false && level >= 30) {
+      this.encodeStringLiterals(ast);
     }
 
-    if (options.layers?.constants) {
-      this.transformConstants(ast);
+    if (options.encodeNumbers !== false && level >= 40) {
+      this.encodeNumbers(ast);
     }
 
-    if (options.layers?.garbage && ast.body) {
-      this.addJunkCode(ast);
+    if (options.deadCodeInjection !== false && level >= 65) {
+      this.injectDeadCode(ast);
     }
 
-    if (options.layers?.expressions) {
-      this.complicateExpressions(ast);
+    if (options.controlFlowFlattening !== false && level >= 70) {
+      this.flattenControlFlow(ast);
     }
 
     return ast;
   }
 
-  private renameIdentifiers(node: any): void {
+  /**
+   * Mangle all identifiers (variable names, function names, etc.)
+   */
+  private mangleIdentifiers(node: any): void {
     if (!node) return;
 
-    // Process based on node type
-    if (node.type === 'Identifier' && node.name && !this.isReserved(node.name)) {
-      if (!this.renamedIdentifiers.has(node.name)) {
-        this.renamedIdentifiers.set(node.name, this.nameGen.generate());
+    // Handle identifiers
+    if (node.type === 'Identifier' && node.name && !RESERVED_WORDS.has(node.name)) {
+      if (!this.nameMap.has(node.name)) {
+        this.nameMap.set(node.name, '_' + randomHex(6));
       }
-      node.name = this.renamedIdentifiers.get(node.name)!;
+      node.name = this.nameMap.get(node.name)!;
     }
 
     // Handle function parameters
     if (node.parameters && Array.isArray(node.parameters)) {
       node.parameters.forEach((param: any) => {
         if (param && param.type === 'Identifier' && param.name) {
-          if (!this.renamedIdentifiers.has(param.name)) {
-            this.renamedIdentifiers.set(param.name, this.nameGen.generate());
+          if (!this.nameMap.has(param.name)) {
+            this.nameMap.set(param.name, '_' + randomHex(6));
           }
-          param.name = this.renamedIdentifiers.get(param.name)!;
+          param.name = this.nameMap.get(param.name)!;
         }
       });
     }
@@ -313,207 +220,326 @@ class ASTTransformer {
     if (node.type === 'LocalStatement' && node.variables) {
       node.variables.forEach((variable: any) => {
         if (variable && variable.type === 'Identifier' && variable.name) {
-          if (!this.renamedIdentifiers.has(variable.name)) {
-            this.renamedIdentifiers.set(variable.name, this.nameGen.generate());
+          if (!this.nameMap.has(variable.name)) {
+            this.nameMap.set(variable.name, '_' + randomHex(6));
           }
-          variable.name = this.renamedIdentifiers.get(variable.name)!;
+          variable.name = this.nameMap.get(variable.name)!;
         }
       });
     }
 
     // Recursively process children
-    SafeASTWalker.walk(node, (child) => {
+    ASTWalker.walk(node, (child) => {
       if (child !== node) {
-        this.renameIdentifiers(child);
+        this.mangleIdentifiers(child);
       }
     });
   }
 
-  private isReserved(name: string): boolean {
-    if (!name) return true;
-    const reserved = new Set([
-      'true', 'false', 'nil', 'and', 'or', 'not',
-      'if', 'then', 'else', 'elseif', 'end',
-      'while', 'do', 'for', 'in', 'repeat', 'until',
-      'function', 'local', 'return', 'break',
-      'getfenv', 'setfenv', '_ENV', 'load', 'loadstring',
-      'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
-      'string', 'table', 'math', 'os', 'debug', 'coroutine',
-      'bit32', 'utf8', 'rawget', 'rawset', 'rawlen', 'rawequal',
-      'next', 'pairs', 'ipairs', 'select', 'unpack', 'tonumber',
-      'tostring', 'type', 'typeof', 'getmetatable', 'setmetatable',
-      'collectgarbage', 'gcinfo', 'newproxy'
-    ]);
-    return reserved.has(name);
-  }
-
-  private transformStrings(node: any): void {
+  /**
+   * Encode string literals into encrypted byte arrays
+   */
+  private encodeStringLiterals(node: any): void {
     if (!node) return;
 
-    if (node.type === 'StringLiteral' && node.value && typeof node.value === 'string' && node.value.length > 20) {
-      const chunks = this.splitIntoChunks(node.value, 15);
-      if (chunks.length > 1) {
-        // Replace with concatenation
-        const newNodes = this.buildStringConcat(chunks);
-        if (newNodes) {
-          node.type = newNodes.type;
-          node.operator = newNodes.operator;
-          node.left = newNodes.left;
-          node.right = newNodes.right;
-        }
+    if (node.type === 'StringLiteral' && node.value && typeof node.value === 'string') {
+      // Skip empty strings and very short strings
+      if (node.value.length < 3) return;
+
+      const key = Math.floor(Math.random() * 255) + 1;
+      const encoded: number[] = [];
+      
+      for (let i = 0; i < node.value.length; i++) {
+        encoded.push(node.value.charCodeAt(i) ^ ((key + i) & 0xff));
       }
+
+      // Transform into encrypted representation
+      const decoderName = '_' + randomHex(4);
+      node.type = 'CallExpression';
+      node.base = {
+        type: 'FunctionDeclaration',
+        identifier: { type: 'Identifier', name: decoderName },
+        parameters: [{ type: 'Identifier', name: 'd' }],
+        body: [
+          {
+            type: 'LocalStatement',
+            variables: [{ type: 'Identifier', name: 's' }],
+            init: [{ type: 'StringLiteral', value: '' }]
+          },
+          {
+            type: 'ForStatement',
+            variable: { type: 'Identifier', name: 'i' },
+            start: { type: 'NumericLiteral', value: 1 },
+            end: { type: 'MemberExpression', base: { type: 'Identifier', name: 'd' }, identifier: { type: 'Identifier', name: 'n' } },
+            body: [
+              {
+                type: 'AssignmentStatement',
+                variables: [{ type: 'Identifier', name: 's' }],
+                init: [{
+                  type: 'BinaryExpression',
+                  operator: '..',
+                  left: { type: 'Identifier', name: 's' },
+                  right: {
+                    type: 'CallExpression',
+                    base: { type: 'MemberExpression', base: { type: 'Identifier', name: 'string' }, identifier: { type: 'Identifier', name: 'char' } },
+                    arguments: [{
+                      type: 'BinaryExpression',
+                      operator: '~',
+                      left: {
+                        type: 'IndexExpression',
+                        base: { type: 'Identifier', name: 'd' },
+                        index: { type: 'Identifier', name: 'i' }
+                      },
+                      right: {
+                        type: 'BinaryExpression',
+                        operator: '&',
+                        left: {
+                          type: 'BinaryExpression',
+                          operator: '+',
+                          left: { type: 'NumericLiteral', value: key },
+                          right: {
+                            type: 'BinaryExpression',
+                            operator: '-',
+                            left: { type: 'Identifier', name: 'i' },
+                            right: { type: 'NumericLiteral', value: 1 }
+                          }
+                        },
+                        right: { type: 'NumericLiteral', value: 0xff }
+                      }
+                    }]
+                  }
+                }]
+              }
+            ]
+          },
+          {
+            type: 'ReturnStatement',
+            arguments: [{ type: 'Identifier', name: 's' }]
+          }
+        ]
+      };
+      node.arguments = [{
+        type: 'TableConstructorExpression',
+        fields: encoded.map(num => ({
+          type: 'TableValue',
+          value: { type: 'NumericLiteral', value: num }
+        }))
+      }];
     }
 
-    SafeASTWalker.walk(node, (child) => {
+    // Recursively process children
+    ASTWalker.walk(node, (child) => {
       if (child !== node) {
-        this.transformStrings(child);
+        this.encodeStringLiterals(child);
       }
     });
   }
 
-  private splitIntoChunks(str: string, size: number): string[] {
-    if (!str) return [];
-    const chunks: string[] = [];
-    for (let i = 0; i < str.length; i += size) {
-      chunks.push(str.slice(i, i + size));
-    }
-    return chunks;
-  }
-
-  private buildStringConcat(chunks: string[]): any {
-    if (!chunks || chunks.length === 0) return null;
-    
-    let result = {
-      type: 'StringLiteral',
-      value: chunks[0]
-    };
-    
-    for (let i = 1; i < chunks.length; i++) {
-      result = {
-        type: 'BinaryExpression',
-        operator: '..',
-        left: result,
-        right: {
-          type: 'StringLiteral',
-          value: chunks[i]
-        }
-      };
-    }
-    
-    return result;
-  }
-
-  private transformConstants(node: any): void {
+  /**
+   * Encode numbers into mathematical expressions
+   */
+  private encodeNumbers(node: any): void {
     if (!node) return;
 
     if (node.type === 'NumericLiteral' && node.value !== undefined) {
-      if (this.rng.range(0, 1) === 0) {
-        // Transform number
-        const val = node.value;
-        const transformations = [
-          { type: 'NumericLiteral', value: val },
-          { type: 'NumericLiteral', value: val, raw: '0x' + val.toString(16) },
-          { type: 'NumericLiteral', value: val, raw: '0b' + val.toString(2) }
-        ];
-        const selected = this.rng.choice(transformations);
-        if (selected) {
-          node.raw = selected.raw;
-        }
+      const num = node.value;
+      
+      // Skip small numbers
+      if (Math.abs(num) < 10) return;
+
+      const transformations = [
+        { type: 'BinaryExpression', operator: '+', left: num / 2, right: num / 2 },
+        { type: 'BinaryExpression', operator: '*', left: num, right: 1 },
+        { type: 'BinaryExpression', operator: '-', left: num + 5, right: 5 },
+        { type: 'UnaryExpression', operator: '-', argument: -num }
+      ];
+
+      const selected = transformations[Math.floor(Math.random() * transformations.length)];
+      
+      if (selected.type === 'BinaryExpression') {
+        node.type = 'BinaryExpression';
+        node.operator = selected.operator;
+        node.left = { type: 'NumericLiteral', value: selected.left };
+        node.right = { type: 'NumericLiteral', value: selected.right };
+      } else if (selected.type === 'UnaryExpression') {
+        node.type = 'UnaryExpression';
+        node.operator = selected.operator;
+        node.argument = { type: 'NumericLiteral', value: selected.argument };
       }
     }
 
-    SafeASTWalker.walk(node, (child) => {
+    // Recursively process children
+    ASTWalker.walk(node, (child) => {
       if (child !== node) {
-        this.transformConstants(child);
+        this.encodeNumbers(child);
       }
     });
   }
 
-  private addJunkCode(node: any): void {
+  /**
+   * Inject dead code blocks
+   */
+  private injectDeadCode(node: any): void {
     if (!node || !node.body || !Array.isArray(node.body)) return;
 
-    const junkCount = this.rng.range(1, 3);
-    for (let i = 0; i < junkCount; i++) {
-      const pos = this.rng.range(0, node.body.length);
-      const junk = this.createJunkStatement();
-      if (junk) {
-        node.body.splice(pos, 0, junk);
+    const deadCodeTemplates = [
+      {
+        type: 'IfStatement',
+        condition: { type: 'BooleanLiteral', value: false },
+        then: [
+          {
+            type: 'CallStatement',
+            expression: {
+              type: 'CallExpression',
+              base: { type: 'Identifier', name: 'print' },
+              arguments: [{ type: 'StringLiteral', value: '' }]
+            }
+          }
+        ]
+      },
+      {
+        type: 'LocalStatement',
+        variables: [{ type: 'Identifier', name: '_' + randomHex(4) }],
+        init: [{ type: 'NumericLiteral', value: Math.floor(Math.random() * 1000) }]
+      },
+      {
+        type: 'WhileStatement',
+        condition: { type: 'BooleanLiteral', value: false },
+        body: [
+          {
+            type: 'AssignmentStatement',
+            variables: [{ type: 'Identifier', name: '_' + randomHex(3) }],
+            init: [{ type: 'NumericLiteral', value: 0 }]
+          }
+        ]
       }
+    ];
+
+    // Insert 1-3 dead code blocks
+    const numBlocks = Math.floor(Math.random() * 3) + 1;
+    
+    for (let i = 0; i < numBlocks; i++) {
+      const pos = Math.floor(Math.random() * node.body.length);
+      const template = deadCodeTemplates[Math.floor(Math.random() * deadCodeTemplates.length)];
+      node.body.splice(pos, 0, JSON.parse(JSON.stringify(template)));
     }
   }
 
-  private createJunkStatement(): any {
-    const types = ['assign', 'local', 'if'];
-    const type = this.rng.choice(types);
+  /**
+   * Flatten control flow (basic implementation)
+   */
+  private flattenControlFlow(node: any): void {
+    if (!node || node.type !== 'Chunk' || !node.body) return;
+
+    // Only flatten if there are enough statements
+    if (node.body.length < 5) return;
+
+    // Create a dispatcher variable
+    const dispatcherName = '_' + randomHex(4);
     
-    switch (type) {
-      case 'assign':
-        return {
-          type: 'AssignmentStatement',
-          variables: [{
-            type: 'Identifier',
-            name: '_' + this.rng.randomHex(3)
-          }],
-          init: [{
-            type: 'NumericLiteral',
-            value: this.rng.range(0, 999)
-          }]
-        };
-      case 'local':
-        return {
-          type: 'LocalStatement',
-          variables: [{
-            type: 'Identifier',
-            name: '_' + this.rng.randomHex(2)
-          }],
-          init: [{
-            type: 'NilLiteral'
-          }]
-        };
-      default:
-        return {
+    // Split into blocks
+    const blocks: any[][] = [[]];
+    
+    for (const stmt of node.body) {
+      blocks[blocks.length - 1].push(stmt);
+      
+      // Split at control flow statements
+      if (stmt.type === 'IfStatement' || stmt.type === 'WhileStatement' || 
+          stmt.type === 'RepeatStatement' || stmt.type === 'ForStatement') {
+        blocks.push([]);
+      }
+    }
+
+    // Filter out empty blocks
+    const validBlocks = blocks.filter(b => b.length > 0);
+
+    if (validBlocks.length < 3) return;
+
+    // Create block functions
+    const blockFuncs = validBlocks.map((block, index) => ({
+      type: 'LocalFunction',
+      identifier: { type: 'Identifier', name: dispatcherName + '_' + index },
+      parameters: [],
+      body: block
+    }));
+
+    // Create dispatch table
+    const dispatchTable = {
+      type: 'LocalStatement',
+      variables: [{ type: 'Identifier', name: dispatcherName }],
+      init: [{
+        type: 'TableConstructorExpression',
+        fields: validBlocks.map((_, index) => ({
+          type: 'TableKey',
+          key: { type: 'NumericLiteral', value: index + 1 },
+          value: { type: 'Identifier', name: dispatcherName + '_' + index }
+        }))
+      }]
+    };
+
+    // Create dispatcher loop
+    const dispatcherLoop = {
+      type: 'WhileStatement',
+      condition: { type: 'BooleanLiteral', value: true },
+      body: [
+        {
           type: 'IfStatement',
           condition: {
-            type: 'BooleanLiteral',
-            value: false
+            type: 'BinaryExpression',
+            operator: '>',
+            left: { type: 'Identifier', name: 'pc' },
+            right: { type: 'NumericLiteral', value: validBlocks.length }
           },
-          then: []
-        };
-    }
-  }
+          then: [{ type: 'BreakStatement' }]
+        },
+        {
+          type: 'CallStatement',
+          expression: {
+            type: 'CallExpression',
+            base: {
+              type: 'IndexExpression',
+              base: { type: 'Identifier', name: dispatcherName },
+              index: { type: 'Identifier', name: 'pc' }
+            },
+            arguments: []
+          }
+        },
+        {
+          type: 'AssignmentStatement',
+          variables: [{ type: 'Identifier', name: 'pc' }],
+          init: [{
+            type: 'BinaryExpression',
+            operator: '+',
+            left: { type: 'Identifier', name: 'pc' },
+            right: { type: 'NumericLiteral', value: 1 }
+          }]
+        }
+      ]
+    };
 
-  private complicateExpressions(node: any): void {
-    if (!node) return;
-
-    if (node.type === 'BinaryExpression' && node.left && node.right) {
-      if (this.rng.range(0, 2) === 0) {
-        // Add redundant operation
-        const newNode = {
-          type: 'BinaryExpression',
-          operator: '+',
-          left: { ...node },
-          right: { type: 'NumericLiteral', value: 0 }
-        };
-        node.type = newNode.type;
-        node.operator = newNode.operator;
-        node.left = newNode.left;
-        node.right = newNode.right;
-      }
-    }
-
-    SafeASTWalker.walk(node, (child) => {
-      if (child !== node) {
-        this.complicateExpressions(child);
-      }
-    });
+    // Replace original body with flattened version
+    node.body = [
+      ...blockFuncs,
+      dispatchTable,
+      {
+        type: 'LocalStatement',
+        variables: [{ type: 'Identifier', name: 'pc' }],
+        init: [{ type: 'NumericLiteral', value: 1 }]
+      },
+      dispatcherLoop
+    ];
   }
 }
 
-// ---------- Safe Code Generator ----------
+// ---------- Code Generator ----------
+
+/**
+ * Generate Lua code from AST
+ */
 class CodeGenerator {
-  generate(ast: any): string {
-    if (!ast) return '';
-    return this.visitNode(ast);
+  generate(node: any): string {
+    if (!node) return '';
+    return this.visitNode(node);
   }
 
   private visitNode(node: any): string {
@@ -535,14 +561,13 @@ class CodeGenerator {
           return this.visitNode(node.expression);
 
         case 'CallExpression':
-          return this.visitNode(node.base) + '(' + 
-                 this.visitNodes(node.arguments) + ')';
+          return this.visitNode(node.base) + '(' + this.visitNodes(node.arguments) + ')';
 
         case 'StringLiteral':
           return this.escapeString(node.value);
 
         case 'NumericLiteral':
-          return node.raw || node.value.toString();
+          return node.value.toString();
 
         case 'BooleanLiteral':
           return node.value ? 'true' : 'false';
@@ -669,300 +694,263 @@ class CodeGenerator {
   }
 }
 
-// ---------- Lightweight Obfuscator ----------
-export class LightweightObfuscator {
-  async obfuscate(source: string, options: ObfuscationOptions = {}): Promise<ObfuscationResult> {
-    const start = Date.now();
-    const rng = new SeededRandom(options.seed || Math.floor(Math.random() * 0x7fffffff));
-    
-    try {
-      // Validate input
-      if (!source || source.trim().length === 0) {
-        throw new Error('Empty source code');
-      }
+// ---------- Minifier ----------
 
-      // Parse source to AST with error handling
-      let ast;
-      try {
-        ast = luaparse.parse(source, { 
-          comments: false, 
-          luaVersion: '5.1',
-          locations: false,
-          ranges: false,
-          scope: false,
-          wait: false
-        });
-      } catch (parseError) {
-        throw new Error(`Failed to parse Lua: ${parseError.message}`);
-      }
-      
-      if (!ast) {
-        throw new Error('Failed to parse AST');
-      }
-      
-      // Transform AST
-      const transformer = new ASTTransformer(rng);
-      const transformedAst = transformer.transform(ast, options);
-      
-      // Generate obfuscated code
-      const generator = new CodeGenerator();
-      let obfuscatedCode = generator.generate(transformedAst);
-      
-      // If no code generated, use original
-      if (!obfuscatedCode || obfuscatedCode.trim().length === 0) {
-        obfuscatedCode = source;
-      }
-      
-      // Generate random names for loader
-      const nameGen = new NameGenerator(rng);
-      const xorKey = rng.range(1, 0xfff);
-      const junkVars = nameGen.generateTable(5);
-      
-      // Encrypt the obfuscated code
-      const encryptedSource = SimpleCrypto.xorEncode(obfuscatedCode, xorKey);
-      
-      // Split into chunks to avoid string limits
-      const chunkSize = 3000;
-      const chunks = StringSplitter.split(encryptedSource, chunkSize);
-      const chunkArrays = chunks.map(chunk => StringSplitter.encodeWithMixedRadix(chunk, rng));
-      
-      // Generate random function names
-      const mainFunc = nameGen.generate();
-      const decryptFunc = nameGen.generate();
-      const chunkVar = nameGen.generate();
-      const resultVar = nameGen.generate();
-      const keyVar = nameGen.generate();
-      const tempVar = nameGen.generate();
-      
-      // Build the loader
-      const loader = this.buildLoader(
-        mainFunc,
-        decryptFunc,
-        chunkVar,
-        resultVar,
-        keyVar,
-        tempVar,
-        chunkArrays,
-        xorKey,
-        junkVars,
-        rng,
-        options.debug || false
-      );
-
-      const metrics = {
-        inputSize: source.length,
-        outputSize: loader.length,
-        duration: (Date.now() - start) / 1000,
-        instructionCount: source.split('\n').length,
-        buildId: 'XZX-' + Date.now().toString(36) + '-' + rng.randomHex(4),
-        layersApplied: Object.entries(options.layers || {})
-          .filter(([_, v]) => v)
-          .map(([k]) => k)
-      };
-
-      return {
-        success: true,
-        code: loader,
-        metrics
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  }
-
-  private buildLoader(
-    mainFunc: string,
-    decryptFunc: string,
-    chunkVar: string,
-    resultVar: string,
-    keyVar: string,
-    tempVar: string,
-    chunks: string[],
-    xorKey: number,
-    junkVars: string[],
-    rng: SeededRandom,
-    debug: boolean
-  ): string {
-    const debugPrints = debug ? `
-  -- Debug output
-  local ${tempVar} = os.clock()
-  print("[XZX] Loader started at", ${tempVar})
-  print("[XZX] Key:", ${xorKey})
-  print("[XZX] Chunks:", #${chunkVar})
-` : '';
-
-    const debugProgress = debug ? `
-    print("[XZX] Decrypted chunk", i, #${chunkVar}[i], "bytes")
-` : '';
-
-    const debugComplete = debug ? `
-  print("[XZX] Total decrypted size:", #decrypted, "bytes")
-  print("[XZX] Decryption time:", os.clock() - ${tempVar}, "seconds")
-` : '';
-
-    const debugError = debug ? `
-    print("[XZX] Load error:", err)
-    return nil, err
-` : `
-    return nil, "Failed to load script"
-`;
-
-    const debugPcall = debug ? `
-  if not success then
-    print("[XZX] Execution error:", result)
-  end
-` : '';
-
-    // Generate junk code
-    const junkCode = this.generateJunkCode(junkVars, rng);
-
-    return `--[[ XZX Ultimate Obfuscator ]]
--- Build: ${new Date().toISOString()}
--- Safe for Roblox Executors
-
-local ${mainFunc}, ${decryptFunc}, ${chunkVar}, ${resultVar}, ${keyVar}, ${tempVar}
-local ${junkVars.join(', ')}
-
--- Anti-tamper check
-if not string or not table or not math then
-  error("Environment tampered", 0)
-end
-
-${junkCode}
-
--- Decryption function
-${decryptFunc} = function(${keyVar}, ${chunkVar})
-  local ${resultVar} = {}
-  local ${tempVar}
-  
-  for i = 1, #${chunkVar} do
-    ${tempVar} = ${chunkVar}[i]
-    ${resultVar}[i] = string.char(${tempVar} ~ (((${keyVar} + i - 1) & 0xff)))
-  end
-  
-  return table.concat(${resultVar})
-end
-
--- Encrypted chunks
-${chunkVar} = {
-${chunks.map((chunk, i) => `  [${i+1}] = ${chunk}`).join(',\n')}
-}
-
-${debugPrints}
-
--- Decrypt all chunks
-local ${resultVar} = {}
-for i = 1, #${chunkVar} do
-  ${resultVar}[i] = ${decryptFunc}(${xorKey}, ${chunkVar}[i])
-  
-  ${junkCode}
-  
-  ${debugProgress}
-  
-  -- Prevent memory issues
-  if i % 10 == 0 then
-    ${chunkVar}[i-9] = nil
-    collectgarbage()
-  end
-end
-
--- Combine chunks
-local decrypted = table.concat(${resultVar})
-${resultVar} = nil
-${chunkVar} = nil
-collectgarbage()
-
-${debugComplete}
-
--- Validate decrypted code
-if #decrypted == 0 then
-  error("Decryption failed", 0)
-end
-
--- Execute with proper error handling
-local fn, err = load(decrypted, "=${mainFunc}")
-decrypted = nil
-collectgarbage()
-
-if not fn then
-  ${debugError}
-end
-
--- Protected execution
-local success, result = pcall(fn)
-fn = nil
-collectgarbage()
-
-${debugPcall}
-
-if not success then
-  error(result, 0)
-end
-
-return result
-`;
-  }
-
-  private generateJunkCode(vars: string[], rng: SeededRandom): string {
-    if (!vars || vars.length === 0) return '';
-    
-    const ops = [
-      `local ${vars[0] || '_'} = ${vars[1] || '_'} or 0; ${vars[2] || '_'} = (${vars[0] || '_'} + ${rng.range(1, 100)}) & 0xff;`,
-      `for i = 1, ${rng.range(2, 4)} do ${vars[3] || '_'} = i end;`,
-      `local ${vars[4] || '_'} = {${vars[0] || '_'}, ${vars[1] || '_'}, ${vars[2] || '_'}};`,
-      `if (${vars[0] || '_'} > 0) then ${vars[1] || '_'} = nil else ${vars[2] || '_'} = false end;`,
-      `local ${vars[0] || '_'} = string.char(${rng.range(65, 90)});`,
-      `local ${vars[1] || '_'} = math.random(${rng.range(1, 100)});`,
-    ];
-    return rng.choice(ops) || '';
-  }
+/**
+ * Minify Lua code by removing whitespace and comments
+ */
+function minifyLua(code: string): string {
+  return code
+    // Remove block comments
+    .replace(/--\[\[.*?\]\]--/gs, '')
+    // Remove line comments
+    .replace(/--.*$/gm, '')
+    // Remove extra whitespace
+    .replace(/\s+/g, ' ')
+    // Remove spaces around operators and punctuation
+    .replace(/\s*([=+\-*/%<>.,;{}()\[\]])\s*/g, '$1')
+    // Remove spaces at beginning/end
+    .trim();
 }
 
 // ---------- Main Obfuscator ----------
-export class XZXObfuscator {
-  async obfuscate(source: string, options: ObfuscationOptions = {}): Promise<ObfuscationResult> {
-    const start = Date.now();
-    
-    try {
-      // Always use lightweight mode for Roblox executors
-      const obfuscator = new LightweightObfuscator();
-      return await obfuscator.obfuscate(source, options);
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+
+/**
+ * Obfuscate Lua code with various protection layers
+ */
+export async function obfuscateLua(source: string, options: ObfuscationOptions = {}): Promise<ObfuscationResult> {
+  const startTime = Date.now();
+  
+  try {
+    // Validate input
+    if (!source || source.trim().length === 0) {
+      throw new Error('Empty source code');
     }
+
+    // Parse Lua code to AST
+    let ast;
+    try {
+      ast = luaparse.parse(source, { 
+        comments: false, 
+        luaVersion: (options.targetVersion as any) || '5.1',
+        locations: false,
+        ranges: false,
+        scope: false,
+        wait: false
+      });
+    } catch (parseError) {
+      throw new Error(`Invalid Lua syntax: ${parseError.message}`);
+    }
+
+    if (!ast) {
+      throw new Error('Failed to parse AST');
+    }
+
+    // Apply AST transformations
+    const transformer = new LuaTransformer();
+    const transformedAst = transformer.transform(ast, options);
+
+    // Generate code from transformed AST
+    const generator = new CodeGenerator();
+    let obfuscatedCode = generator.generate(transformedAst);
+
+    // Apply formatting
+    if (options.formattingStyle !== 'pretty') {
+      obfuscatedCode = minifyLua(obfuscatedCode);
+    }
+
+    // Generate build ID
+    const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
+
+    // Calculate metrics
+    const duration = (Date.now() - startTime) / 1000;
+    
+    // Determine which layers were applied
+    const level = options.protectionLevel || 50;
+    const layersApplied: string[] = [];
+    
+    if (options.mangleNames !== false && level >= 20) layersApplied.push('mangleNames');
+    if (options.encodeStrings !== false && level >= 30) layersApplied.push('encodeStrings');
+    if (options.encodeNumbers !== false && level >= 40) layersApplied.push('encodeNumbers');
+    if (options.deadCodeInjection !== false && level >= 65) layersApplied.push('deadCodeInjection');
+    if (options.controlFlowFlattening !== false && level >= 70) layersApplied.push('controlFlowFlattening');
+    if (options.formattingStyle !== 'pretty') layersApplied.push('minify');
+
+    return {
+      success: true,
+      code: obfuscatedCode,
+      metrics: {
+        inputSize: source.length,
+        outputSize: obfuscatedCode.length,
+        duration,
+        instructionCount: source.split('\n').length,
+        buildId,
+        layersApplied
+      }
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }
 
-// ---------- Public API ----------
-export async function obfuscateLua(source: string, options: any = {}): Promise<ObfuscationResult> {
-  const opts: ObfuscationOptions = {
-    seed: options.seed,
-    mode: options.mode || 'standard',
-    debug: options.debug || false,
-    optimization: options.optimization || 'basic',
-    layers: {
-      constants: options.layers?.constants ?? true,
-      identifiers: options.layers?.identifiers ?? true,
-      controlFlow: options.layers?.controlFlow ?? false,
-      garbage: options.layers?.garbage ?? true,
-      polymorphism: options.layers?.polymorphism ?? false,
-      antiTamper: options.layers?.antiTamper ?? true,
-      strings: options.layers?.strings ?? true,
-      expressions: options.layers?.expressions ?? true,
-      stack: options.layers?.stack ?? false,
-      advanced: options.layers?.advanced ?? false,
-      ...(options.layers || {})
-    }
-  };
+// ---------- Simple Obfuscation (Fallback) ----------
+
+/**
+ * Simple string-based obfuscation (fallback if AST parsing fails)
+ */
+export function simpleObfuscate(source: string, options: ObfuscationOptions = {}): ObfuscationResult {
+  const startTime = Date.now();
   
-  const obfuscator = new XZXObfuscator();
-  return obfuscator.obfuscate(source, opts);
+  try {
+    if (!source || source.trim().length === 0) {
+      throw new Error('Empty source code');
+    }
+
+    let obfuscated = source;
+    const layersApplied: string[] = [];
+    const level = options.protectionLevel || 50;
+
+    // Apply simple obfuscation techniques
+    if (options.mangleNames !== false && level >= 20) {
+      // Simple regex-based name mangling
+      const nameMap = new Map<string, string>();
+      obfuscated = obfuscated.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
+        if (RESERVED_WORDS.has(match) || match.startsWith('_')) return match;
+        if (!nameMap.has(match)) {
+          nameMap.set(match, '_' + randomHex(6));
+        }
+        return nameMap.get(match)!;
+      });
+      layersApplied.push('mangleNames');
+    }
+
+    if (options.encodeStrings !== false && level >= 30) {
+      // Simple string encoding
+      const key = Math.floor(Math.random() * 255) + 1;
+      obfuscated = obfuscated.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, (match, content) => {
+        const encoded: number[] = [];
+        for (let i = 0; i < content.length; i++) {
+          encoded.push(content.charCodeAt(i) ^ ((key + i) & 0xff));
+        }
+        const decoder = '_' + randomHex(4);
+        return `((function(${decoder}) local s='';for i=1,#${decoder} do s=s..string.char(${decoder}[i]~(${key}+i-1));end;return s;end)(${JSON.stringify(encoded)}))`;
+      });
+      layersApplied.push('encodeStrings');
+    }
+
+    if (options.formattingStyle !== 'pretty') {
+      obfuscated = minifyLua(obfuscated);
+      layersApplied.push('minify');
+    }
+
+    const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
+    const duration = (Date.now() - startTime) / 1000;
+
+    return {
+      success: true,
+      code: obfuscated,
+      metrics: {
+        inputSize: source.length,
+        outputSize: obfuscated.length,
+        duration,
+        instructionCount: source.split('\n').length,
+        buildId,
+        layersApplied
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
 }
 
+// ---------- Batch Obfuscation ----------
+
+/**
+ * Obfuscate multiple Lua files at once
+ */
+export async function obfuscateBatch(files: { name: string; content: string }[], options: ObfuscationOptions = {}): Promise<{
+  results: { name: string; result: ObfuscationResult }[];
+  totalTime: number;
+}> {
+  const startTime = Date.now();
+  const results: { name: string; result: ObfuscationResult }[] = [];
+
+  for (const file of files) {
+    try {
+      const result = await obfuscateLua(file.content, options);
+      results.push({ name: file.name, result });
+    } catch (error) {
+      results.push({
+        name: file.name,
+        result: {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
+    }
+  }
+
+  return {
+    results,
+    totalTime: (Date.now() - startTime) / 1000
+  };
+}
+
+// ---------- Validate Obfuscated Code ----------
+
+/**
+ * Validate that obfuscated code is still syntactically valid
+ */
+export function validateObfuscated(code: string): { valid: boolean; error?: string } {
+  try {
+    luaparse.parse(code, { luaVersion: '5.1' });
+    return { valid: true };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Invalid syntax'
+    };
+  }
+}
+
+// ---------- Get Obfuscation Statistics ----------
+
+/**
+ * Get statistics about the obfuscation process
+ */
+export function getObfuscationStats(original: string, obfuscated: string): {
+  sizeIncrease: number;
+  sizeIncreasePercent: number;
+  lineCount: { original: number; obfuscated: number };
+  complexity: number;
+} {
+  const originalSize = original.length;
+  const obfuscatedSize = obfuscated.length;
+  const sizeIncrease = obfuscatedSize - originalSize;
+  const sizeIncreasePercent = (sizeIncrease / originalSize) * 100;
+
+  const originalLines = original.split('\n').length;
+  const obfuscatedLines = obfuscated.split('\n').length;
+
+  // Simple complexity metric (number of operators and keywords)
+  const operators = obfuscated.match(/[=+\-*/%<>~^#.,;{}()[\]]/g)?.length || 0;
+  const keywords = obfuscated.match(/\b(and|or|not|if|then|else|end|for|while|do|repeat|until|function|local|return|break)\b/g)?.length || 0;
+  const complexity = operators + keywords;
+
+  return {
+    sizeIncrease,
+    sizeIncreasePercent,
+    lineCount: { original: originalLines, obfuscated: obfuscatedLines },
+    complexity
+  };
+}
+
+// Default export
 export default obfuscateLua;
