@@ -329,15 +329,26 @@ class UltimateCompiler {
   // --------------------------------------------------------------------
   private visitNode(node: any): number | void {
     if (!node) return;
-    const handler = (this as any)[`visit${node.type}`];
-    if (handler) return handler.call(this, node);
+    
+    // Try to find a specific handler for this node type
+    const handlerName = `visit${node.type}`;
+    const handler = (this as any)[handlerName];
+    
+    if (handler) {
+      return handler.call(this, node);
+    }
+    
+    // Otherwise, recursively visit children
     for (const key in node) {
-      if (node.hasOwnProperty(key) && typeof node[key] === 'object')
+      if (node.hasOwnProperty(key) && typeof node[key] === 'object' && node[key] !== null) {
         this.visitNode(node[key]);
+      }
     }
   }
 
   private visitChunk(node: any): void {
+    if (!node.body) return;
+    
     node.body.forEach((stmt: any) => this.visitNode(stmt));
     for (let i = 0; i < 10; i++) {
       const which = Math.random() < 0.5 ? 'NOP' : 'NOP2';
@@ -367,13 +378,15 @@ class UltimateCompiler {
 
   private visitNumericLiteral(node: any): number {
     const reg = this.allocReg();
-    this.emitSplitNumber(node.value, reg);
+    if (node.value !== undefined) {
+      this.emitSplitNumber(node.value, reg);
+    }
     return reg;
   }
 
   private visitStringLiteral(node: any): number {
     const reg = this.allocReg();
-    if (this.options.encodeStrings) {
+    if (this.options.encodeStrings && node.value) {
       // Split string into XOR‑ed chunks
       const str = node.value;
       const key = Math.floor(Math.random() * 256);
@@ -387,16 +400,23 @@ class UltimateCompiler {
       this.builder.emitOp(this.opMap, 'PUSH_NUMBER', keyReg, this.builder.addConstant(key));
       this.builder.emitOp(this.opMap, 'PUSH_TABLE', reg); // placeholder for decrypted string
       // In real VM, we'd emit a loop to decrypt; here we simplify.
-    } else {
+    } else if (node.value) {
       const idx = this.builder.addConstant(node.value);
       this.builder.emitOp(this.opMap, 'PUSH_STRING', reg, idx);
     }
     return reg;
   }
 
-  private visitBinaryExpression(node: any): number {
+  private visitBinaryExpression(node: any): number | void {
+    // Ensure left and right are visited and return valid registers
     const leftReg = this.visitNode(node.left);
     const rightReg = this.visitNode(node.right);
+    
+    // Guard against undefined registers
+    if (leftReg === undefined || rightReg === undefined) {
+      return;
+    }
+    
     const resultReg = this.allocReg();
 
     // Distort arithmetic by randomly choosing among equivalent opcodes
@@ -418,7 +438,14 @@ class UltimateCompiler {
         this.builder.emitOp(this.opMap, 'SUB', resultReg, leftReg, rightReg);
       }
     } else {
-      const opName = node.operator === '==' ? 'EQ' : node.operator;
+      const opName = node.operator === '==' ? 'EQ' : 
+                     node.operator === '~=' ? 'NEQ' :
+                     node.operator === '<' ? 'LT' :
+                     node.operator === '<=' ? 'LE' :
+                     node.operator === '>' ? 'GT' :
+                     node.operator === '>=' ? 'GE' :
+                     node.operator === 'and' ? 'AND' :
+                     node.operator === 'or' ? 'OR' : node.operator;
       this.builder.emitOp(this.opMap, opName, resultReg, leftReg, rightReg);
     }
     return resultReg;
@@ -431,7 +458,38 @@ class UltimateCompiler {
     return reg;
   }
 
-  // ... other visit methods omitted for brevity; they follow similar distortion.
+  private visitIdentifier(node: any): number | void {
+    if (!node.name) return;
+    
+    let reg = this.getLocalReg(node.name);
+    if (reg === null) {
+      reg = this.defineLocal(node.name);
+    }
+    return reg;
+  }
+
+  private visitCallExpression(node: any): number | void {
+    if (!node.base) return;
+    
+    const funcReg = this.visitNode(node.base);
+    if (funcReg === undefined) return;
+    
+    const argRegs: number[] = [];
+    if (node.arguments) {
+      for (const arg of node.arguments) {
+        const argReg = this.visitNode(arg);
+        if (argReg !== undefined) {
+          argRegs.push(argReg);
+        }
+      }
+    }
+    
+    const resultReg = this.allocReg();
+    this.builder.emitOp(this.opMap, 'CALL', resultReg, funcReg, argRegs.length, ...argRegs);
+    return resultReg;
+  }
+
+  // Add more visitor methods as needed...
 }
 
 // ----------------------------------------------------------------------
@@ -654,7 +712,7 @@ export class XZXUltimateObfuscator {
         }
       };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 }
@@ -699,7 +757,7 @@ export function obfuscateLua(source: string, options: any): ObfuscationResult {
     const engine = new XZXUltimateObfuscator(opts);
     return engine.obfuscate(source);
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
