@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -389,14 +389,14 @@ export default function Home() {
     };
 
     return (
-      <div className="flex items-center justify-between group hover:bg-white/5 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
-        <Label htmlFor={id} className="text-sm font-semibold text-gray-100 cursor-pointer flex-1">
+      <div className="flex items-center justify-between group hover:bg-gray-800/50 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+        <Label htmlFor={id} className="text-sm font-semibold text-gray-200 cursor-pointer flex-1">
           <div className="flex items-center gap-2">
             <span>{label}</span>
             {badge && <span className={`text-[10px] ${badge === 'Advanced' ? 'text-purple-400 bg-purple-500/10' : 'text-yellow-400 bg-yellow-500/10'} px-1.5 py-0.5 rounded`}>{badge}</span>}
             {checked && <Zap className="w-3.5 h-3.5 text-purple-400 animate-pulse" />}
           </div>
-          <p className="text-xs text-gray-400/90 mt-1 font-normal leading-relaxed">{description}</p>
+          <p className="text-xs text-gray-400 mt-1 font-normal leading-relaxed">{description}</p>
         </Label>
         <Switch
           id={id}
@@ -411,7 +411,7 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="relative w-20 h-20 mx-auto mb-4">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
@@ -427,7 +427,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-gray-900 text-gray-100">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div 
           className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.15),transparent_50%)]"
@@ -446,7 +446,7 @@ export default function Home() {
       </div>
 
       <div className="relative z-10">
-        <nav className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/10 bg-black/20">
+        <nav className="sticky top-0 z-50 backdrop-blur-xl border-b border-gray-800 bg-gray-900/20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-3">
@@ -487,7 +487,7 @@ export default function Home() {
 
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
                 >
                   {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 </button>
@@ -506,11 +506,11 @@ export default function Home() {
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+              <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700">
                 <TrendingUp className="w-4 h-4 text-green-400" />
                 <span className="text-sm text-gray-300">{totalObfuscations.toLocaleString()}+ scripts protected</span>
               </div>
-              <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+              <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700">
                 <Award className="w-4 h-4 text-pink-400" />
                 <span className="text-sm text-gray-300">Advanced protection</span>
               </div>
@@ -519,8 +519,8 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-8 space-y-6">
-              <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
-                <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+                <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-sm text-gray-400">Input</span>
@@ -537,7 +537,7 @@ export default function Home() {
                       onClick={triggerFileUpload}
                       variant="outline"
                       size="sm"
-                      className="border-white/10 hover:bg-white/5"
+                      className="border-gray-700 hover:bg-gray-700"
                       disabled={isProcessing}
                     >
                       <Upload className="w-4 h-4 mr-2" />
@@ -566,7 +566,7 @@ export default function Home() {
                         onClick={cancelObfuscation}
                         variant="outline"
                         size="sm"
-                        className="border-white/10 hover:bg-white/5"
+                        className="border-gray-700 hover:bg-gray-700"
                       >
                         <X className="w-4 h-4 mr-2" />
                         Cancel
@@ -600,7 +600,7 @@ export default function Home() {
               </Card>
 
               {isProcessing && progress && (
-                <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-6">
+                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold">Obfuscation Progress</h3>
                     <div className="flex items-center gap-2">
@@ -615,7 +615,7 @@ export default function Home() {
                       <span className="text-sm font-semibold text-purple-400">{progress.percent}%</span>
                     </div>
                     
-                    <Progress value={progress.percent} className="h-2 bg-white/5" />
+                    <Progress value={progress.percent} className="h-2 bg-gray-700" />
                     
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <span>Step {progress.currentStep} of {progress.totalSteps}</span>
@@ -626,8 +626,8 @@ export default function Home() {
               )}
 
               {outputCode && (
-                <Card className="overflow-hidden border-white/10 bg-white/5 backdrop-blur-xl">
-                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
                       <span className="text-sm text-gray-400">Output</span>
@@ -637,7 +637,7 @@ export default function Home() {
                         onClick={copyToClipboard}
                         variant="outline"
                         size="sm"
-                        className="border-white/10 hover:bg-white/5"
+                        className="border-gray-700 hover:bg-gray-700"
                         disabled={isProcessing}
                       >
                         {copySuccess ? (
@@ -656,7 +656,7 @@ export default function Home() {
                         onClick={downloadCode}
                         variant="outline"
                         size="sm"
-                        className="border-white/10 hover:bg-white/5"
+                        className="border-gray-700 hover:bg-gray-700"
                         disabled={isProcessing}
                       >
                         <Download className="w-4 h-4 mr-2" />
@@ -682,22 +682,22 @@ export default function Home() {
               )}
 
               {metrics && (
-                <Card className="border-white/10 bg-white/5 backdrop-blur-xl p-6">
+                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
                   <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-white/5 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl">
                       <div className="text-sm text-gray-400 mb-1">Input Size</div>
                       <div className="text-xl font-bold">{formatBytes(metrics.inputSize)}</div>
                     </div>
-                    <div className="p-4 bg-white/5 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl">
                       <div className="text-sm text-gray-400 mb-1">Output Size</div>
                       <div className="text-xl font-bold">{formatBytes(metrics.outputSize)}</div>
                     </div>
-                    <div className="p-4 bg-white/5 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl">
                       <div className="text-sm text-gray-400 mb-1">Ratio</div>
                       <div className="text-xl font-bold text-purple-400">{(metrics.outputSize / metrics.inputSize).toFixed(2)}x</div>
                     </div>
-                    <div className="p-4 bg-white/5 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl">
                       <div className="text-sm text-gray-400 mb-1">Time</div>
                       <div className="text-xl font-bold">{metrics.duration.toFixed(1)}s</div>
                     </div>
@@ -718,8 +718,8 @@ export default function Home() {
             </div>
 
             <div className="lg:col-span-4">
-              <Card className="sticky top-24 border-white/10 bg-white/5 backdrop-blur-xl">
-                <div className="p-6 border-b border-white/10">
+              <Card className="sticky top-24 border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+                <div className="p-6 border-b border-gray-700">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold">Settings</h3>
                     <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
@@ -800,7 +800,7 @@ export default function Home() {
                       onValueChange={(value: string) => setSettings({ ...settings, targetVersion: value })}
                       disabled={isProcessing}
                     >
-                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                      <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -820,7 +820,7 @@ export default function Home() {
                       onValueChange={(value: string) => setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 })}
                       disabled={isProcessing}
                     >
-                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                      <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -839,7 +839,7 @@ export default function Home() {
                       onValueChange={(value: string) => setSettings({ ...settings, encryptionAlgorithm: value })}
                       disabled={!settings.encodeStrings || isProcessing}
                     >
-                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                      <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -850,12 +850,12 @@ export default function Home() {
                     </Select>
                   </div>
 
-                  <div className="mt-8 pt-8 border-t border-white/10">
+                  <div className="mt-8 pt-8 border-t border-gray-700">
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-sm font-medium">Protection Level</span>
                       <span className={cn(
                         "px-3 py-1 rounded-full text-xs font-medium",
-                        protectionStrength === "none" && "bg-gray-500/20 text-gray-300",
+                        protectionStrength === "none" && "bg-gray-600/20 text-gray-300",
                         protectionStrength === "low" && "bg-purple-500/20 text-purple-300",
                         protectionStrength === "medium" && "bg-pink-500/20 text-pink-300",
                         protectionStrength === "high" && "bg-orange-500/20 text-orange-300",
@@ -906,7 +906,7 @@ export default function Home() {
             </div>
           )}
 
-          <footer className="mt-12 pt-8 border-t border-white/10">
+          <footer className="mt-12 pt-8 border-t border-gray-700">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="text-sm text-gray-400">
                 © 2026 XZX HUB. All rights reserved.
