@@ -1,15 +1,11 @@
 // web/next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove standalone output if present
+  // Remove the invalid 'server' key
   images: {
     unoptimized: true,
   },
-  // Optional: Explicitly set server port
-  server: {
-    port: 80,
-    host: '0.0.0.0',
-  },
+  // That's it! No server configuration needed
 };
 
 module.exports = nextConfig;
