@@ -1,12 +1,10 @@
+// web/next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',  // Change from 'standalone' to 'export'
+  output: 'standalone',  // This enables the standalone output
   images: {
     unoptimized: true,
   },
-  // Disable server-side features
-  trailingSlash: true,
-  skipTrailingSlashRedirect: true,
 };
 
 module.exports = nextConfig;
