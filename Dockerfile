@@ -15,21 +15,23 @@ RUN npm install
 # Copy source code
 COPY web/ ./
 
-# Build the app
+# Build the app (this will create .next/standalone)
 RUN npm run build
 
-# Expose port 80 (Railway expects this)
+# Verify the standalone server exists
+RUN ls -la .next/standalone/ && ls -la .next/static/
+
+# Expose port 80
 EXPOSE 80
 
 # Set environment variables
 ENV PORT=80
 ENV HOSTNAME=0.0.0.0
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
 
-# Health check - verifies app is running
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:80/ || exit 1
 
-# Start the app with proper signal handling
-CMD ["sh", "-c", "PORT=80 HOSTNAME=0.0.0.0 node .next/standalone/server.js"]
+# Start the standalone server
+CMD ["node", ".next/standalone/server.js"]
