@@ -739,7 +739,11 @@ export async function obfuscateLua(source: string, options: ObfuscationOptions =
         wait: false
       });
     } catch (parseError) {
-      throw new Error(`Invalid Lua syntax: ${parseError.message}`);
+      // FIXED: Properly handle unknown error type
+      const errorMessage = parseError instanceof Error 
+        ? parseError.message 
+        : String(parseError);
+      throw new Error(`Invalid Lua syntax: ${errorMessage}`);
     }
 
     if (!ast) {
