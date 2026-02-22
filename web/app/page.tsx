@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,33 +40,6 @@ import {
 } from "@/components/ui/select";
 import { obfuscateLua } from "@/lib/obfuscator";
 
-// Simple counter API without Firebase (SSR-safe)
-const getTotalObfuscations = async (): Promise<number> => {
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('xzx-total-obfuscations');
-      return stored ? parseInt(stored, 10) : 150;
-    } catch (error) {
-      console.error('Error reading from localStorage:', error);
-    }
-  }
-  return 150;
-};
-
-const incrementTotalObfuscations = async (): Promise<number> => {
-  if (typeof window !== 'undefined') {
-    try {
-      const current = await getTotalObfuscations();
-      const newCount = current + 1;
-      localStorage.setItem('xzx-total-obfuscations', newCount.toString());
-      return newCount;
-    } catch (error) {
-      console.error('Error writing to localStorage:', error);
-    }
-  }
-  return 151;
-};
-
 // Types
 interface ObfuscationMetrics {
   inputSize: number;
@@ -82,6 +55,13 @@ interface ObfuscationProgress {
   percent: number;
   currentStep: number;
   totalSteps: number;
+}
+
+interface ObfuscationResponse {
+  success: boolean;
+  code?: string;
+  error?: string;
+  metrics?: ObfuscationMetrics;
 }
 
 interface ObfuscatorSettings {
@@ -117,6 +97,33 @@ end
 print("Score: " .. calculateScore(100, 5))`;
 
 const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2 [https://discord.gg/5q5bEKmYqF]\n\n";
+
+// Simple counter API without Firebase (SSR-safe)
+const getTotalObfuscations = async (): Promise<number> => {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('xzx-total-obfuscations');
+      return stored ? parseInt(stored, 10) : 150;
+    } catch (error) {
+      console.error('Error reading from localStorage:', error);
+    }
+  }
+  return 150;
+};
+
+const incrementTotalObfuscations = async (): Promise<number> => {
+  if (typeof window !== 'undefined') {
+    try {
+      const current = await getTotalObfuscations();
+      const newCount = current + 1;
+      localStorage.setItem('xzx-total-obfuscations', newCount.toString());
+      return newCount;
+    } catch (error) {
+      console.error('Error writing to localStorage:', error);
+    }
+  }
+  return 151;
+};
 
 export default function Home() {
   const [inputCode, setInputCode] = useState(DEFAULT_LUA_CODE);
@@ -290,7 +297,7 @@ export default function Home() {
       };
       
       // Use setTimeout to prevent UI blocking
-      const result = await new Promise((resolve, reject) => {
+      const result = await new Promise<ObfuscationResponse>((resolve, reject) => {
         setTimeout(async () => {
           try {
             if (abortControllerRef.current?.signal.aborted) {
@@ -299,7 +306,7 @@ export default function Home() {
             }
             
             const res = await obfuscateLua(inputCode, options);
-            resolve(res);
+            resolve(res as ObfuscationResponse);
           } catch (err) {
             reject(err);
           }
