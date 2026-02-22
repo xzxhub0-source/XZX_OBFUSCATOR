@@ -1,7 +1,7 @@
 // web/next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',  // This enables the standalone output
+  // Remove 'output: standalone' if you have it - let's use the simpler approach
   images: {
     unoptimized: true,
   },
