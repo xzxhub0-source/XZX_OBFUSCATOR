@@ -9,8 +9,8 @@ WORKDIR /app
 # Copy package files
 COPY web/package*.json ./web/
 
-# Install dependencies
-RUN cd web && npm ci --include=dev
+# Install dependencies - use npm install instead of npm ci
+RUN cd web && npm install --include=dev
 
 # Copy source code
 COPY web/ ./web/
@@ -22,7 +22,6 @@ RUN cd web && npm run build
 FROM nginx:alpine
 
 # Copy the built application from builder
-# For Next.js with output: 'standalone', we need to copy the standalone folder
 COPY --from=builder /app/web/.next/standalone /app
 COPY --from=builder /app/web/.next/static /app/.next/static
 COPY --from=builder /app/web/public /app/public
