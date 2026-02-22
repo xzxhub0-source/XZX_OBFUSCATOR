@@ -23,35 +23,34 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
+# Install nginx and curl
+RUN apk add --no-cache nginx curl
 
 # Copy the standalone output
 COPY --from=builder /app/web/.next/standalone ./
-COPY --from=builder /app/web/.next/static ./.next/static
-COPY --from=builder /app/web/public ./public
+COPY --from-builder /app/web/.next/static ./.next/static
+COPY --from-builder /app/web/public ./public
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Install nginx
-RUN apk add --no-cache nginx
-
 # Create necessary directories
 RUN mkdir -p /run/nginx
 
-# Expose ports
-EXPOSE 80 8080
+# Expose ports (only port 80 is exposed to the world)
+EXPOSE 80
 
 # Create startup script
 RUN echo '#!/bin/sh\n\
-nginx\n\
-PORT=8080 HOSTNAME=0.0.0.0 node server.js\n\
+# Start Next.js on port 3000 (internal only)\n\
+PORT=3000 HOSTNAME=127.0.0.1 node server.js &\n\
+# Start nginx on port 80\n\
+nginx -g "daemon off;"\n\
 ' > /start.sh && chmod +x /start.sh
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+  CMD curl -f http://localhost/ || exit 1
 
-# Start both nginx and Next.js
+# Start both services
 CMD ["/start.sh"]
