@@ -15,7 +15,7 @@ RUN npm install
 # Copy source code
 COPY web/ ./
 
-# Build the app (this will create .next/standalone)
+# Build the app
 RUN npm run build
 
 # Verify the standalone server exists
