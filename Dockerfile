@@ -1,4 +1,4 @@
-# Final Working Dockerfile
+# Final Dockerfile - Port 80
 FROM node:18-alpine
 
 WORKDIR /app
@@ -18,17 +18,17 @@ COPY web/ ./
 # Build the app
 RUN npm run build
 
-# Expose the port Railway expects
-EXPOSE 3000
+# Expose port 80 (since Railway expects this)
+EXPOSE 80
 
-# Set environment variables
-ENV PORT=3000
+# Set environment variables - Force port 80
+ENV PORT=80
 ENV HOSTNAME=0.0.0.0
 ENV NODE_ENV=production
 
 # Simple health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/ || exit 1
+  CMD curl -f http://localhost:80/ || exit 1
 
 # Start the app
 CMD ["npm", "start"]
