@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,7 +42,6 @@ import { obfuscateLua } from "@/lib/obfuscator";
 
 // Simple counter API without Firebase (SSR-safe)
 const getTotalObfuscations = async (): Promise<number> => {
-  // Check if we're in browser environment
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem('xzx-total-obfuscations');
@@ -51,7 +50,7 @@ const getTotalObfuscations = async (): Promise<number> => {
       console.error('Error reading from localStorage:', error);
     }
   }
-  return 150; // Default for SSR
+  return 150;
 };
 
 const incrementTotalObfuscations = async (): Promise<number> => {
@@ -136,7 +135,8 @@ export default function Home() {
   const [progress, setProgress] = useState<ObfuscationProgress | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [isOffline, setIsOffline] = useState(false); // Default to false for SSR
+  const [isOffline, setIsOffline] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -153,7 +153,7 @@ export default function Home() {
     optimizationLevel: 2,
   });
 
-  // Load total obfuscations on mount (client-side only)
+  // Load total obfuscations on mount
   useEffect(() => {
     const loadTotal = async () => {
       try {
@@ -188,9 +188,8 @@ export default function Home() {
     };
   }, [isProcessing]);
 
-  // Connection monitoring (client-side only)
+  // Connection monitoring
   useEffect(() => {
-    // Only run on client
     if (typeof window !== 'undefined') {
       setIsOffline(!navigator.onLine);
       
@@ -217,7 +216,6 @@ export default function Home() {
       });
     };
     
-    // Only add event listener on client
     if (typeof window !== 'undefined') {
       window.addEventListener('mousemove', handleMouseMove);
     }
@@ -266,12 +264,17 @@ export default function Home() {
   };
 
   const cancelObfuscation = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setIsProcessing(false);
     setProgress(null);
     setElapsedTime(0);
   };
 
   const performObfuscation = async () => {
+    abortControllerRef.current = new AbortController();
+    
     try {
       const options = {
         mangleNames: settings.mangleNames,
@@ -286,7 +289,22 @@ export default function Home() {
         formattingStyle: settings.formattingStyle,
       };
       
-      const result = await obfuscateLua(inputCode, options);
+      // Use setTimeout to prevent UI blocking
+      const result = await new Promise((resolve, reject) => {
+        setTimeout(async () => {
+          try {
+            if (abortControllerRef.current?.signal.aborted) {
+              reject(new Error('Cancelled'));
+              return;
+            }
+            
+            const res = await obfuscateLua(inputCode, options);
+            resolve(res);
+          } catch (err) {
+            reject(err);
+          }
+        }, 100);
+      });
       
       setProgress({ stage: "Finalizing", percent: 100, currentStep: 5, totalSteps: 5 });
       
@@ -305,14 +323,19 @@ export default function Home() {
         setError(result.error || "Failed to obfuscate code");
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Unknown error occurred");
+      if (error instanceof Error && error.message === 'Cancelled') {
+        setError("Obfuscation cancelled");
+      } else {
+        setError(error instanceof Error ? error.message : "Unknown error occurred");
+      }
     } finally {
       setIsProcessing(false);
       setProgress(null);
+      abortControllerRef.current = null;
     }
   };
 
-  const obfuscateCode = () => {
+  const obfuscateCode = async () => {
     if (isOffline) {
       setError("You are offline. Please check your internet connection.");
       return;
@@ -330,15 +353,24 @@ export default function Home() {
     setWarning(null);
     setOutputCode("");
     
+    // Progress simulation
     setProgress({ stage: "Initializing", percent: 5, currentStep: 1, totalSteps: 5 });
     
-    setTimeout(() => setProgress({ stage: "Analyzing", percent: 25, currentStep: 2, totalSteps: 5 }), 100);
-    setTimeout(() => setProgress({ stage: "Obfuscating", percent: 50, currentStep: 3, totalSteps: 5 }), 300);
-    setTimeout(() => setProgress({ stage: "Optimizing", percent: 75, currentStep: 4, totalSteps: 5 }), 600);
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        if (!prev || prev.percent >= 90) return prev;
+        return {
+          ...prev,
+          percent: Math.min(prev.percent + 5, 90),
+          stage: prev.percent < 30 ? "Analyzing" : 
+                 prev.percent < 60 ? "Obfuscating" : "Optimizing"
+        };
+      });
+    }, 500);
     
-    setTimeout(() => {
-      performObfuscation();
-    }, 800);
+    await performObfuscation();
+    
+    clearInterval(progressInterval);
   };
 
   const copyToClipboard = async () => {
