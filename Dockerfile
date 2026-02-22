@@ -28,8 +28,9 @@ RUN apk add --no-cache nginx curl
 
 # Copy the standalone output
 COPY --from=builder /app/web/.next/standalone ./
-COPY --from-builder /app/web/.next/static ./.next/static
-COPY --from-builder /app/web/public ./public
+# FIXED: Changed --from-builder to --from=builder
+COPY --from=builder /app/web/.next/static ./.next/static
+COPY --from=builder /app/web/public ./public
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
