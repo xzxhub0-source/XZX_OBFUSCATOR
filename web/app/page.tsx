@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,21 +40,30 @@ import {
 } from "@/components/ui/select";
 import { obfuscateLua } from "@/lib/obfuscator";
 
-// Simple counter API without Firebase
+// Simple counter API without Firebase (SSR-safe)
 const getTotalObfuscations = async (): Promise<number> => {
+  // Check if we're in browser environment
   if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('xzx-total-obfuscations');
-    return stored ? parseInt(stored, 10) : 150;
+    try {
+      const stored = localStorage.getItem('xzx-total-obfuscations');
+      return stored ? parseInt(stored, 10) : 150;
+    } catch (error) {
+      console.error('Error reading from localStorage:', error);
+    }
   }
-  return 150;
+  return 150; // Default for SSR
 };
 
 const incrementTotalObfuscations = async (): Promise<number> => {
   if (typeof window !== 'undefined') {
-    const current = await getTotalObfuscations();
-    const newCount = current + 1;
-    localStorage.setItem('xzx-total-obfuscations', newCount.toString());
-    return newCount;
+    try {
+      const current = await getTotalObfuscations();
+      const newCount = current + 1;
+      localStorage.setItem('xzx-total-obfuscations', newCount.toString());
+      return newCount;
+    } catch (error) {
+      console.error('Error writing to localStorage:', error);
+    }
   }
   return 151;
 };
@@ -127,7 +136,7 @@ export default function Home() {
   const [progress, setProgress] = useState<ObfuscationProgress | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isOffline, setIsOffline] = useState(false); // Default to false for SSR
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -144,7 +153,7 @@ export default function Home() {
     optimizationLevel: 2,
   });
 
-  // Load total obfuscations on mount
+  // Load total obfuscations on mount (client-side only)
   useEffect(() => {
     const loadTotal = async () => {
       try {
@@ -179,18 +188,23 @@ export default function Home() {
     };
   }, [isProcessing]);
 
-  // Connection monitoring
+  // Connection monitoring (client-side only)
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
+    // Only run on client
+    if (typeof window !== 'undefined') {
+      setIsOffline(!navigator.onLine);
+      
+      const handleOnline = () => setIsOffline(false);
+      const handleOffline = () => setIsOffline(true);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
 
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
+    }
   }, []);
 
   useEffect(() => {
@@ -202,9 +216,17 @@ export default function Home() {
         y: e.clientY,
       });
     };
-    window.addEventListener('mousemove', handleMouseMove);
     
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    // Only add event listener on client
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mousemove', handleMouseMove);
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mousemove', handleMouseMove);
+      }
+    };
   }, []);
 
   const handleInputChange = (newCode: string) => {
