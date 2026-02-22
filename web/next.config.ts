@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',  // This enables the standalone build
+  output: 'standalone',
   images: {
     unoptimized: true,
   },
