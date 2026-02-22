@@ -9,7 +9,7 @@ WORKDIR /app
 # Copy package files
 COPY web/package*.json ./web/
 
-# Install dependencies - use npm install instead of npm ci
+# Install dependencies
 RUN cd web && npm install --include=dev
 
 # Copy source code
@@ -19,18 +19,25 @@ COPY web/ ./web/
 RUN cd web && npm run build
 
 # Production stage
-FROM nginx:alpine
+FROM node:18-alpine AS runner
 
-# Copy the built application from builder
-COPY --from=builder /app/web/.next/standalone /app
-COPY --from=builder /app/web/.next/static /app/.next/static
-COPY --from=builder /app/web/public /app/public
+WORKDIR /app
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Install curl for healthcheck (optional)
+RUN apk add --no-cache curl
 
-# Expose port 80
-EXPOSE 80
+# Copy the standalone output - NOTE: The path is different!
+COPY --from=builder /app/web/.next/standalone ./
+COPY --from=builder /app/web/.next/static ./.next/static
+COPY --from=builder /app/web/public ./public
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Expose the port Next.js runs on
+EXPOSE 3000
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Start the Next.js app
+CMD ["node", "server.js"]
