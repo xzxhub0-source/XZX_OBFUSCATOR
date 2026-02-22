@@ -149,10 +149,10 @@ ctx.addEventListener('message', async (event) => {
         }
       });
 
-      // Dynamically import the obfuscator
+      // Dynamically import the obfuscator - FIXED IMPORT PATH
       if (!obfuscateLuaModule) {
-        // Use a relative path that works in the worker context
-        const module = await import('../lib/obfuscator');
+        // Use absolute path with @ alias (works in Next.js)
+        const module = await import('@/lib/obfuscator');
         obfuscateLuaModule = module;
       }
 
