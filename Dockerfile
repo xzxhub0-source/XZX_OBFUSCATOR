@@ -1,4 +1,4 @@
-# Simple Dockerfile - Just Next.js
+# Simple Dockerfile - Just Next.js with standalone output
 FROM node:18-alpine
 
 WORKDIR /app
@@ -15,8 +15,11 @@ RUN npm install --include=dev
 # Copy source code
 COPY web/ ./
 
-# Build the app
+# Build the app (this generates the standalone output)
 RUN npm run build
+
+# For standalone output, we need to copy the standalone folder to the right place
+# The build already created it at .next/standalone
 
 # Expose port 80
 EXPOSE 80
@@ -29,5 +32,5 @@ ENV HOSTNAME=0.0.0.0
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost/ || exit 1
 
-# Start the app
-CMD ["npm", "start"]
+# Start the standalone server directly (NOT npm start)
+CMD ["node", ".next/standalone/server.js"]
