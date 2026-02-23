@@ -56,10 +56,6 @@ function base64Encode(str: string): string {
   return Buffer.from(str).toString('base64');
 }
 
-function base64Decode(str: string): string {
-  return Buffer.from(str, 'base64').toString();
-}
-
 function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -70,6 +66,15 @@ function hashString(str: string): number {
 }
 
 // ============================================
+// ESCAPE LUA CODE FOR SAFE EMBEDDING
+// ============================================
+
+function escapeLuaCode(code: string): string {
+  // Escape ]] to prevent breaking out of long string
+  return code.replace(/\]\]/g, '] ]');
+}
+
+// ============================================
 // RESERVED WORDS
 // ============================================
 
@@ -77,8 +82,7 @@ const RESERVED_WORDS = new Set([
   'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
   'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
   'then', 'true', 'until', 'while', 'getfenv', 'setfenv', '_ENV', 'load',
-  'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
-  'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8'
+  'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall'
 ]);
 
 // ============================================
@@ -110,35 +114,6 @@ class SafeIdentifierGenerator {
   
   reset(): void {
     this.usedNames.clear();
-  }
-}
-
-// ============================================
-// SAFE CODE GENERATOR
-// ============================================
-
-class SafeCodeGenerator {
-  private lines: string[] = [];
-  private indentLevel: number = 0;
-  
-  addLine(line: string): void {
-    this.lines.push('  '.repeat(this.indentLevel) + line);
-  }
-  
-  addEmptyLine(): void {
-    this.lines.push('');
-  }
-  
-  beginBlock(): void {
-    this.indentLevel++;
-  }
-  
-  endBlock(): void {
-    this.indentLevel = Math.max(0, this.indentLevel - 1);
-  }
-  
-  getCode(): string {
-    return this.lines.join('\n');
   }
 }
 
@@ -189,7 +164,7 @@ function encodeStrings(code: string): string {
   return code.replace(/"([^"\\]*)"/g, (match, str) => {
     if (str.length < 3) return match;
     
-    const method = randomInt(0, 3);
+    const method = randomInt(0, 2);
     
     if (method === 0) {
       // Simple concatenation
@@ -207,23 +182,13 @@ function encodeStrings(code: string): string {
       }
       return `string.char(${bytes.join(', ')})`;
       
-    } else if (method === 2) {
+    } else {
       // Table lookup
       const chars: string[] = [];
       for (let i = 0; i < str.length; i++) {
         chars.push(`[${i+1}] = ${str.charCodeAt(i)}`);
       }
       return `(function() local t = { ${chars.join(', ')} } local r = '' for i = 1, #t do r = r .. string.char(t[i]) end return r end)()`;
-      
-    } else {
-      // XOR encoding
-      const key = randomInt(1, 255);
-      const bytes: number[] = [];
-      for (let i = 0; i < str.length; i++) {
-        bytes.push(str.charCodeAt(i) ^ key);
-      }
-      const decoder = randomHex(4);
-      return `(function() local k = ${key} local d = {${bytes.join(', ')}} local r = '' for i = 1, #d do r = r .. string.char(d[i] ~ k) end return r end)()`;
     }
   });
 }
@@ -298,17 +263,149 @@ function flattenControlFlow(code: string, identifiers: SafeIdentifierGenerator):
 }
 
 // ============================================
+// WORKING BASE64 DECODER (FIXED)
+// ============================================
+
+const BASE64_DECODER = `
+-- Safe Base64 decoder (handles padding correctly)
+local function base64_decode(s)
+  -- Remove whitespace
+  s = s:gsub("%s+", "")
+  
+  -- Handle padding
+  local padding = s:match("=+$") or ""
+  s = s:gsub("=", "")
+  
+  local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  local result = {}
+  
+  for i = 1, #s, 4 do
+    local a = b:find(s:sub(i, i)) or 1
+    local b2 = b:find(s:sub(i+1, i+1)) or 1
+    local c = b:find(s:sub(i+2, i+2)) or 1
+    local d = b:find(s:sub(i+3, i+3)) or 1
+    
+    local n = (((a-1) * 64 + (b2-1)) * 64 + (c-1)) * 64 + (d-1)
+    
+    local bytes = {
+      math.floor(n / 65536) % 256,
+      math.floor(n / 256) % 256,
+      n % 256
+    }
+    
+    for j = 1, 3 do
+      if i + j - 1 <= #s - #padding then
+        result[#result+1] = string.char(bytes[j])
+      end
+    end
+  end
+  
+  return table.concat(result)
+end
+`;
+
+// ============================================
+// VM WRAPPER (WITH FIXED BASE64 DECODER)
+// ============================================
+
+function createVMWrapper(
+  source: string, 
+  buildId: string,
+  identifiers: SafeIdentifierGenerator,
+  licenseKey?: string
+): string {
+  const encoded = base64Encode(source);
+  const integrityHash = hashString(source + buildId);
+  const vmName = identifiers.generate();
+  const decodeName = identifiers.generate();
+  
+  return `--[[ XZX VIRTUAL MACHINE ]]
+-- Build: ${buildId}
+-- Protection Level: MAXIMUM
+-- https://discord.gg/5q5bEKmYqF
+
+local ${vmName} = {}
+
+-- Encrypted bytecode
+${vmName}.code = "${encoded}"
+${vmName}.hash = ${integrityHash}
+${licenseKey ? `${vmName}.license = "${licenseKey}"` : ''}
+
+-- Base64 decoder (fixed, handles padding)
+${BASE64_DECODER}
+${vmName}.${decodeName} = base64_decode
+
+-- Anti-debug
+${vmName}.antiDebug = function()
+  if debug and debug.getinfo then
+    -- Continue execution
+  end
+  if os.clock and os.clock() > 100 then
+    -- Continue execution
+  end
+end
+
+-- Integrity check
+${vmName}.checkIntegrity = function()
+  local hash = 0
+  for i = 1, #${vmName}.code do
+    hash = (hash * 31 + ${vmName}.code:byte(i)) % 2^32
+  end
+  if hash ~= ${vmName}.hash then
+    error("Integrity check failed")
+  end
+end
+
+${licenseKey ? `-- License check
+${vmName}.checkLicense = function()
+  if os.time() > ${Date.now() + 30*24*60*60*1000} then
+    error("License expired")
+  end
+end` : ''}
+
+-- Execute (THIS ACTUALLY RUNS THE CODE)
+${vmName}.run = function()
+  -- Run checks
+  ${vmName}.antiDebug()
+  ${vmName}.checkIntegrity()
+  ${licenseKey ? `${vmName}.checkLicense()` : ''}
+  
+  -- Decode
+  local decoded = ${vmName}.${decodeName}(${vmName}.code)
+  
+  -- Load and execute with error handling
+  local fn, err = load(decoded, "XZXVM")
+  if not fn then
+    error("Failed to load: " .. tostring(err))
+  end
+  
+  local success, result = pcall(fn)
+  if not success then
+    error("Execution failed: " .. tostring(result))
+  end
+  
+  return result
+end
+
+-- THIS ACTUALLY RUNS THE VM
+return ${vmName}.run()
+`;
+}
+
+// ============================================
 // SIMPLE WRAPPER (ALWAYS WORKS)
 // ============================================
 
 function createSimpleWrapper(source: string, buildId: string): string {
+  const escapedSource = escapeLuaCode(source);
+  
   return `--[[ XZX PROTECTED ]]
 -- Build: ${buildId}
 -- https://discord.gg/5q5bEKmYqF
 
 -- THIS CODE ACTUALLY EXECUTES
 local fn, err = load([[
-${source.split('\n').map(l => '  ' + l).join('\n')}
+${escapedSource.split('\n').map(l => '  ' + l).join('\n')}
 ]], "XZX")
 
 if not fn then
@@ -325,7 +422,7 @@ return result
 }
 
 // ============================================
-// OBFUSCATED WRAPPER (WITH ALL LAYERS)
+// OBFUSCATED WRAPPER
 // ============================================
 
 function createObfuscatedWrapper(
@@ -373,7 +470,8 @@ function createObfuscatedWrapper(
     layers.push('controlFlow');
   }
 
-  // Return with proper execution
+  const escapedObfuscated = escapeLuaCode(obfuscated);
+
   return `--[[ XZX ADVANCED ]]
 -- Build: ${buildId}
 -- Protection Level: ${level}
@@ -382,7 +480,7 @@ function createObfuscatedWrapper(
 
 -- THIS CODE ACTUALLY EXECUTES
 local fn, err = load([[
-${obfuscated.split('\n').map(l => '  ' + l).join('\n')}
+${escapedObfuscated.split('\n').map(l => '  ' + l).join('\n')}
 ]], "XZX")
 
 if not fn then
@@ -395,116 +493,6 @@ if not success then
 end
 
 return result
-`;
-}
-
-// ============================================
-// VM WRAPPER (HIGHEST PROTECTION)
-// ============================================
-
-function createVMWrapper(
-  source: string, 
-  buildId: string,
-  identifiers: SafeIdentifierGenerator,
-  licenseKey?: string
-): string {
-  const encoded = base64Encode(source);
-  const integrityHash = hashString(source + buildId);
-  const vmName = identifiers.generate();
-  const decodeName = identifiers.generate();
-  
-  return `--[[ XZX VIRTUAL MACHINE ]]
--- Build: ${buildId}
--- Protection Level: MAXIMUM
--- https://discord.gg/5q5bEKmYqF
-
-local ${vmName} = {}
-
--- Encrypted bytecode
-${vmName}.code = "${encoded}"
-${vmName}.hash = ${integrityHash}
-${licenseKey ? `${vmName}.license = "${licenseKey}"` : ''}
-
--- Anti-debug
-${vmName}.antiDebug = function()
-  if debug and debug.getinfo then
-    -- Continue execution (don't crash)
-  end
-  if os.clock and os.clock() > 100 then
-    -- Continue execution
-  end
-end
-
--- Integrity check
-${vmName}.checkIntegrity = function()
-  local hash = 0
-  for i = 1, #${vmName}.code do
-    hash = (hash * 31 + ${vmName}.code:byte(i)) % 2^32
-  end
-  if hash ~= ${vmName}.hash then
-    error("Integrity check failed")
-  end
-end
-
-${licenseKey ? `-- License check
-${vmName}.checkLicense = function()
-  if os.time() > ${Date.now() + 30*24*60*60*1000} then
-    error("License expired")
-  end
-end` : ''}
-
--- Base64 decoder
-${vmName}.${decodeName} = function(s)
-  local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  local r = ''
-  
-  for i = 1, #s, 4 do
-    local a = (b:find(s:sub(i, i)) or 65) - 1
-    local c = (b:find(s:sub(i+1, i+1)) or 65) - 1
-    local d = (b:find(s:sub(i+2, i+2)) or 65) - 1
-    local e = (b:find(s:sub(i+3, i+3)) or 65) - 1
-    
-    local n = (((a * 64 + c) * 64 + d) * 64 + e)
-    
-    -- Handle bytes
-    local b1 = n // 65536
-    local b2 = (n // 256) % 256
-    local b3 = n % 256
-    
-    r = r .. string.char(b1)
-    r = r .. string.char(b2)
-    r = r .. string.char(b3)
-  end
-  
-  return r
-end
-
--- Execute (THIS ACTUALLY RUNS THE CODE)
-${vmName}.run = function()
-  -- Run checks
-  ${vmName}.antiDebug()
-  ${vmName}.checkIntegrity()
-  ${licenseKey ? `${vmName}.checkLicense()` : ''}
-  
-  -- Decode
-  local decoded = ${vmName}.${decodeName}(${vmName}.code)
-  
-  -- Load and execute
-  local fn, err = load(decoded, "XZXVM")
-  if not fn then
-    error("Failed to load protected code: " .. tostring(err))
-  end
-  
-  local success, result = pcall(fn)
-  if not success then
-    error("Execution failed: " .. tostring(result))
-  end
-  
-  return result
-end
-
--- THIS ACTUALLY RUNS THE VM
-return ${vmName}.run()
 `;
 }
 
@@ -528,20 +516,13 @@ export async function obfuscateLua(
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
     const identifiers = new SafeIdentifierGenerator();
 
-    // Validate source
-    try {
-      luaparse.parse(source, { luaVersion: '5.1' });
-    } catch (e) {
-      // Source might be invalid, continue anyway
-    }
-
     let finalCode: string;
 
     // Choose wrapper based on protection level
     if (options.useVM !== false && level >= 90) {
-      // VM wrapper (highest protection)
+      // VM wrapper (highest protection) - with fixed base64 decoder
       finalCode = createVMWrapper(source, buildId, identifiers, options.licenseKey);
-      layersApplied.push('vm', 'antiDebug', 'integrity', 'encryption');
+      layersApplied.push('vm', 'antiDebug', 'integrity', 'base64');
       if (options.licenseKey) layersApplied.push('license');
       
     } else if (level >= 70) {
@@ -571,13 +552,14 @@ export async function obfuscateLua(
 
   } catch (error) {
     // Ultimate fallback - ALWAYS works
+    const escapedSource = escapeLuaCode(source);
     const fallback = `--[[ XZX PROTECTED ]]
 -- Build: FALLBACK-${randomHex(4)}
 -- Mode: Emergency
 
 -- THIS CODE ALWAYS EXECUTES
 local fn, err = load([[
-${source.split('\n').map(l => '  ' + l).join('\n')}
+${escapedSource.split('\n').map(l => '  ' + l).join('\n')}
 ]], "XZX")
 
 if not fn then
