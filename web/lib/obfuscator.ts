@@ -2,18 +2,8 @@
 import * as luaparse from 'luaparse';
 
 export interface ObfuscationOptions {
-  mangleNames?: boolean;
-  encodeStrings?: boolean;
-  encodeNumbers?: boolean;
   protectionLevel?: number;
-  deadCodeInjection?: boolean;
-  controlFlowFlattening?: boolean;
   targetVersion?: string;
-  optimizationLevel?: number;
-  encryptionAlgorithm?: string;
-  formattingStyle?: string;
-  licenseKey?: string;
-  useVM?: boolean;
 }
 
 export interface ObfuscationResult {
@@ -24,7 +14,6 @@ export interface ObfuscationResult {
     inputSize: number;
     outputSize: number;
     duration: number;
-    instructionCount: number;
     buildId: string;
     layersApplied: string[];
   };
@@ -47,6 +36,18 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function base64Encode(str: string): string {
+  return Buffer.from(str).toString('base64');
+}
+
 function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -56,18 +57,12 @@ function hashString(str: string): number {
   return hash;
 }
 
-function base64Encode(str: string): string {
-  return Buffer.from(str).toString('base64');
-}
-
-function base64Decode(str: string): string {
-  return Buffer.from(str, 'base64').toString();
-}
-
 // ============================================
-// NAME MANGLING
+// VARIABLE NAME GENERATOR
 // ============================================
 
+const VALID_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+const VALID_DIGITS = '0123456789';
 const RESERVED_WORDS = new Set([
   'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
   'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
@@ -76,319 +71,407 @@ const RESERVED_WORDS = new Set([
   'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8'
 ]);
 
-function mangleNames(code: string): string {
-  const nameMap = new Map<string, string>();
+const usedNames = new Set<string>();
+
+function generateName(): string {
+  const length = randomInt(2, 5);
+  let name = VALID_CHARS[randomInt(0, VALID_CHARS.length - 1)];
   
-  return code.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
-    if (RESERVED_WORDS.has(match) || match.startsWith('_')) return match;
-    if (!nameMap.has(match)) {
-      nameMap.set(match, '_' + randomHex(6));
-    }
-    return nameMap.get(match)!;
-  });
+  for (let i = 1; i < length; i++) {
+    const chars = VALID_CHARS + VALID_DIGITS;
+    name += chars[randomInt(0, chars.length - 1)];
+  }
+  
+  if (RESERVED_WORDS.has(name) || usedNames.has(name)) {
+    return generateName();
+  }
+  
+  usedNames.add(name);
+  return name;
 }
 
-// ============================================
-// STRING ENCODING
-// ============================================
-
-function encodeStrings(code: string): string {
-  return code.replace(/"([^"\\]*)"/g, (match, str) => {
-    if (str.length < 3) return match;
-    const key = randomInt(1, 255);
-    const bytes: number[] = [];
-    for (let i = 0; i < str.length; i++) {
-      bytes.push(str.charCodeAt(i) ^ ((key + i) & 0xff));
-    }
-    const decoder = '_' + randomHex(4);
-    return `((function(${decoder}) local s='';for i=1,#${decoder} do s=s..string.char(${decoder}[i]~(${key}+i-1));end;return s;end)(${JSON.stringify(bytes)}))`;
-  });
+function resetNameGenerator(): void {
+  usedNames.clear();
 }
 
 // ============================================
 // NUMBER ENCODING
 // ============================================
 
-function encodeNumbers(code: string): string {
-  return code.replace(/\b(\d+)\b/g, (match, numStr) => {
-    const num = parseInt(numStr, 10);
-    if (num < 10) return match;
-    const transforms = [
-      `(${num} + 0)`,
-      `(0x${num.toString(16)})`,
-      `(${Math.floor(num / 2)} + ${Math.ceil(num / 2)})`,
-    ];
-    return transforms[randomInt(0, transforms.length - 1)];
-  });
+function encodeNumber(num: number): string {
+  if (num < 10) return num.toString();
+  
+  const methods = [
+    () => `(${num}+0)`,
+    () => `(0x${num.toString(16)})`,
+    () => `(${Math.floor(num / 2)}+${Math.ceil(num / 2)})`,
+    () => `(${num}-0)`,
+    () => `(${num}*1)`,
+    () => `(${num}/1)`,
+    () => `(tonumber("${num}"))`,
+    () => `((function()return ${num}end)())`
+  ];
+  
+  return methods[randomInt(0, methods.length - 1)]();
 }
 
 // ============================================
-// DEAD CODE INJECTION
+// STRING ENCODING
 // ============================================
 
-function injectDeadCode(code: string): string {
-  const lines = code.split('\n');
-  const deadCode = [
-    'local _ = math.random(1,100)',
-    'if false then print("dead") end',
-    'local _t = {1,2,3}',
-    'for i=1,0 do end',
-    'local _x = string.char(65)',
-  ];
+function encodeString(str: string): string {
+  if (str.length === 0) return '""';
+  if (str.length < 3) return `"${str}"`;
   
-  for (let i = 0; i < Math.floor(lines.length / 50) + 1; i++) {
-    const pos = randomInt(0, lines.length - 1);
-    lines.splice(pos, 0, '  ' + deadCode[randomInt(0, deadCode.length - 1)]);
+  const method = randomInt(0, 4);
+  
+  if (method === 0) {
+    // Simple byte array
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      bytes.push(str.charCodeAt(i));
+    }
+    return `string.char(${bytes.join(',')})`;
+    
+  } else if (method === 1) {
+    // XOR with random key
+    const key = randomInt(1, 255);
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      bytes.push(str.charCodeAt(i) ^ key);
+    }
+    const decoder = generateName();
+    return `((function(${decoder})local s='';for i=1,#${decoder} do s=s..string.char(${decoder}[i]~${key});end;return s;end)(${JSON.stringify(bytes)}))`;
+    
+  } else if (method === 2) {
+    // Split into chunks
+    const chunkSize = randomInt(2, 4);
+    const chunks: string[] = [];
+    for (let i = 0; i < str.length; i += chunkSize) {
+      const chunk = str.slice(i, i + chunkSize);
+      chunks.push(`"${chunk}"`);
+    }
+    return chunks.join('..');
+    
+  } else if (method === 3) {
+    // Hex encoding
+    const hex: string[] = [];
+    for (let i = 0; i < str.length; i++) {
+      hex.push(`\\x${str.charCodeAt(i).toString(16).padStart(2, '0')}`);
+    }
+    return `"${hex.join('')}"`;
+    
+  } else {
+    // Base64 with decoder
+    const encoded = base64Encode(str);
+    const decoder = generateName();
+    return `((function(${decoder})local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'local r=''for i=1,#${decoder},4 do local a=(b:find(${decoder}:sub(i,i))or 65)-1 local c=(b:find(${decoder}:sub(i+1,i+1))or 65)-1 local d=(b:find(${decoder}:sub(i+2,i+2))or 65)-1 local e=(b:find(${decoder}:sub(i+3,i+3))or 65)-1 local n=(((a*64+c)*64+d)*64+e)r=r..string.char(bit32.rshift(n,16))r=r..string.char(bit32.band(bit32.rshift(n,8),255))r=r..string.char(bit32.band(n,255))end return r end)("${encoded}"))`;
+  }
+}
+
+// ============================================
+// AST TRANSFORMER
+// ============================================
+
+interface ASTNode {
+  type: string;
+  [key: string]: any;
+}
+
+class ASTTransformer {
+  private nameMap: Map<string, string> = new Map();
+  private scopeStack: string[][] = [[]];
+  
+  transform(ast: any): any {
+    if (!ast) return ast;
+    this.visitNode(ast);
+    return ast;
   }
   
-  return lines.join('\n');
+  private visitNode(node: any): void {
+    if (!node) return;
+    
+    // Handle identifiers
+    if (node.type === 'Identifier' && node.name && !RESERVED_WORDS.has(node.name)) {
+      if (!this.nameMap.has(node.name)) {
+        this.nameMap.set(node.name, generateName());
+      }
+      node.name = this.nameMap.get(node.name)!;
+    }
+    
+    // Handle function parameters
+    if (node.parameters && Array.isArray(node.parameters)) {
+      node.parameters.forEach((param: any) => {
+        if (param && param.type === 'Identifier' && param.name) {
+          if (!this.nameMap.has(param.name)) {
+            this.nameMap.set(param.name, generateName());
+          }
+          param.name = this.nameMap.get(param.name)!;
+        }
+      });
+    }
+    
+    // Handle local variables
+    if (node.type === 'LocalStatement' && node.variables) {
+      node.variables.forEach((variable: any) => {
+        if (variable && variable.type === 'Identifier' && variable.name) {
+          if (!this.nameMap.has(variable.name)) {
+            this.nameMap.set(variable.name, generateName());
+          }
+          variable.name = this.nameMap.get(variable.name)!;
+        }
+      });
+    }
+    
+    // Recursively process children
+    for (const key in node) {
+      if (node.hasOwnProperty(key)) {
+        const value = node[key];
+        if (Array.isArray(value)) {
+          for (let i = 0; i < value.length; i++) {
+            if (value[i] && typeof value[i] === 'object') {
+              this.visitNode(value[i]);
+            }
+          }
+        } else if (value && typeof value === 'object') {
+          this.visitNode(value);
+        }
+      }
+    }
+  }
+}
+
+// ============================================
+// CODE GENERATOR
+// ============================================
+
+class CodeGenerator {
+  generate(node: any): string {
+    if (!node) return '';
+    return this.visitNode(node);
+  }
+  
+  private visitNode(node: any): string {
+    if (!node) return '';
+    
+    try {
+      switch (node.type) {
+        case 'Chunk':
+          return this.visitNodes(node.body);
+          
+        case 'AssignmentStatement':
+          return this.visitNodes(node.variables) + ' = ' + this.visitNodes(node.init);
+          
+        case 'LocalStatement':
+          return 'local ' + this.visitNodes(node.variables) + 
+                 (node.init && node.init.length ? ' = ' + this.visitNodes(node.init) : '');
+          
+        case 'CallStatement':
+          return this.visitNode(node.expression);
+          
+        case 'CallExpression':
+          return this.visitNode(node.base) + '(' + this.visitNodes(node.arguments) + ')';
+          
+        case 'StringLiteral':
+          return encodeString(node.value);
+          
+        case 'NumericLiteral':
+          return encodeNumber(node.value);
+          
+        case 'BooleanLiteral':
+          return node.value ? 'true' : 'false';
+          
+        case 'NilLiteral':
+          return 'nil';
+          
+        case 'Identifier':
+          return this.nameMap?.get(node.name) || node.name || '';
+          
+        case 'BinaryExpression':
+          return '(' + this.visitNode(node.left) + ' ' + node.operator + ' ' + this.visitNode(node.right) + ')';
+          
+        case 'UnaryExpression':
+          return node.operator + ' ' + this.visitNode(node.argument);
+          
+        case 'IfStatement':
+          return this.generateIfStatement(node);
+          
+        case 'WhileStatement':
+          return 'while ' + this.visitNode(node.condition) + ' do\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
+          
+        case 'RepeatStatement':
+          return 'repeat\n' +
+                 this.indent(this.visitNodes(node.body)) + '\n' +
+                 'until ' + this.visitNode(node.condition);
+          
+        case 'ForStatement':
+          return 'for ' + this.visitNode(node.variable) + ' = ' +
+                 this.visitNode(node.start) + ', ' + this.visitNode(node.end) +
+                 (node.step ? ', ' + this.visitNode(node.step) : '') + ' do\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
+          
+        case 'ForInStatement':
+          return 'for ' + this.visitNodes(node.variables) + ' in ' +
+                 this.visitNodes(node.iterators) + ' do\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
+          
+        case 'FunctionDeclaration':
+          return 'function ' + this.visitNode(node.identifier) + '(' +
+                 this.visitNodes(node.parameters) + ')\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
+          
+        case 'LocalFunction':
+          return 'local function ' + this.visitNode(node.identifier) + '(' +
+                 this.visitNodes(node.parameters) + ')\n' +
+                 this.indent(this.visitNodes(node.body)) + '\nend';
+          
+        case 'ReturnStatement':
+          return 'return ' + this.visitNodes(node.arguments);
+          
+        case 'BreakStatement':
+          return 'break';
+          
+        case 'GotoStatement':
+          return 'goto ' + node.label;
+          
+        case 'LabelStatement':
+          return '::' + node.label + '::';
+          
+        case 'TableConstructorExpression':
+          return '{' + this.visitNodes(node.fields) + '}';
+          
+        case 'TableKey':
+          return '[' + this.visitNode(node.key) + '] = ' + this.visitNode(node.value);
+          
+        case 'TableKeyString':
+          return node.key.name + ' = ' + this.visitNode(node.value);
+          
+        case 'TableValue':
+          return this.visitNode(node.value);
+          
+        case 'IndexExpression':
+          return this.visitNode(node.base) + '[' + this.visitNode(node.index) + ']';
+          
+        case 'MemberExpression':
+          return this.visitNode(node.base) + '.' + node.identifier.name;
+          
+        default:
+          return '';
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+  
+  private generateIfStatement(node: any): string {
+    let code = 'if ' + this.visitNode(node.condition) + ' then\n';
+    code += this.indent(this.visitNodes(node.then));
+    
+    if (node.else) {
+      code += '\nelse\n';
+      const elseBody = Array.isArray(node.else) ? node.else : [node.else];
+      code += this.indent(this.visitNodes(elseBody));
+    }
+    
+    code += '\nend';
+    return code;
+  }
+  
+  private visitNodes(nodes: any[]): string {
+    if (!nodes || !Array.isArray(nodes)) return '';
+    return nodes
+      .map(node => this.visitNode(node))
+      .filter(line => line && line.trim())
+      .join(', ');
+  }
+  
+  private indent(code: string): string {
+    if (!code) return '';
+    return code.split('\n').map(line => '  ' + line).join('\n');
+  }
+  
+  private nameMap?: Map<string, string>;
 }
 
 // ============================================
 // CONTROL FLOW FLATTENING
 // ============================================
 
-function flattenControlFlow(code: string): string {
-  const lines = code.split('\n');
-  if (lines.length < 10) return code;
+function flattenControlFlow(lines: string[]): string[] {
+  if (lines.length < 10) return lines;
   
-  const stateVar = '_state' + randomHex(4);
-  const blocks: string[][] = [[]];
-  let blockIndex = 0;
+  const stateVar = generateName();
+  const blocks: string[][] = [];
+  let currentBlock: string[] = [];
   
   for (const line of lines) {
-    blocks[blockIndex].push(line);
-    if (line.includes('end') && blocks[blockIndex].length > 3) {
-      blockIndex++;
-      blocks[blockIndex] = [];
+    currentBlock.push(line);
+    if ((line.includes('end') || line.includes('until')) && currentBlock.length > 3) {
+      blocks.push(currentBlock);
+      currentBlock = [];
     }
   }
   
-  let result = `local ${stateVar} = 1\nwhile ${stateVar} < ${blocks.length} do\n`;
-  
-  for (let i = 0; i < blocks.length; i++) {
-    result += `  if ${stateVar} == ${i} then\n`;
-    result += blocks[i].map(l => '    ' + l).join('\n') + '\n';
-    result += `    ${stateVar} = ${i + 1}\n`;
-    result += `  elseif ${stateVar} == ${i} and false then\n`;
-    result += `    -- dead block\n`;
-    result += `  end\n`;
+  if (currentBlock.length > 0) {
+    blocks.push(currentBlock);
   }
   
-  result += `end\n`;
+  if (blocks.length < 2) return lines;
+  
+  const result: string[] = [];
+  result.push(`local ${stateVar}=${randomInt(0, blocks.length - 1)}`);
+  result.push(`while ${stateVar}>=0 do`);
+  
+  for (let i = 0; i < blocks.length; i++) {
+    if (i === 0) {
+      result.push(`if ${stateVar}==${i} then`);
+    } else {
+      result.push(`elseif ${stateVar}==${i} then`);
+    }
+    
+    result.push(...blocks[i].map(l => '  ' + l));
+    
+    if (i === blocks.length - 1) {
+      result.push(`  ${stateVar}=-1`);
+    } else {
+      result.push(`  ${stateVar}=${randomInt(i + 1, blocks.length - 1)}`);
+    }
+  }
+  
+  result.push(`end`);
+  result.push(`end`);
+  
   return result;
 }
 
 // ============================================
-// MINIFICATION
+// JUNK CODE INJECTION
 // ============================================
 
-function minify(code: string): string {
-  return code
-    .replace(/--.*$/gm, '')
-    .replace(/\s+/g, ' ')
-    .replace(/\s*([=+\-*/%<>.,;{}()\[\]])\s*/g, '$1')
-    .trim();
-}
+const JUNK_CODE = [
+  'local _=math.random(1,100)',
+  'if false then print("dead") end',
+  'local _t={1,2,3}',
+  'for i=1,0 do end',
+  'local _x=string.char(65)',
+  'local _y=type(nil)',
+  'local _z=os.clock()',
+  'local _a=tonumber("123")',
+  'local _b=tostring(math.random())',
+  'local _c=(function()return nil end)()'
+];
 
-// ============================================
-// SIMPLE VM GENERATOR
-// ============================================
-
-function generateVM(obfuscatedCode: string, buildId: string): string {
-  const encodedCode = base64Encode(obfuscatedCode);
+function injectJunkCode(lines: string[], count: number): string[] {
+  const result = [...lines];
   
-  return `--[[ XZX PROTECTED VM ]]
--- Build ID: ${buildId}
--- Protection Level: Maximum
--- https://discord.gg/5q5bEKmYqF
-
-local XZXVM = {}
-
--- Protected code (encrypted)
-XZXVM.data = [[${encodedCode}]]
-
--- Anti-debug check
-XZXVM.check = function()
-  if debug and debug.getinfo then
-    return false
-  end
-  return true
-end
-
--- Base64 decoder
-XZXVM.decode = function(str)
-  local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  local result = ''
-  
-  for i = 1, #str, 4 do
-    local a = (b:find(str:sub(i, i)) or 65) - 1
-    local b2 = (b:find(str:sub(i+1, i+1)) or 65) - 1
-    local c = (b:find(str:sub(i+2, i+2)) or 65) - 1
-    local d = (b:find(str:sub(i+3, i+3)) or 65) - 1
-    
-    local n = ((a * 64 + b2) * 64 + c) * 64 + d
-    
-    local bytes = {
-      string.char((n >> 16) & 0xFF),
-      string.char((n >> 8) & 0xFF),
-      string.char(n & 0xFF)
-    }
-    
-    for j = 1, 3 do
-      if bytes[j] and bytes[j] ~= '\\0' then
-        result = result .. bytes[j]
-      end
-    end
-  end
-  
-  return result
-end
-
--- Execute protected code
-XZXVM.run = function()
-  -- Decode
-  local decoded = XZXVM.decode(XZXVM.data)
-  
-  -- Load with error handling
-  local fn, err = load(decoded, "XZXVM")
-  if not fn then
-    return nil
-  end
-  
-  -- Execute protected
-  local success, result = pcall(fn)
-  if not success then
-    return nil
-  end
-  
-  return result
-end
-
--- Run
-return XZXVM.run()
-`;
-}
-
-// ============================================
-// ADVANCED VM WITH MUTATION
-// ============================================
-
-function generateAdvancedVM(obfuscatedCode: string, buildId: string): string {
-  const encodedCode = base64Encode(obfuscatedCode);
-  const chunks: string[] = [];
-  
-  // Split into chunks
-  for (let i = 0; i < encodedCode.length; i += 50) {
-    chunks.push(encodedCode.substring(i, i + 50));
+  for (let i = 0; i < count; i++) {
+    const pos = randomInt(0, result.length);
+    const junk = JUNK_CODE[randomInt(0, JUNK_CODE.length - 1)];
+    result.splice(pos, 0, '  ' + junk);
   }
   
-  return `--[[ XZX ADVANCED VM ]]
--- Build ID: ${buildId}
--- Protection Level: Maximum
--- https://discord.gg/5q5bEKmYqF
-
-local XZXVM = {}
-
--- Chunked protected code
-XZXVM.chunks = {${chunks.map(c => `"${c}"`).join(',\n  ')}}
-
--- Integrity hash
-XZXVM.hash = ${hashString(obfuscatedCode)}
-
--- Register storage
-XZXVM.registers = {}
-XZXVM.pc = 1
-
--- Anti-debug
-XZXVM.antiDebug = function()
-  if debug and debug.getinfo then
-    return false
-  end
-  if os.clock and os.clock() > 100 then
-    return false
-  end
-  return true
-end
-
--- Register functions
-XZXVM.getReg = function(idx)
-  return XZXVM.registers[idx]
-end
-
-XZXVM.setReg = function(idx, val)
-  XZXVM.registers[idx] = val
-end
-
--- Decode chunks
-XZXVM.decode = function()
-  local full = table.concat(XZXVM.chunks)
-  local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  local result = ''
-  
-  for i = 1, #full, 4 do
-    local a = (b:find(full:sub(i, i)) or 65) - 1
-    local b2 = (b:find(full:sub(i+1, i+1)) or 65) - 1
-    local c = (b:find(full:sub(i+2, i+2)) or 65) - 1
-    local d = (b:find(full:sub(i+3, i+3)) or 65) - 1
-    
-    local n = ((a * 64 + b2) * 64 + c) * 64 + d
-    result = result .. string.char((n >> 16) & 0xFF)
-    result = result .. string.char((n >> 8) & 0xFF)
-    result = result .. string.char(n & 0xFF)
-  end
-  
-  return result
-end
-
--- Simple opcode handlers
-XZXVM.handlers = {
-  [1] = function() 
-    local a = XZXVM:getReg(1) or 0
-    local b = XZXVM:getReg(2) or 0
-    XZXVM:setReg(3, a + b)
-    XZXVM.pc = XZXVM.pc + 1
-  end,
-  [2] = function()
-    local target = XZXVM:getReg(1) or XZXVM.pc
-    XZXVM.pc = target
-  end,
-  [3] = function()
-    local val = XZXVM:getReg(1)
-    XZXVM:setReg(1, not val)
-    XZXVM.pc = XZXVM.pc + 1
-  end,
-  [4] = function()
-    local idx = XZXVM:getReg(1) or 1
-    XZXVM:setReg(2, XZXVM.constants and XZXVM.constants[idx])
-    XZXVM.pc = XZXVM.pc + 1
-  end
-}
-
--- Execute
-XZXVM.run = function()
-  if not XZXVM:antiDebug() then
-    return nil
-  end
-  
-  local decoded = XZXVM:decode()
-  XZXVM.constants = { decoded }
-  
-  local fn, err = load(decoded, "XZXVM")
-  if not fn then
-    return nil
-  end
-  
-  local success, result = pcall(fn)
-  if not success then
-    return nil
-  end
-  
-  return result
-end
-
-return XZXVM.run()
-`;
+  return result;
 }
 
 // ============================================
@@ -406,54 +489,101 @@ export async function obfuscateLua(
       throw new Error('Empty source code');
     }
 
+    resetNameGenerator();
+    
     const level = options.protectionLevel || 50;
     const layersApplied: string[] = [];
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
 
-    // Apply obfuscation layers
-    let obfuscated = source;
+    // Parse source to AST
+    let ast;
+    try {
+      ast = luaparse.parse(source, { 
+        comments: false, 
+        luaVersion: (options.targetVersion as any) || '5.1',
+        locations: false,
+        ranges: false
+      });
+      layersApplied.push('astParsing');
+    } catch {
+      // If parsing fails, use simple string-based obfuscation
+      layersApplied.push('simpleMode');
+      
+      // Split into lines
+      let lines = source.split('\n').filter(l => l.trim().length > 0);
+      
+      // Apply simple obfuscation
+      if (level >= 30) {
+        lines = injectJunkCode(lines, Math.floor(level / 10));
+        layersApplied.push('junkCode');
+      }
+      
+      // Join and wrap
+      const simpleOutput = `--[[ XZX OBFUSCATOR ]]
+-- Build: ${buildId}
+-- Mode: Simple
 
-    if (options.mangleNames !== false && level >= 20) {
-      obfuscated = mangleNames(obfuscated);
-      layersApplied.push('mangleNames');
+return(function(...)
+${lines.map(l => '  ' + l).join('\n')}
+end)(...)`;
+
+      return {
+        success: true,
+        code: simpleOutput,
+        metrics: {
+          inputSize: source.length,
+          outputSize: simpleOutput.length,
+          duration: (Date.now() - startTime) / 1000,
+          buildId,
+          layersApplied
+        }
+      };
     }
 
-    if (options.encodeStrings !== false && level >= 30) {
-      obfuscated = encodeStrings(obfuscated);
-      layersApplied.push('encodeStrings');
+    if (!ast) {
+      throw new Error('Failed to parse AST');
     }
 
-    if (options.encodeNumbers !== false && level >= 40) {
-      obfuscated = encodeNumbers(obfuscated);
-      layersApplied.push('encodeNumbers');
-    }
+    // Transform AST (rename variables)
+    const transformer = new ASTTransformer();
+    const transformedAst = transformer.transform(ast);
+    layersApplied.push('variableRenaming');
 
-    if (options.deadCodeInjection !== false && level >= 65) {
-      obfuscated = injectDeadCode(obfuscated);
-      layersApplied.push('deadCodeInjection');
-    }
+    // Generate code from AST
+    const generator = new CodeGenerator();
+    let obfuscated = generator.generate(transformedAst);
+    layersApplied.push('codeGeneration');
 
-    if (options.controlFlowFlattening !== false && level >= 70) {
-      obfuscated = flattenControlFlow(obfuscated);
+    // Split into lines for further processing
+    let lines = obfuscated.split('\n').filter(l => l.trim().length > 0);
+
+    // Apply control flow flattening for high protection levels
+    if (level >= 70) {
+      lines = flattenControlFlow(lines);
       layersApplied.push('controlFlowFlattening');
     }
 
-    if (options.formattingStyle !== 'pretty') {
-      obfuscated = minify(obfuscated);
-      layersApplied.push('minify');
+    // Inject junk code based on protection level
+    if (level >= 50) {
+      const junkCount = Math.floor(level / 20);
+      lines = injectJunkCode(lines, junkCount);
+      layersApplied.push('junkCode');
     }
 
-    // Choose VM type based on protection level
-    let finalCode: string;
-    if (level >= 90) {
-      finalCode = generateAdvancedVM(obfuscated, buildId);
-      layersApplied.push('advancedVM');
-    } else if (options.useVM !== false) {
-      finalCode = generateVM(obfuscated, buildId);
-      layersApplied.push('basicVM');
-    } else {
-      finalCode = obfuscated;
-    }
+    // Join lines
+    obfuscated = lines.join('\n');
+
+    // Generate final output with wrapper
+    const finalCode = `--[[ XZX ULTIMATE OBFUSCATOR ]]
+-- Build ID: ${buildId}
+-- Protection Level: ${level}
+-- Layers: ${layersApplied.join(', ')}
+-- https://discord.gg/5q5bEKmYqF
+
+return(function(...)
+${obfuscated.split('\n').map(l => '  ' + l).join('\n')}
+end)(...)
+`;
 
     const duration = (Date.now() - startTime) / 1000;
 
@@ -464,7 +594,6 @@ export async function obfuscateLua(
         inputSize: source.length,
         outputSize: finalCode.length,
         duration,
-        instructionCount: source.split('\n').length,
         buildId,
         layersApplied
       }
@@ -474,14 +603,19 @@ export async function obfuscateLua(
     // Ultimate fallback - always return something executable
     return {
       success: true,
-      code: `--[[ XZX Protected ]]\n\n${source}`,
+      code: `--[[ XZX PROTECTED ]]
+-- Build: FALLBACK-${randomHex(4)}
+
+return(function(...)
+${source.split('\n').map(l => '  ' + l).join('\n')}
+end)(...)
+`,
       metrics: {
         inputSize: source.length,
-        outputSize: source.length + 50,
+        outputSize: source.length + 100,
         duration: (Date.now() - startTime) / 1000,
-        instructionCount: source.split('\n').length,
         buildId: 'XZX-FALLBACK',
-        layersApplied: ['basic']
+        layersApplied: ['fallback']
       }
     };
   }
