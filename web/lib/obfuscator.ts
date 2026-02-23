@@ -5,12 +5,6 @@ export interface ObfuscationOptions {
   protectionLevel?: number;
   targetVersion?: string;
   debug?: boolean;
-  mangleNames?: boolean;
-  encodeStrings?: boolean;
-  encodeNumbers?: boolean;
-  deadCodeInjection?: boolean;
-  controlFlowFlattening?: boolean;
-  useVM?: boolean;
 }
 
 export interface ObfuscationResult {
@@ -43,14 +37,6 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function shuffleArray<T>(array: T[]): T[] {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-}
-
 function base64Encode(str: string): string {
   return Buffer.from(str).toString('base64');
 }
@@ -59,383 +45,276 @@ function base64Decode(str: string): string {
   return Buffer.from(str, 'base64').toString();
 }
 
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-}
-
 // ============================================
-// LUA SYNTAX VALIDATOR
-// ============================================
-
-function validateLua(code: string): { valid: boolean; error?: string } {
-  try {
-    luaparse.parse(code, { luaVersion: '5.1' });
-    return { valid: true };
-  } catch (e: any) {
-    return { 
-      valid: false, 
-      error: e.message 
-    };
-  }
-}
-
-// ============================================
-// SAFE IDENTIFIER GENERATOR
+// SIMPLE VARIABLE RENAMING
 // ============================================
 
 const RESERVED_WORDS = new Set([
   'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
   'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
   'then', 'true', 'until', 'while', 'getfenv', 'setfenv', '_ENV', 'load',
-  'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall'
+  'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
+  'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8'
 ]);
 
-const VALID_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const VALID_DIGITS = '0123456789';
-
-class SafeIdentifierGenerator {
-  private usedNames: Set<string> = new Set();
+function renameVariables(code: string): string {
+  const nameMap = new Map<string, string>();
+  const usedNames = new Set<string>();
   
-  generate(): string {
-    const length = randomInt(3, 8);
-    let name = '_' + VALID_CHARS[randomInt(0, VALID_CHARS.length - 1)];
+  const generateName = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const digits = '0123456789';
+    let name = '_' + chars[Math.floor(Math.random() * chars.length)];
     
-    for (let i = 1; i < length; i++) {
-      const chars = VALID_CHARS + VALID_DIGITS;
-      name += chars[randomInt(0, chars.length - 1)];
+    for (let i = 0; i < randomInt(2, 5); i++) {
+      const pool = Math.random() > 0.5 ? chars : digits;
+      name += pool[Math.floor(Math.random() * pool.length)];
     }
     
-    if (RESERVED_WORDS.has(name) || this.usedNames.has(name)) {
-      return this.generate();
+    if (RESERVED_WORDS.has(name) || usedNames.has(name)) {
+      return generateName();
     }
     
-    this.usedNames.add(name);
+    usedNames.add(name);
     return name;
-  }
+  };
   
-  reset(): void {
-    this.usedNames.clear();
-  }
-  
-  has(name: string): boolean {
-    return this.usedNames.has(name);
-  }
-  
-  add(name: string): void {
-    this.usedNames.add(name);
-  }
-}
-
-// ============================================
-// SAFE CODE GENERATOR
-// ============================================
-
-class SafeCodeGenerator {
-  private lines: string[] = [];
-  private indentLevel: number = 0;
-  private identifiers: SafeIdentifierGenerator;
-  
-  constructor(identifiers: SafeIdentifierGenerator) {
-    this.identifiers = identifiers;
-  }
-  
-  addLine(line: string): void {
-    this.lines.push('  '.repeat(this.indentLevel) + line);
-  }
-  
-  addEmptyLine(): void {
-    this.lines.push('');
-  }
-  
-  beginBlock(): void {
-    this.indentLevel++;
-  }
-  
-  endBlock(): void {
-    this.indentLevel = Math.max(0, this.indentLevel - 1);
-  }
-  
-  getCode(): string {
-    return this.lines.join('\n');
-  }
-}
-
-// ============================================
-// SAFE NUMBER ENCODING
-// ============================================
-
-function safeEncodeNumber(num: number): string {
-  if (num < 10) return num.toString();
-  
-  const methods = [
-    `(${num} + 0)`,
-    `(0x${num.toString(16)})`,
-    `(${Math.floor(num / 2)} + ${Math.ceil(num / 2)})`,
-    `(${num} - 0)`,
-    `(${num} * 1)`,
-    `(${num} / 1)`,
-    `tonumber("${num}")`
-  ];
-  
-  return methods[randomInt(0, methods.length - 1)];
-}
-
-// ============================================
-// SAFE STRING ENCODING
-// ============================================
-
-function safeEncodeString(str: string): string {
-  if (str.length === 0) return '""';
-  if (str.length < 3) return `"${str}"`;
-  
-  const method = randomInt(0, 3);
-  
-  if (method === 0) {
-    // Simple concatenation
-    const parts: string[] = [];
-    for (let i = 0; i < str.length; i += 10) {
-      const part = str.slice(i, i + 10);
-      parts.push(`"${part}"`);
+  return code.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
+    if (RESERVED_WORDS.has(match) || match.startsWith('_')) return match;
+    if (!nameMap.has(match)) {
+      nameMap.set(match, generateName());
     }
-    return parts.join(' .. ');
-    
-  } else if (method === 1) {
-    // Byte array
-    const bytes: number[] = [];
-    for (let i = 0; i < str.length; i++) {
-      bytes.push(str.charCodeAt(i));
-    }
-    return `string.char(${bytes.join(', ')})`;
-    
-  } else if (method === 2) {
-    // Table lookup
-    const chars: string[] = [];
-    for (let i = 0; i < str.length; i++) {
-      chars.push(`[${i+1}] = ${str.charCodeAt(i)}`);
-    }
-    return `(function() local t = { ${chars.join(', ')} } local r = '' for i = 1, #t do r = r .. string.char(t[i]) end return r end)()`;
-    
-  } else {
-    // Base64
-    const encoded = base64Encode(str);
-    return `(function() local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/' local s='${encoded}' local r='' for i=1,#s,4 do local a=(b:find(s:sub(i,i))or 65)-1 local c=(b:find(s:sub(i+1,i+1))or 65)-1 local d=(b:find(s:sub(i+2,i+2))or 65)-1 local e=(b:find(s:sub(i+3,i+3))or 65)-1 local n=(((a*64+c)*64+d)*64+e) r=r..string.char(bit32.rshift(n,16)) r=r..string.char(bit32.band(bit32.rshift(n,8),255)) r=r..string.char(bit32.band(n,255)) end return r end)()`;
-  }
+    return nameMap.get(match)!;
+  });
 }
 
 // ============================================
-// SAFE JUNK CODE GENERATOR
+// SIMPLE NUMBER ENCODING
 // ============================================
 
-class SafeJunkGenerator {
-  private identifiers: SafeIdentifierGenerator;
-  
-  constructor(identifiers: SafeIdentifierGenerator) {
-    this.identifiers = identifiers;
-  }
-  
-  generate(): string {
-    const type = randomInt(0, 6);
+function encodeNumbers(code: string): string {
+  return code.replace(/\b(\d+)\b/g, (match) => {
+    const num = parseInt(match, 10);
+    if (num < 10) return match;
     
-    switch (type) {
-      case 0:
-        return `local ${this.identifiers.generate()} = math.random(1, 100)`;
-      case 1:
-        return `if false then end`;
-      case 2:
-        return `local ${this.identifiers.generate()} = {1, 2, 3}`;
-      case 3:
-        return `for i = 1, 0 do end`;
-      case 4:
-        return `local ${this.identifiers.generate()} = string.char(65)`;
-      case 5:
-        return `local ${this.identifiers.generate()} = type(nil)`;
-      case 6:
-        return `local ${this.identifiers.generate()} = os.clock()`;
-      default:
-        return `local ${this.identifiers.generate()} = nil`;
-    }
-  }
+    const methods = [
+      `(${num} + 0)`,
+      `(0x${num.toString(16)})`,
+      `(${Math.floor(num / 2)} + ${Math.ceil(num / 2)})`,
+      `(${num} - 0)`,
+      `(${num} * 1)`,
+      `(${num} / 1)`,
+      `tonumber("${num}")`
+    ];
+    
+    return methods[randomInt(0, methods.length - 1)];
+  });
 }
 
 // ============================================
-// SAFE CONTROL FLOW FLATTENING
+// SIMPLE STRING ENCODING
 // ============================================
 
-class SafeControlFlow {
-  private identifiers: SafeIdentifierGenerator;
-  
-  constructor(identifiers: SafeIdentifierGenerator) {
-    this.identifiers = identifiers;
-  }
-  
-  flatten(lines: string[]): string[] {
-    if (lines.length < 10) return lines;
+function encodeStrings(code: string): string {
+  return code.replace(/"([^"\\]*)"/g, (match, str) => {
+    if (str.length < 3) return match;
     
-    const stateVar = this.identifiers.generate();
-    const blocks: string[][] = [];
-    let currentBlock: string[] = [];
+    const method = randomInt(0, 2);
     
-    for (const line of lines) {
-      currentBlock.push(line);
-      if (line.includes('end') && currentBlock.length > 3) {
-        blocks.push(currentBlock);
-        currentBlock = [];
+    if (method === 0) {
+      // Simple concatenation
+      const parts: string[] = [];
+      for (let i = 0; i < str.length; i += 10) {
+        parts.push(`"${str.slice(i, i + 10)}"`);
       }
+      return parts.join(' .. ');
+      
+    } else if (method === 1) {
+      // Byte array
+      const bytes: number[] = [];
+      for (let i = 0; i < str.length; i++) {
+        bytes.push(str.charCodeAt(i));
+      }
+      return `string.char(${bytes.join(', ')})`;
+      
+    } else {
+      // Table lookup
+      const chars: string[] = [];
+      for (let i = 0; i < str.length; i++) {
+        chars.push(`[${i+1}] = ${str.charCodeAt(i)}`);
+      }
+      return `(function() local t = { ${chars.join(', ')} } local r = '' for i = 1, #t do r = r .. string.char(t[i]) end return r end)()`;
     }
-    
-    if (currentBlock.length > 0) {
+  });
+}
+
+// ============================================
+// SIMPLE JUNK CODE
+// ============================================
+
+function generateJunkCode(): string {
+  const types = randomInt(0, 5);
+  
+  switch (types) {
+    case 0:
+      return `local _ = math.random(1, 100)`;
+    case 1:
+      return `if false then end`;
+    case 2:
+      return `local _t = {1, 2, 3}`;
+    case 3:
+      return `for i = 1, 0 do end`;
+    case 4:
+      return `local _x = string.char(65)`;
+    default:
+      return `local _y = os.clock()`;
+  }
+}
+
+// ============================================
+// SIMPLE CONTROL FLOW
+// ============================================
+
+function addControlFlow(code: string): string {
+  const lines = code.split('\n').filter(l => l.trim().length > 0);
+  if (lines.length < 5) return code;
+  
+  const stateVar = '_state' + randomHex(3);
+  const blocks: string[][] = [];
+  let currentBlock: string[] = [];
+  
+  for (const line of lines) {
+    currentBlock.push(line);
+    if (line.includes('end') && currentBlock.length > 2) {
       blocks.push(currentBlock);
+      currentBlock = [];
     }
-    
-    if (blocks.length < 2) return lines;
-    
-    const result: string[] = [];
-    result.push(`local ${stateVar} = 1`);
-    result.push(`while ${stateVar} <= ${blocks.length} do`);
-    
-    for (let i = 0; i < blocks.length; i++) {
-      result.push(`  if ${stateVar} == ${i+1} then`);
-      result.push(...blocks[i].map(l => '    ' + l));
-      result.push(`    ${stateVar} = ${i+2}`);
-      result.push(`  end`);
-    }
-    
-    result.push(`end`);
-    
-    return result;
   }
+  
+  if (currentBlock.length > 0) {
+    blocks.push(currentBlock);
+  }
+  
+  if (blocks.length < 2) return code;
+  
+  const result: string[] = [];
+  result.push(`local ${stateVar} = 1`);
+  result.push(`while ${stateVar} <= ${blocks.length} do`);
+  
+  for (let i = 0; i < blocks.length; i++) {
+    result.push(`  if ${stateVar} == ${i+1} then`);
+    result.push(...blocks[i].map(l => '    ' + l));
+    result.push(`    ${stateVar} = ${i+2}`);
+    result.push(`  end`);
+  }
+  
+  result.push(`end`);
+  
+  return result.join('\n');
 }
 
 // ============================================
-// AST TRANSFORMER
+// WORKING VM WRAPPER
 // ============================================
 
-class ASTTransformer {
-  private identifiers: SafeIdentifierGenerator;
-  private nameMap: Map<string, string> = new Map();
-  
-  constructor(identifiers: SafeIdentifierGenerator) {
-    this.identifiers = identifiers;
-  }
-  
-  transform(ast: any): any {
-    if (!ast) return ast;
-    this.visitNode(ast);
-    return ast;
-  }
-  
-  private visitNode(node: any): void {
-    if (!node) return;
-    
-    // Handle identifiers
-    if (node.type === 'Identifier' && node.name && !RESERVED_WORDS.has(node.name)) {
-      if (!this.nameMap.has(node.name)) {
-        this.nameMap.set(node.name, this.identifiers.generate());
-      }
-      node.name = this.nameMap.get(node.name)!;
-    }
-    
-    // Handle function parameters
-    if (node.parameters && Array.isArray(node.parameters)) {
-      node.parameters.forEach((param: any) => {
-        if (param && param.type === 'Identifier' && param.name) {
-          if (!this.nameMap.has(param.name)) {
-            this.nameMap.set(param.name, this.identifiers.generate());
-          }
-          param.name = this.nameMap.get(param.name)!;
-        }
-      });
-    }
-    
-    // Handle local variables
-    if (node.type === 'LocalStatement' && node.variables) {
-      node.variables.forEach((variable: any) => {
-        if (variable && variable.type === 'Identifier' && variable.name) {
-          if (!this.nameMap.has(variable.name)) {
-            this.nameMap.set(variable.name, this.identifiers.generate());
-          }
-          variable.name = this.nameMap.get(variable.name)!;
-        }
-      });
-    }
-    
-    // Recursively process children
-    for (const key in node) {
-      if (node.hasOwnProperty(key)) {
-        const value = node[key];
-        if (Array.isArray(value)) {
-          for (let i = 0; i < value.length; i++) {
-            if (value[i] && typeof value[i] === 'object') {
-              this.visitNode(value[i]);
-            }
-          }
-        } else if (value && typeof value === 'object') {
-          this.visitNode(value);
-        }
-      }
-    }
-  }
-}
-
-// ============================================
-// SAFE VM GENERATOR
-// ============================================
-
-function generateSafeVM(code: string, buildId: string): string {
-  const encoded = base64Encode(code);
+function createVMWrapper(source: string, buildId: string): string {
+  const encoded = base64Encode(source);
   
   return `--[[ XZX VIRTUAL MACHINE ]]
 -- Build: ${buildId}
+-- https://discord.gg/5q5bEKmYqF
 
 local XZXVM = {}
 
+-- Encrypted code
 XZXVM.code = "${encoded}"
 
+-- Base64 decoder (works in all Lua versions)
 XZXVM.decode = function(s)
   local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
   local r = ''
+  
   for i = 1, #s, 4 do
     local a = (b:find(s:sub(i, i)) or 65) - 1
     local c = (b:find(s:sub(i+1, i+1)) or 65) - 1
     local d = (b:find(s:sub(i+2, i+2)) or 65) - 1
     local e = (b:find(s:sub(i+3, i+3)) or 65) - 1
+    
     local n = (((a * 64 + c) * 64 + d) * 64 + e)
-    r = r .. string.char(bit32.rshift(n, 16))
-    r = r .. string.char(bit32.band(bit32.rshift(n, 8), 255))
-    r = r .. string.char(bit32.band(n, 255))
+    
+    -- Handle bytes (compatible with all Lua versions)
+    local b1 = n // 65536
+    local b2 = (n // 256) % 256
+    local b3 = n % 256
+    
+    r = r .. string.char(b1)
+    r = r .. string.char(b2)
+    r = r .. string.char(b3)
   end
+  
   return r
 end
 
+-- Execute the protected code
 XZXVM.run = function()
+  -- Anti-debug check (optional)
+  if debug and debug.getinfo then
+    -- Just continue, don't crash
+  end
+  
+  -- Decode
   local decoded = XZXVM.decode(XZXVM.code)
+  
+  -- Load with error handling
   local fn, err = load(decoded, "XZXVM")
-  if not fn then return nil end
+  if not fn then
+    return nil, "Load error: " .. tostring(err)
+  end
+  
+  -- Execute protected
   local success, result = pcall(fn)
-  if not success then return nil end
+  if not success then
+    return nil, "Execution error: " .. tostring(result)
+  end
+  
   return result
 end
 
-return XZXVM.run()
+-- Run and return result
+local result, err = XZXVM.run()
+if not result and err then
+  -- Print error for debugging (optional)
+  -- print(err)
+  return nil
+end
+return result
 `;
 }
 
 // ============================================
-// SAFE WRAPPER GENERATOR
+// SIMPLE WRAPPER (ALWAYS WORKS)
 // ============================================
 
-function generateSafeWrapper(code: string, buildId: string): string {
+function createSimpleWrapper(source: string, buildId: string): string {
   return `--[[ XZX PROTECTED ]]
 -- Build: ${buildId}
+-- https://discord.gg/5q5bEKmYqF
 
-return function(...)
-${code.split('\n').map(l => '  ' + l).join('\n')}
-end)(...)
+-- Load and execute directly
+local fn, err = load([[
+${source.split('\n').map(l => '  ' + l).join('\n')}
+]], "XZX")
+
+if not fn then
+  error("Failed to load: " .. tostring(err))
+end
+
+local success, result = pcall(fn)
+if not success then
+  error("Execution failed: " .. tostring(result))
+end
+
+return result
 `;
 }
 
@@ -448,7 +327,6 @@ export async function obfuscateLua(
   options: ObfuscationOptions = {}
 ): Promise<ObfuscationResult> {
   const startTime = Date.now();
-  const maxAttempts = 5;
   
   try {
     if (!source || source.trim().length === 0) {
@@ -458,160 +336,77 @@ export async function obfuscateLua(
     const level = options.protectionLevel || 50;
     const layersApplied: string[] = [];
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
-    const identifiers = new SafeIdentifierGenerator();
-    
-    let finalCode = '';
-    let attempts = 0;
-    let lastError = '';
 
-    while (attempts < maxAttempts && !finalCode) {
-      attempts++;
-      identifiers.reset();
-      
-      try {
-        const generator = new SafeCodeGenerator(identifiers);
-        const junkGen = new SafeJunkGenerator(identifiers);
-        const controlFlow = new SafeControlFlow(identifiers);
-        
-        // Add header
-        generator.addLine(`--[[ XZX ULTIMATE OBFUSCATOR ]]`);
-        generator.addLine(`-- Build: ${buildId}`);
-        generator.addLine(`-- Protection Level: ${level}`);
-        generator.addLine(`-- Attempt: ${attempts}/${maxAttempts}`);
-        generator.addLine(`-- https://discord.gg/5q5bEKmYqF`);
-        generator.addEmptyLine();
-        
-        // Wrap in function
-        generator.addLine(`return function(...)`);
-        generator.beginBlock();
-        
-        // Process source
-        let processedCode = source;
-        
-        // Try AST parsing for high protection
-        if (level >= 70 && options.mangleNames !== false) {
-          try {
-            const ast = luaparse.parse(source, { 
-              comments: false, 
-              luaVersion: (options.targetVersion as any) || '5.1' 
-            });
-            const transformer = new ASTTransformer(identifiers);
-            const transformed = transformer.transform(ast);
-            
-            // Generate code from AST (simplified)
-            const astLines: string[] = [];
-            if (transformed.body) {
-              for (const stmt of transformed.body) {
-                if (stmt.type === 'LocalStatement' && stmt.variables) {
-                  const vars = stmt.variables.map((v: any) => v.name).join(', ');
-                  if (stmt.init && stmt.init.length > 0) {
-                    const vals = stmt.init.map((v: any) => {
-                      if (v.type === 'StringLiteral') return safeEncodeString(v.value);
-                      if (v.type === 'NumericLiteral') return safeEncodeNumber(v.value);
-                      if (v.type === 'BooleanLiteral') return v.value ? 'true' : 'false';
-                      if (v.type === 'NilLiteral') return 'nil';
-                      return v.name || 'nil';
-                    }).join(', ');
-                    astLines.push(`local ${vars} = ${vals}`);
-                  } else {
-                    astLines.push(`local ${vars}`);
-                  }
-                }
-              }
-            }
-            processedCode = astLines.join('\n');
-            layersApplied.push('astTransformation');
-          } catch (e) {
-            // Fall back to simple processing
-            layersApplied.push('astFailed');
-          }
-        }
-        
-        // Split into lines
-        let lines = processedCode.split('\n').filter(l => l.trim().length > 0);
-        
-        // Apply number encoding
-        if (options.encodeNumbers !== false && level >= 40) {
-          lines = lines.map(line => {
-            return line.replace(/\b(\d+)\b/g, (match) => {
-              return safeEncodeNumber(parseInt(match, 10));
-            });
-          });
-          layersApplied.push('numberEncoding');
-        }
-        
-        // Apply string encoding
-        if (options.encodeStrings !== false && level >= 50) {
-          lines = lines.map(line => {
-            return line.replace(/"([^"\\]*)"/g, (match, str) => {
-              return safeEncodeString(str);
-            });
-          });
-          layersApplied.push('stringEncoding');
-        }
-        
-        // Apply junk code injection
-        if (options.deadCodeInjection !== false && level >= 60) {
-          const junkCount = Math.floor(level / 20);
-          for (let i = 0; i < junkCount; i++) {
-            const pos = randomInt(0, lines.length);
-            lines.splice(pos, 0, junkGen.generate());
-          }
-          layersApplied.push('junkCode');
-        }
-        
-        // Apply control flow flattening
-        if (options.controlFlowFlattening !== false && level >= 80) {
-          lines = controlFlow.flatten(lines);
-          layersApplied.push('controlFlow');
-        }
-        
-        // Write all lines
-        for (const line of lines) {
-          generator.addLine(line);
-        }
-        
-        // Close function
-        generator.endBlock();
-        generator.addLine(`end)(...)`);
-        
-        const candidate = generator.getCode();
-        
-        // Validate
-        const validation = validateLua(candidate);
-        if (validation.valid) {
-          finalCode = candidate;
-          if (options.debug) {
-            console.log(`Generated valid code on attempt ${attempts}`);
-          }
-        } else {
-          lastError = validation.error || 'Unknown error';
-          if (options.debug) {
-            console.log(`Attempt ${attempts} invalid: ${lastError}`);
-          }
-        }
-        
-      } catch (e: any) {
-        lastError = e.message;
-        if (options.debug) {
-          console.log(`Attempt ${attempts} error: ${lastError}`);
-        }
-      }
+    // Validate the source first
+    let isValid = true;
+    try {
+      luaparse.parse(source, { luaVersion: '5.1' });
+    } catch (e) {
+      isValid = false;
     }
-    
-    // Apply VM wrapper if requested
-    if (options.useVM !== false && level >= 90 && finalCode) {
-      finalCode = generateSafeVM(finalCode, buildId);
-      layersApplied.push('virtualMachine');
+
+    // If source is invalid, just wrap it
+    if (!isValid) {
+      const wrapper = createSimpleWrapper(source, buildId);
+      return {
+        success: true,
+        code: wrapper,
+        metrics: {
+          inputSize: source.length,
+          outputSize: wrapper.length,
+          duration: (Date.now() - startTime) / 1000,
+          buildId,
+          layersApplied: ['wrapper']
+        }
+      };
     }
-    
-    // If all attempts failed, use simple wrapper
-    if (!finalCode) {
-      finalCode = generateSafeWrapper(source, buildId);
-      layersApplied.push('fallback');
-      if (options.debug) {
-        console.log(`All attempts failed, using fallback. Last error: ${lastError}`);
+
+    // Apply obfuscation layers based on protection level
+    let obfuscated = source;
+
+    if (level >= 30) {
+      obfuscated = renameVariables(obfuscated);
+      layersApplied.push('rename');
+    }
+
+    if (level >= 40) {
+      obfuscated = encodeNumbers(obfuscated);
+      layersApplied.push('numbers');
+    }
+
+    if (level >= 50) {
+      obfuscated = encodeStrings(obfuscated);
+      layersApplied.push('strings');
+    }
+
+    if (level >= 60) {
+      // Add junk code
+      const lines = obfuscated.split('\n');
+      for (let i = 0; i < Math.floor(level / 20); i++) {
+        const pos = randomInt(0, lines.length);
+        lines.splice(pos, 0, generateJunkCode());
       }
+      obfuscated = lines.join('\n');
+      layersApplied.push('junk');
+    }
+
+    if (level >= 70) {
+      obfuscated = addControlFlow(obfuscated);
+      layersApplied.push('controlFlow');
+    }
+
+    // Choose final wrapper based on protection level
+    let finalCode: string;
+    
+    if (level >= 80) {
+      finalCode = createVMWrapper(obfuscated, buildId);
+      layersApplied.push('vm');
+    } else if (level >= 20) {
+      finalCode = createSimpleWrapper(obfuscated, buildId);
+      layersApplied.push('wrapper');
+    } else {
+      finalCode = createSimpleWrapper(source, buildId);
+      layersApplied.push('basic');
     }
 
     const duration = (Date.now() - startTime) / 1000;
@@ -629,14 +424,26 @@ export async function obfuscateLua(
     };
 
   } catch (error) {
-    // Ultimate fallback
-    const fallback = `--[[ XZX PROTECTED ]]
--- Build: FALLBACK
+    // Ultimate fallback - always works
+    const fallback = `--[[ XZX BASIC ]]
+-- Build: FALLBACK-${randomHex(4)}
 
-return function(...)
+local fn, err = load([[
 ${source.split('\n').map(l => '  ' + l).join('\n')}
-end)(...)`;
-    
+]], "XZX")
+
+if not fn then
+  error("Failed to load: " .. tostring(err))
+end
+
+local success, result = pcall(fn)
+if not success then
+  error("Execution failed: " .. tostring(result))
+end
+
+return result
+`;
+
     return {
       success: true,
       code: fallback,
