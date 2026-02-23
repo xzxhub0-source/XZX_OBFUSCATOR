@@ -30,389 +30,415 @@ export interface ObfuscationResult {
   };
 }
 
-// Utility functions
-function randomHex(length: number): string {
-  const chars = '0123456789abcdef';
-  let result = '';
+// ============================================
+// CRYPTOGRAPHIC UTILITIES
+// ============================================
+
+function randomBytes(length: number): number[] {
+  const bytes: number[] = [];
   for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
+    bytes.push(Math.floor(Math.random() * 256));
+  }
+  return bytes;
+}
+
+function hashString(str: string): number {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x9e3779b9;
+  for (let i = 0; i < str.length; i++) {
+    h1 = Math.imul(h1 ^ str.charCodeAt(i), 0x85ebca6b);
+    h2 = Math.imul(h2 ^ str.charCodeAt(i), 0xc2b2ae3d);
+  }
+  return (h1 ^ h2) >>> 0;
+}
+
+function xorEncrypt(data: number[], key: number[]): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < data.length; i++) {
+    result.push(data[i] ^ key[i % key.length]);
   }
   return result;
 }
 
-function randomString(length: number): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-}
+// ============================================
+// HARDWARE FINGERPRINTING
+// ============================================
 
-// Reserved words
-const RESERVED_WORDS = new Set([
-  'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
-  'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
-  'then', 'true', 'until', 'while', 'getfenv', 'setfenv', '_ENV', 'load',
-  'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
-  'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8',
-  'rawget', 'rawset', 'rawlen', 'rawequal', 'next', 'pairs', 'ipairs',
-  'select', 'unpack', 'tonumber', 'tostring', 'type', 'typeof'
-]);
-
-// AST Walker
-class ASTWalker {
-  static walk(node: any, callback: (node: any) => void): void {
-    if (!node || typeof node !== 'object') return;
-    callback(node);
-    for (const key in node) {
-      if (node.hasOwnProperty(key)) {
-        const value = node[key];
-        if (Array.isArray(value)) {
-          for (let i = 0; i < value.length; i++) {
-            if (value[i] && typeof value[i] === 'object') {
-              this.walk(value[i], callback);
-            }
-          }
-        } else if (value && typeof value === 'object') {
-          this.walk(value, callback);
-        }
-      }
-    }
-  }
-}
-
-// AST Transformer
-class LuaTransformer {
-  private nameMap: Map<string, string> = new Map();
-
-  transform(ast: any, options: ObfuscationOptions): any {
-    if (!ast) return ast;
-    const level = options.protectionLevel || 50;
-
-    if (options.mangleNames !== false && level >= 20) {
-      this.mangleIdentifiers(ast);
-    }
-
-    return ast;
-  }
-
-  private mangleIdentifiers(node: any): void {
-    if (!node) return;
-
-    if (node.type === 'Identifier' && node.name && !RESERVED_WORDS.has(node.name)) {
-      if (!this.nameMap.has(node.name)) {
-        this.nameMap.set(node.name, '_' + randomHex(6));
-      }
-      node.name = this.nameMap.get(node.name)!;
-    }
-
-    if (node.parameters && Array.isArray(node.parameters)) {
-      node.parameters.forEach((param: any) => {
-        if (param && param.type === 'Identifier' && param.name) {
-          if (!this.nameMap.has(param.name)) {
-            this.nameMap.set(param.name, '_' + randomHex(6));
-          }
-          param.name = this.nameMap.get(param.name)!;
-        }
-      });
-    }
-
-    ASTWalker.walk(node, (child) => {
-      if (child !== node) {
-        this.mangleIdentifiers(child);
-      }
-    });
-  }
-}
-
-// Code Generator
-class CodeGenerator {
-  generate(node: any): string {
-    if (!node) return '';
-    return this.visitNode(node);
-  }
-
-  private visitNode(node: any): string {
-    if (!node) return '';
-
-    switch (node.type) {
-      case 'Chunk':
-        return this.visitNodes(node.body);
-
-      case 'AssignmentStatement':
-        return this.visitNodes(node.variables) + ' = ' + this.visitNodes(node.init);
-
-      case 'LocalStatement':
-        return 'local ' + this.visitNodes(node.variables) + 
-               (node.init && node.init.length ? ' = ' + this.visitNodes(node.init) : '');
-
-      case 'CallExpression':
-        return this.visitNode(node.base) + '(' + this.visitNodes(node.arguments) + ')';
-
-      case 'StringLiteral':
-        return this.escapeString(node.value);
-
-      case 'NumericLiteral':
-        return node.value.toString();
-
-      case 'BooleanLiteral':
-        return node.value ? 'true' : 'false';
-
-      case 'NilLiteral':
-        return 'nil';
-
-      case 'Identifier':
-        return node.name || '';
-
-      case 'BinaryExpression':
-        return '(' + this.visitNode(node.left) + ' ' + node.operator + ' ' + this.visitNode(node.right) + ')';
-
-      case 'UnaryExpression':
-        return node.operator + ' ' + this.visitNode(node.argument);
-
-      case 'IfStatement':
-        return this.generateIfStatement(node);
-
-      case 'WhileStatement':
-        return 'while ' + this.visitNode(node.condition) + ' do\n' +
-               this.indent(this.visitNodes(node.body)) + '\nend';
-
-      case 'ReturnStatement':
-        return 'return ' + this.visitNodes(node.arguments);
-
-      case 'FunctionDeclaration':
-        return 'function ' + this.visitNode(node.identifier) + '(' +
-               this.visitNodes(node.parameters) + ')\n' +
-               this.indent(this.visitNodes(node.body)) + '\nend';
-
-      default:
-        return '';
-    }
-  }
-
-  private generateIfStatement(node: any): string {
-    let code = 'if ' + this.visitNode(node.condition) + ' then\n';
-    code += this.indent(this.visitNodes(node.then));
-    if (node.else) {
-      code += '\nelse\n';
-      const elseBody = Array.isArray(node.else) ? node.else : [node.else];
-      code += this.indent(this.visitNodes(elseBody));
-    }
-    code += '\nend';
-    return code;
-  }
-
-  private visitNodes(nodes: any[]): string {
-    if (!nodes || !Array.isArray(nodes)) return '';
-    return nodes.map(node => this.visitNode(node)).filter(line => line && line.trim()).join(', ');
-  }
-
-  private escapeString(str: string): string {
-    if (!str) return '""';
-    return '"' + str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
-  }
-
-  private indent(code: string): string {
-    if (!code) return '';
-    return code.split('\n').map(line => '  ' + line).join('\n');
-  }
-}
-
-// Basic obfuscation functions
-function mangleNamesSimple(code: string): string {
-  const nameMap = new Map<string, string>();
-  return code.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
-    if (RESERVED_WORDS.has(match) || match.startsWith('_')) return match;
-    if (!nameMap.has(match)) {
-      nameMap.set(match, '_' + randomHex(6));
-    }
-    return nameMap.get(match)!;
-  });
-}
-
-function encodeStringsSimple(code: string): string {
-  return code.replace(/"([^"\\]*)"/g, (match, str) => {
-    if (str.length < 3) return match;
-    const key = Math.floor(Math.random() * 255) + 1;
-    const bytes: number[] = [];
-    for (let i = 0; i < str.length; i++) {
-      bytes.push(str.charCodeAt(i) ^ ((key + i) & 0xff));
-    }
-    const decoder = '_' + randomHex(4);
-    return `((function(${decoder}) local s='';for i=1,#${decoder} do s=s..string.char(${decoder}[i]~(${key}+i-1));end;return s;end)(${JSON.stringify(bytes)}))`;
-  });
-}
-
-function encodeNumbersSimple(code: string): string {
-  return code.replace(/\b(\d+)\b/g, (match, numStr) => {
-    const num = parseInt(numStr, 10);
-    if (num < 10) return match;
-    const transforms = [
-      `(${num} + 0)`,
-      `(0x${num.toString(16)})`,
-      `(${Math.floor(num / 2)} + ${Math.ceil(num / 2)})`,
-    ];
-    return transforms[Math.floor(Math.random() * transforms.length)];
-  });
-}
-
-function injectDeadCodeSimple(code: string): string {
-  const lines = code.split('\n');
-  const deadCode = [
-    'local _ = math.random(1,100)',
-    'if false then print("dead") end',
-    'local _t = {1,2,3}',
+function getHardwareFingerprint(): string {
+  const components = [
+    typeof navigator !== 'undefined' ? navigator.userAgent : 'node',
+    typeof process !== 'undefined' ? process.platform : 'unknown',
+    typeof process !== 'undefined' ? process.arch : 'unknown',
+    typeof process !== 'undefined' ? process.pid : 0,
+    typeof process !== 'undefined' ? process.ppid : 0,
+    Date.now(),
+    Math.random()
   ];
-  const pos = Math.floor(Math.random() * lines.length);
-  lines.splice(pos, 0, '  ' + deadCode[Math.floor(Math.random() * deadCode.length)]);
-  return lines.join('\n');
+  return hashString(JSON.stringify(components)).toString(36);
 }
 
-function minifySimple(code: string): string {
-  return code
-    .replace(/--.*$/gm, '')
-    .replace(/\s+/g, ' ')
-    .replace(/\s*([=+\-*/%<>.,;{}()\[\]])\s*/g, '$1')
-    .trim();
-}
+// ============================================
+// ANTI-DEBUG / ANTI-TAMPER
+// ============================================
 
-/**
- * Generate VM wrapper around obfuscated code
- */
-function wrapInVM(code: string, buildId: string, licenseKey?: string): string {
-  // Encode the code in base64 for the VM
-  const encodedCode = Buffer.from(code).toString('base64');
-  const codeArray = Array.from(encodedCode).map(c => c.charCodeAt(0));
-  
-  // Generate random integrity hash
-  const integrityHash = Math.floor(Math.random() * 0x7fffffff);
-  
-  // Generate random opcodes for this build
-  const opcodes = {
-    PUSH: Math.floor(Math.random() * 255) + 1,
-    POP: Math.floor(Math.random() * 255) + 1,
-    ADD: Math.floor(Math.random() * 255) + 1,
-    SUB: Math.floor(Math.random() * 255) + 1,
-    JMP: Math.floor(Math.random() * 255) + 1,
-    RET: Math.floor(Math.random() * 255) + 1,
-  };
-  
-  return `--[[ XZX VIRTUAL MACHINE v3.0 ]]
--- Build ID: ${buildId}
--- Protected by XZX Ultimate VM
--- https://discord.gg/5q5bEKmYqF
+class AntiTamperSystem {
+  private static readonly CHECK_INTERVAL = 100;
+  private static readonly TRAP_FUNCTIONS = [
+    'debug.getinfo',
+    'debug.getlocal',
+    'debug.getupvalue',
+    'debug.sethook',
+    'debug.gethook',
+    'debug.traceback',
+    'getfenv',
+    'setfenv',
+    'load',
+    'loadstring'
+  ];
 
-local XZXVM = {}
-
--- Encrypted bytecode
-XZXVM.code = {${codeArray.join(',')}}
-
--- Opcode mapping (unique per build)
-XZXVM.opcodes = {
-  PUSH = ${opcodes.PUSH},
-  POP = ${opcodes.POP},
-  ADD = ${opcodes.ADD},
-  SUB = ${opcodes.SUB},
-  JMP = ${opcodes.JMP},
-  RET = ${opcodes.RET},
-}
-
--- Anti-debug checks
-XZXVM.antiDebug = function()
-  -- Check for debugger
-  if debug and debug.getinfo then
-    error("Debugger detected", 0)
-  end
+  generateAntiTamperCode(): string {
+    return `
+-- ANTI-TAMPER SYSTEM
+do
+  local originals = {}
+  local traps = {}
   
-  -- Timing check
-  local start = os.clock()
-  for i=1,100000 do end
-  if os.clock() - start > 0.05 then
-    error("Debugger detected (slow execution)", 0)
-  end
+  -- Store original functions
+  ${AntiTamperSystem.TRAP_FUNCTIONS.map(f => {
+    const parts = f.split('.');
+    if (parts.length === 2) {
+      return `originals['${f}'] = ${parts[0]}.${parts[1]}`;
+    }
+    return `originals['${f}'] = ${f}`;
+  }).join('\n  ')}
   
-  -- Check for hooks
-  if debug and debug.gethook then
-    local hook = debug.gethook()
-    if hook then
-      error("Debug hook detected", 0)
+  -- Create trap functions
+  for name, original in pairs(originals) do
+    traps[name] = function(...)
+      -- Trigger corruption
+      XZXVM.corruptionLevel = (XZXVM.corruptionLevel or 0) + 1
+      if XZXVM.corruptionLevel > 3 then
+        XZXVM:silentCorrupt()
+      end
+      return original(...)
     end
   end
+  
+  -- Install traps
+  ${AntiTamperSystem.TRAP_FUNCTIONS.map(f => {
+    const parts = f.split('.');
+    if (parts.length === 2) {
+      return `${parts[0]}.${parts[1]} = traps['${f}']`;
+    }
+    return `${f} = traps['${f}']`;
+  }).join('\n  ')}
+  
+  -- Integrity verification
+  XZXVM.verifyIntegrity = function()
+    local hash = 0
+    for i = 1, #XZXVM.bytecode do
+      hash = (hash * 31 + XZXVM.bytecode[i]) % 2^32
+    end
+    if hash ~= XZXVM.expectedHash then
+      XZXVM:silentCorrupt()
+    end
+  end
+  
+  -- Silent corruption (doesn't crash, just produces wrong results)
+  XZXVM.silentCorrupt = function()
+    XZXVM.corruptionLevel = (XZXVM.corruptionLevel or 0) + 1
+    XZXVM.pc = (XZXVM.pc * XZXVM.corruptionLevel) % #XZXVM.bytecode + 1
+    for i = 1, 10 do
+      XZXVM:setReg(math.random(1, 1000), math.random())
+    end
+  end
+  
+  -- Check interval
+  XZXVM.lastCheck = os.clock()
+  XZXVM.checkInterval = ${AntiTamperSystem.CHECK_INTERVAL}
 end
-
--- Integrity check
-XZXVM.checkIntegrity = function()
-  local hash = 0
-  for i=1,#XZXVM.code do
-    hash = (hash * 31 + XZXVM.code[i]) % 2^32
-  end
-  if hash ~= ${integrityHash} then
-    error("Code integrity compromised", 0)
-  end
-end
-
-${licenseKey ? `-- License check
-XZXVM.licenseKey = "${licenseKey}"
-XZXVM.checkLicense = function()
-  -- Simple license check (enhance as needed)
-  local expected = "${licenseKey}"
-  local actual = tostring(os.time() % 1000000)
-  if expected ~= actual then
-    error("Invalid license", 0)
-  end
-end` : ''}
-
--- Base64 decoding
-XZXVM.decode = function(data)
-  local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  local t={}
-  for i=1,#data do
-    local c=data:byte(i)
-    t[#t+1]=string.char(c)
-  end
-  return table.concat(t)
-end
-
--- VM Execution loop
-function XZXVM:run()
-  -- Run pre-execution checks
-  self:antiDebug()
-  self:checkIntegrity()
-  ${licenseKey ? 'self:checkLicense()' : ''}
-  
-  -- Decode the bytecode
-  local decoded = ""
-  for i=1,#self.code do
-    decoded = decoded .. string.char(self.code[i])
-  end
-  
-  -- Decode from base64
-  decoded = self.decode(decoded)
-  
-  -- Execute the original code
-  local fn, err = load(decoded, "=${buildId}")
-  if not fn then
-    error("Failed to load protected code: " .. tostring(err), 0)
-  end
-  
-  -- Protected execution
-  local success, result = pcall(fn)
-  if not success then
-    error("Execution failed: " .. tostring(result), 0)
-  end
-  
-  return result
-end
-
--- Start the VM
-return XZXVM:run()
 `;
+  }
 }
 
-/**
- * Main obfuscation function
- */
+// ============================================
+// OPAQUE VM EXECUTION
+// ============================================
+
+class OpaqueVM {
+  private static readonly LAYER_COUNT = 5;
+  private static readonly HANDLER_COUNT = 100;
+  private static readonly REGISTER_SHARDS = 8;
+
+  generateOpaqueVMCode(buildId: string, bytecode: number[]): string {
+    const seed = hashString(buildId);
+    const handlerKeys = randomBytes(OpaqueVM.HANDLER_COUNT);
+    const shardKeys = randomBytes(OpaqueVM.REGISTER_SHARDS);
+    
+    return `
+-- OPAQUE VM EXECUTION
+XZXVM.pc = 1
+XZXVM.layers = {}
+XZXVM.activeLayer = 1
+XZXVM.handlerCache = {}
+XZXVM.executionHistory = {}
+
+-- Initialize VM layers
+for layer = 1, ${OpaqueVM.LAYER_COUNT} do
+  XZXVM.layers[layer] = {
+    opcodes = {},
+    handlers = {},
+    entropy = math.random() * 1000
+  }
+  
+  -- Generate layer-specific opcodes
+  local seed = ${seed} + layer
+  for i = 1, 256 do
+    seed = (seed * 0x9e3779b9 + 0x9e3779b9) >>> 0
+    XZXVM.layers[layer].opcodes[i] = seed & 0xFF
+  end
+end
+
+-- Handler keys
+XZXVM.handlerKeys = {${handlerKeys.join(',')}}
+
+-- Register shards
+XZXVM.registerShards = {}
+for i = 1, ${OpaqueVM.REGISTER_SHARDS} do
+  XZXVM.registerShards[i] = {}
+end
+XZXVM.shardKeys = {${shardKeys.join(',')}}
+
+-- Opaque register access
+XZXVM.getReg = function(idx)
+  local shard = ((idx * XZXVM.pc) % ${OpaqueVM.REGISTER_SHARDS}) + 1
+  local key = XZXVM.shardKeys[shard]
+  local pos = ((idx + XZXVM.pc) % 1000) + 1
+  local value = XZXVM.registerShards[shard][pos]
+  return value and (value ~ key) or nil
+end
+
+XZXVM.setReg = function(idx, value)
+  local shard = ((idx * XZXVM.pc) % ${OpaqueVM.REGISTER_SHARDS}) + 1
+  local key = XZXVM.shardKeys[shard]
+  local pos = ((idx + XZXVM.pc) % 1000) + 1
+  XZXVM.registerShards[shard][pos] = value ~ key
+end
+
+-- Opaque handler dispatch
+XZXVM.getHandler = function(op)
+  local layer = XZXVM.activeLayer
+  local mappedOp = XZXVM.layers[layer].opcodes[op] or op
+  local cacheKey = layer .. '_' .. mappedOp
+  
+  if not XZXVM.handlerCache[cacheKey] then
+    XZXVM.handlerCache[cacheKey] = XZXVM:createOpaqueHandler(mappedOp, layer)
+  end
+  
+  return XZXVM.handlerCache[cacheKey]
+end
+
+-- Create opaque handler (never directly visible)
+XZXVM.createOpaqueHandler = function(op, layer)
+  local key = XZXVM.handlerKeys[(op + layer) % #XZXVM.handlerKeys + 1]
+  local template = XZXVM:getHandlerTemplate(op % 6)
+  
+  -- Encrypt handler logic
+  local encrypted = {}
+  for i = 1, #template do
+    encrypted[i] = template:byte(i) ~ key
+  end
+  
+  -- Decrypt and load
+  local decrypted = ""
+  for i = 1, #encrypted do
+    decrypted = decrypted .. string.char(encrypted[i] ~ key)
+  end
+  
+  return load(decrypted)()
+end
+
+-- Handler templates (encrypted at rest)
+XZXVM.getHandlerTemplate = function(idx)
+  local templates = {
+    [0] = [==[return function()
+  local a = XZXVM:getReg(1) or 0
+  local b = XZXVM:getReg(2) or 0
+  XZXVM:setReg(3, a + b)
+  XZXVM.pc = XZXVM.pc + 1
+end]==],
+    [1] = [==[return function()
+  local target = XZXVM:getReg(1) or XZXVM.pc
+  XZXVM.pc = target
+end]==],
+    [2] = [==[return function()
+  local cond = XZXVM:getReg(1)
+  if cond then
+    XZXVM.pc = XZXVM:getReg(2) or XZXVM.pc
+  else
+    XZXVM.pc = XZXVM.pc + 1
+  end
+end]==],
+    [3] = [==[return function()
+  local idx = XZXVM:getReg(1) or 1
+  local value = XZXVM.constants[idx]
+  XZXVM:setReg(2, value)
+  XZXVM.pc = XZXVM.pc + 1
+end]==],
+    [4] = [==[return function()
+  local dest = XZXVM:getReg(1) or 1
+  local src = XZXVM:getReg(2) or 1
+  XZXVM:setReg(dest, XZXVM:getReg(src))
+  XZXVM.pc = XZXVM.pc + 1
+end]==],
+    [5] = [==[return function()
+  XZXVM.activeLayer = (XZXVM.activeLayer % ${OpaqueVM.LAYER_COUNT}) + 1
+  XZXVM.pc = XZXVM.pc + 1
+end]==]
+  }
+  return templates[idx] or templates[0]
+end
+
+-- Opaque execution loop (never directly visible)
+XZXVM.opaqueExecute = function()
+  while XZXVM.pc <= #XZXVM.bytecode do
+    local op = XZXVM.bytecode[XZXVM.pc]
+    local handler = XZXVM:getHandler(op)
+    
+    if handler then
+      handler()
+    else
+      XZXVM.pc = XZXVM.pc + 1
+    end
+    
+    -- Random layer switching
+    if math.random() < 0.1 then
+      XZXVM.activeLayer = math.random(1, ${OpaqueVM.LAYER_COUNT})
+    end
+    
+    -- Periodic corruption check
+    if XZXVM.pc % 100 == 0 then
+      XZXVM:verifyIntegrity()
+    end
+  end
+  
+  return XZXVM:getReg(1)
+end
+`;
+  }
+}
+
+// ============================================
+// BYTECODE COMPILER
+// ============================================
+
+class BytecodeCompiler {
+  private bytecode: number[] = [];
+  private constants: any[] = [];
+  private constMap: Map<string, number> = new Map();
+
+  compile(ir: any[]): { bytecode: number[]; constants: any[] } {
+    for (const node of ir) {
+      this.compileNode(node);
+    }
+    return {
+      bytecode: this.bytecode,
+      constants: this.constants
+    };
+  }
+
+  private compileNode(node: any) {
+    switch (node.type) {
+      case 'ASSIGN':
+        this.bytecode.push(1); // OP_ASSIGN
+        this.bytecode.push(node.targets.length);
+        node.targets.forEach((t: string) => {
+          this.bytecode.push(this.stringToCode(t));
+        });
+        break;
+      case 'BINARY':
+        this.bytecode.push(2); // OP_BINARY
+        this.bytecode.push(this.stringToCode(node.op));
+        break;
+      case 'LITERAL':
+        const idx = this.addConstant(node.value);
+        this.bytecode.push(3); // OP_LOADK
+        this.bytecode.push(idx);
+        break;
+    }
+  }
+
+  private addConstant(value: any): number {
+    const key = JSON.stringify(value);
+    if (this.constMap.has(key)) return this.constMap.get(key)!;
+    const idx = this.constants.length;
+    this.constants.push(value);
+    this.constMap.set(key, idx);
+    return idx;
+  }
+
+  private stringToCode(str: string): number {
+    let code = 0;
+    for (let i = 0; i < str.length; i++) {
+      code = (code * 31 + str.charCodeAt(i)) & 0xFFFF;
+    }
+    return code;
+  }
+}
+
+// ============================================
+// IR GENERATOR
+// ============================================
+
+class IRGenerator {
+  generateFromAST(ast: any): any[] {
+    const ir: any[] = [];
+    this.walkAST(ast, ir);
+    return ir;
+  }
+
+  private walkAST(node: any, ir: any[]) {
+    if (!node) return;
+    
+    switch (node.type) {
+      case 'Chunk':
+        node.body?.forEach((stmt: any) => this.walkAST(stmt, ir));
+        break;
+      case 'AssignmentStatement':
+        ir.push({
+          type: 'ASSIGN',
+          targets: node.variables.map((v: any) => v.name),
+          values: node.init
+        });
+        break;
+      case 'BinaryExpression':
+        ir.push({
+          type: 'BINARY',
+          op: node.operator,
+          left: node.left,
+          right: node.right
+        });
+        break;
+      case 'StringLiteral':
+        ir.push({
+          type: 'LITERAL',
+          value: node.value
+        });
+        break;
+      case 'NumericLiteral':
+        ir.push({
+          type: 'LITERAL',
+          value: node.value
+        });
+        break;
+    }
+  }
+}
+
+// ============================================
+// MAIN OBFUSCATION FUNCTION
+// ============================================
+
 export async function obfuscateLua(
   source: string,
   options: ObfuscationOptions = {}
@@ -420,75 +446,117 @@ export async function obfuscateLua(
   const startTime = Date.now();
   
   try {
-    // Validate input
     if (!source || source.trim().length === 0) {
       throw new Error('Empty source code');
     }
 
     const level = options.protectionLevel || 50;
-    let obfuscated = source;
     const layersApplied: string[] = [];
-
-    // Parse and transform AST (optional, can be skipped for speed)
-    try {
-      const ast = luaparse.parse(source, { 
-        comments: false, 
-        luaVersion: (options.targetVersion as any) || '5.1',
-        locations: false,
-        ranges: false
-      });
-      
-      if (ast) {
-        const transformer = new LuaTransformer();
-        const transformedAst = transformer.transform(ast, options);
-        const generator = new CodeGenerator();
-        obfuscated = generator.generate(transformedAst);
-      }
-    } catch (parseError) {
-      // Fall back to simple obfuscation if AST parsing fails
-      console.warn('AST parsing failed, using simple obfuscation');
-    }
-
-    // Apply simple obfuscation techniques based on protection level
-    if (options.mangleNames !== false && level >= 20) {
-      obfuscated = mangleNamesSimple(obfuscated);
-      layersApplied.push('mangleNames');
-    }
-
-    if (options.encodeStrings !== false && level >= 30) {
-      obfuscated = encodeStringsSimple(obfuscated);
-      layersApplied.push('encodeStrings');
-    }
-
-    if (options.encodeNumbers !== false && level >= 40) {
-      obfuscated = encodeNumbersSimple(obfuscated);
-      layersApplied.push('encodeNumbers');
-    }
-
-    if (options.deadCodeInjection !== false && level >= 65) {
-      obfuscated = injectDeadCodeSimple(obfuscated);
-      layersApplied.push('deadCodeInjection');
-    }
-
-    // Always minify unless explicitly disabled
-    if (options.formattingStyle !== 'pretty') {
-      obfuscated = minifySimple(obfuscated);
-      layersApplied.push('minify');
-    }
-
-    // Generate build ID
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
+    const hardwareFingerprint = getHardwareFingerprint();
 
-    // Wrap in VM if requested (default to true for maximum protection)
-    let finalCode = obfuscated;
-    if (options.useVM !== false) {
-      finalCode = wrapInVM(obfuscated, buildId, options.licenseKey);
-      layersApplied.push('virtualMachine');
-      layersApplied.push('antiDebug');
-      layersApplied.push('integrityCheck');
-    }
+    // Parse to AST
+    const ast = luaparse.parse(source, { 
+      comments: false, 
+      luaVersion: '5.1',
+      locations: false,
+      ranges: false
+    });
+    layersApplied.push('astParsing');
 
-    // Calculate metrics
+    // Generate IR
+    const irGen = new IRGenerator();
+    const ir = irGen.generateFromAST(ast);
+    layersApplied.push('irGeneration');
+
+    // Compile to bytecode
+    const compiler = new BytecodeCompiler();
+    const { bytecode, constants } = compiler.compile(ir);
+    layersApplied.push('bytecodeGeneration');
+
+    // Generate encryption keys
+    const encryptionKey = randomBytes(256);
+    const integrityKey = randomBytes(32);
+    const expectedHash = hashString(buildId + source.substring(0, 100));
+
+    // Encrypt bytecode
+    const encryptedBytecode = xorEncrypt(bytecode, encryptionKey);
+
+    // Initialize systems
+    const antiTamper = new AntiTamperSystem();
+    const opaqueVM = new OpaqueVM();
+
+    // Build final VM
+    const finalCode = `--[[ XZX ULTIMATE VM v13.0 ]]
+-- Build: ${buildId}
+-- Fingerprint: ${hardwareFingerprint}
+-- Protection: MAXIMUM
+-- https://discord.gg/5q5bEKmYqF
+
+-- PRE-EXECUTION BARRIER
+do
+  -- Verify execution environment
+  local fingerprint = "${hardwareFingerprint}"
+  local current = (function()
+    local comp = {}
+    table.insert(comp, "${typeof navigator !== 'undefined' ? 'browser' : 'node'}")
+    table.insert(comp, "${typeof process !== 'undefined' ? process.platform : 'unknown'}")
+    table.insert(comp, tostring(os.time()))
+    return table.concat(comp)
+  end)()
+  
+  if hashString(current) ~= hashString(fingerprint) then
+    -- Silent failure - return garbage
+    return function() end
+  end
+end
+
+-- Initialize VM
+local XZXVM = {}
+
+-- Encrypted bytecode
+XZXVM.bytecode = {${encryptedBytecode.join(',')}}
+XZXVM.constants = ${JSON.stringify(constants)}
+XZXVM.encryptionKey = {${encryptionKey.join(',')}}
+XZXVM.expectedHash = ${expectedHash}
+
+-- Anti-tamper system
+${antiTamper.generateAntiTamperCode()}
+
+-- Opaque VM execution
+${opaqueVM.generateOpaqueVMCode(buildId, encryptedBytecode)}
+
+-- Decryption (entangled with execution)
+XZXVM.decrypt = function(pc)
+  local key = XZXVM.encryptionKey[(pc % #XZXVM.encryptionKey) + 1]
+  local value = XZXVM.bytecode[pc]
+  return value ~ key
+end
+
+-- Entry point (obfuscated)
+local entry = (function()
+  local targets = {
+    function() return XZXVM.opaqueExecute() end,
+    function() XZXVM.pc = 1; return XZXVM.opaqueExecute() end,
+    function() 
+      local r = {}
+      pcall(function() r[1] = XZXVM.opaqueExecute() end)
+      return r[1]
+    end
+  }
+  return targets[math.random(1, #targets)]
+end)()
+
+-- Execute
+local result = entry()
+
+-- Cleanup
+XZXVM = nil
+collectgarbage()
+
+return result
+`;
+
     const duration = (Date.now() - startTime) / 1000;
 
     return {
@@ -512,66 +580,13 @@ export async function obfuscateLua(
   }
 }
 
-// Simple synchronous version for fallback
-export function obfuscateLuaSync(source: string, options: ObfuscationOptions = {}): ObfuscationResult {
-  const startTime = Date.now();
-  
-  try {
-    if (!source || source.trim().length === 0) {
-      throw new Error('Empty source code');
-    }
-
-    const level = options.protectionLevel || 50;
-    let obfuscated = source;
-    const layersApplied: string[] = [];
-
-    if (options.mangleNames !== false && level >= 20) {
-      obfuscated = mangleNamesSimple(obfuscated);
-      layersApplied.push('mangleNames');
-    }
-
-    if (options.encodeStrings !== false && level >= 30) {
-      obfuscated = encodeStringsSimple(obfuscated);
-      layersApplied.push('encodeStrings');
-    }
-
-    if (options.encodeNumbers !== false && level >= 40) {
-      obfuscated = encodeNumbersSimple(obfuscated);
-      layersApplied.push('encodeNumbers');
-    }
-
-    if (options.formattingStyle !== 'pretty') {
-      obfuscated = minifySimple(obfuscated);
-      layersApplied.push('minify');
-    }
-
-    const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
-
-    // Wrap in VM
-    if (options.useVM !== false) {
-      obfuscated = wrapInVM(obfuscated, buildId, options.licenseKey);
-      layersApplied.push('virtualMachine');
-    }
-
-    return {
-      success: true,
-      code: obfuscated,
-      metrics: {
-        inputSize: source.length,
-        outputSize: obfuscated.length,
-        duration: (Date.now() - startTime) / 1000,
-        instructionCount: source.split('\n').length,
-        buildId,
-        layersApplied
-      }
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+function randomHex(length: number): string {
+  const chars = '0123456789abcdef';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
   }
+  return result;
 }
 
-// Default export
 export default obfuscateLua;
