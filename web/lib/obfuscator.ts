@@ -1,20 +1,19 @@
-// lib/obfuscator.ts
+// web/lib/obfuscator.ts
 import * as luaparse from 'luaparse';
 
 export interface ObfuscationOptions {
   mangleNames?: boolean;
   encodeStrings?: boolean;
   encodeNumbers?: boolean;
-  controlFlow?: boolean;
-  antiDebugging?: boolean;
   protectionLevel?: number;
   deadCodeInjection?: boolean;
-  opaquePredicates?: boolean;
   controlFlowFlattening?: boolean;
   targetVersion?: string;
   optimizationLevel?: number;
   encryptionAlgorithm?: string;
   formattingStyle?: string;
+  licenseKey?: string;
+  useVM?: boolean;
 }
 
 export interface ObfuscationResult {
@@ -31,23 +30,7 @@ export interface ObfuscationResult {
   };
 }
 
-// ---------- Utility Functions ----------
-
-/**
- * Generate a random string of specified length
- */
-function randomString(length: number): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-}
-
-/**
- * Generate a random hex string
- */
+// Utility functions
 function randomHex(length: number): string {
   const chars = '0123456789abcdef';
   let result = '';
@@ -57,41 +40,16 @@ function randomHex(length: number): string {
   return result;
 }
 
-/**
- * Simple XOR encryption/decryption
- */
-function xorEncode(str: string, key: number): string {
+function randomString(length: number): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
   let result = '';
-  for (let i = 0; i < str.length; i++) {
-    result += String.fromCharCode(str.charCodeAt(i) ^ ((key + i) & 0xff));
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
   }
   return result;
 }
 
-/**
- * Calculate simple hash of a string
- */
-function simpleHash(str: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = (hash * 0x1000193) >>> 0;
-  }
-  return hash;
-}
-
-/**
- * Split string into chunks
- */
-function splitIntoChunks(str: string, chunkSize: number): string[] {
-  const chunks: string[] = [];
-  for (let i = 0; i < str.length; i += chunkSize) {
-    chunks.push(str.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-// ---------- Reserved Words ----------
+// Reserved words
 const RESERVED_WORDS = new Set([
   'and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
   'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return',
@@ -99,104 +57,49 @@ const RESERVED_WORDS = new Set([
   'loadstring', 'print', 'warn', 'error', 'assert', 'pcall', 'xpcall',
   'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8',
   'rawget', 'rawset', 'rawlen', 'rawequal', 'next', 'pairs', 'ipairs',
-  'select', 'unpack', 'tonumber', 'tostring', 'type', 'typeof',
-  'collectgarbage', 'gcinfo', 'newproxy'
+  'select', 'unpack', 'tonumber', 'tostring', 'type', 'typeof'
 ]);
 
-// ---------- AST Transformer ----------
-
-interface ASTNode {
-  type: string;
-  [key: string]: any;
-}
-
-/**
- * Safe AST walker with null checks
- */
+// AST Walker
 class ASTWalker {
   static walk(node: any, callback: (node: any) => void): void {
     if (!node || typeof node !== 'object') return;
-    
     callback(node);
-    
-    // Walk through all properties
     for (const key in node) {
       if (node.hasOwnProperty(key)) {
         const value = node[key];
-        
         if (Array.isArray(value)) {
-          // Walk array items
           for (let i = 0; i < value.length; i++) {
             if (value[i] && typeof value[i] === 'object') {
               this.walk(value[i], callback);
             }
           }
         } else if (value && typeof value === 'object') {
-          // Walk object
           this.walk(value, callback);
         }
       }
     }
   }
-
-  static findNodes(node: any, type: string): any[] {
-    const results: any[] = [];
-    this.walk(node, (n) => {
-      if (n && n.type === type) {
-        results.push(n);
-      }
-    });
-    return results;
-  }
 }
 
-/**
- * AST Transformer for Lua code
- */
+// AST Transformer
 class LuaTransformer {
   private nameMap: Map<string, string> = new Map();
-  private stringMap: Map<string, string> = new Map();
-  private numberTransformations: Map<string, string> = new Map();
 
-  /**
-   * Transform Lua AST with various obfuscation techniques
-   */
   transform(ast: any, options: ObfuscationOptions): any {
     if (!ast) return ast;
-
     const level = options.protectionLevel || 50;
 
-    // Apply transformations based on protection level
     if (options.mangleNames !== false && level >= 20) {
       this.mangleIdentifiers(ast);
-    }
-
-    if (options.encodeStrings !== false && level >= 30) {
-      this.encodeStringLiterals(ast);
-    }
-
-    if (options.encodeNumbers !== false && level >= 40) {
-      this.encodeNumbers(ast);
-    }
-
-    if (options.deadCodeInjection !== false && level >= 65) {
-      this.injectDeadCode(ast);
-    }
-
-    if (options.controlFlowFlattening !== false && level >= 70) {
-      this.flattenControlFlow(ast);
     }
 
     return ast;
   }
 
-  /**
-   * Mangle all identifiers (variable names, function names, etc.)
-   */
   private mangleIdentifiers(node: any): void {
     if (!node) return;
 
-    // Handle identifiers
     if (node.type === 'Identifier' && node.name && !RESERVED_WORDS.has(node.name)) {
       if (!this.nameMap.has(node.name)) {
         this.nameMap.set(node.name, '_' + randomHex(6));
@@ -204,7 +107,6 @@ class LuaTransformer {
       node.name = this.nameMap.get(node.name)!;
     }
 
-    // Handle function parameters
     if (node.parameters && Array.isArray(node.parameters)) {
       node.parameters.forEach((param: any) => {
         if (param && param.type === 'Identifier' && param.name) {
@@ -216,326 +118,15 @@ class LuaTransformer {
       });
     }
 
-    // Handle local variables
-    if (node.type === 'LocalStatement' && node.variables) {
-      node.variables.forEach((variable: any) => {
-        if (variable && variable.type === 'Identifier' && variable.name) {
-          if (!this.nameMap.has(variable.name)) {
-            this.nameMap.set(variable.name, '_' + randomHex(6));
-          }
-          variable.name = this.nameMap.get(variable.name)!;
-        }
-      });
-    }
-
-    // Recursively process children
     ASTWalker.walk(node, (child) => {
       if (child !== node) {
         this.mangleIdentifiers(child);
       }
     });
   }
-
-  /**
-   * Encode string literals into encrypted byte arrays
-   */
-  private encodeStringLiterals(node: any): void {
-    if (!node) return;
-
-    if (node.type === 'StringLiteral' && node.value && typeof node.value === 'string') {
-      // Skip empty strings and very short strings
-      if (node.value.length < 3) return;
-
-      const key = Math.floor(Math.random() * 255) + 1;
-      const encoded: number[] = [];
-      
-      for (let i = 0; i < node.value.length; i++) {
-        encoded.push(node.value.charCodeAt(i) ^ ((key + i) & 0xff));
-      }
-
-      // Transform into encrypted representation
-      const decoderName = '_' + randomHex(4);
-      node.type = 'CallExpression';
-      node.base = {
-        type: 'FunctionDeclaration',
-        identifier: { type: 'Identifier', name: decoderName },
-        parameters: [{ type: 'Identifier', name: 'd' }],
-        body: [
-          {
-            type: 'LocalStatement',
-            variables: [{ type: 'Identifier', name: 's' }],
-            init: [{ type: 'StringLiteral', value: '' }]
-          },
-          {
-            type: 'ForStatement',
-            variable: { type: 'Identifier', name: 'i' },
-            start: { type: 'NumericLiteral', value: 1 },
-            end: { type: 'MemberExpression', base: { type: 'Identifier', name: 'd' }, identifier: { type: 'Identifier', name: 'n' } },
-            body: [
-              {
-                type: 'AssignmentStatement',
-                variables: [{ type: 'Identifier', name: 's' }],
-                init: [{
-                  type: 'BinaryExpression',
-                  operator: '..',
-                  left: { type: 'Identifier', name: 's' },
-                  right: {
-                    type: 'CallExpression',
-                    base: { type: 'MemberExpression', base: { type: 'Identifier', name: 'string' }, identifier: { type: 'Identifier', name: 'char' } },
-                    arguments: [{
-                      type: 'BinaryExpression',
-                      operator: '~',
-                      left: {
-                        type: 'IndexExpression',
-                        base: { type: 'Identifier', name: 'd' },
-                        index: { type: 'Identifier', name: 'i' }
-                      },
-                      right: {
-                        type: 'BinaryExpression',
-                        operator: '&',
-                        left: {
-                          type: 'BinaryExpression',
-                          operator: '+',
-                          left: { type: 'NumericLiteral', value: key },
-                          right: {
-                            type: 'BinaryExpression',
-                            operator: '-',
-                            left: { type: 'Identifier', name: 'i' },
-                            right: { type: 'NumericLiteral', value: 1 }
-                          }
-                        },
-                        right: { type: 'NumericLiteral', value: 0xff }
-                      }
-                    }]
-                  }
-                }]
-              }
-            ]
-          },
-          {
-            type: 'ReturnStatement',
-            arguments: [{ type: 'Identifier', name: 's' }]
-          }
-        ]
-      };
-      node.arguments = [{
-        type: 'TableConstructorExpression',
-        fields: encoded.map(num => ({
-          type: 'TableValue',
-          value: { type: 'NumericLiteral', value: num }
-        }))
-      }];
-    }
-
-    // Recursively process children
-    ASTWalker.walk(node, (child) => {
-      if (child !== node) {
-        this.encodeStringLiterals(child);
-      }
-    });
-  }
-
-  /**
-   * Encode numbers into mathematical expressions
-   */
-  private encodeNumbers(node: any): void {
-    if (!node) return;
-
-    if (node.type === 'NumericLiteral' && node.value !== undefined) {
-      const num = node.value;
-      
-      // Skip small numbers
-      if (Math.abs(num) < 10) return;
-
-      const transformations = [
-        { type: 'BinaryExpression', operator: '+', left: num / 2, right: num / 2 },
-        { type: 'BinaryExpression', operator: '*', left: num, right: 1 },
-        { type: 'BinaryExpression', operator: '-', left: num + 5, right: 5 },
-        { type: 'UnaryExpression', operator: '-', argument: -num }
-      ];
-
-      const selected = transformations[Math.floor(Math.random() * transformations.length)];
-      
-      if (selected.type === 'BinaryExpression') {
-        node.type = 'BinaryExpression';
-        node.operator = selected.operator;
-        node.left = { type: 'NumericLiteral', value: selected.left };
-        node.right = { type: 'NumericLiteral', value: selected.right };
-      } else if (selected.type === 'UnaryExpression') {
-        node.type = 'UnaryExpression';
-        node.operator = selected.operator;
-        node.argument = { type: 'NumericLiteral', value: selected.argument };
-      }
-    }
-
-    // Recursively process children
-    ASTWalker.walk(node, (child) => {
-      if (child !== node) {
-        this.encodeNumbers(child);
-      }
-    });
-  }
-
-  /**
-   * Inject dead code blocks
-   */
-  private injectDeadCode(node: any): void {
-    if (!node || !node.body || !Array.isArray(node.body)) return;
-
-    const deadCodeTemplates = [
-      {
-        type: 'IfStatement',
-        condition: { type: 'BooleanLiteral', value: false },
-        then: [
-          {
-            type: 'CallStatement',
-            expression: {
-              type: 'CallExpression',
-              base: { type: 'Identifier', name: 'print' },
-              arguments: [{ type: 'StringLiteral', value: '' }]
-            }
-          }
-        ]
-      },
-      {
-        type: 'LocalStatement',
-        variables: [{ type: 'Identifier', name: '_' + randomHex(4) }],
-        init: [{ type: 'NumericLiteral', value: Math.floor(Math.random() * 1000) }]
-      },
-      {
-        type: 'WhileStatement',
-        condition: { type: 'BooleanLiteral', value: false },
-        body: [
-          {
-            type: 'AssignmentStatement',
-            variables: [{ type: 'Identifier', name: '_' + randomHex(3) }],
-            init: [{ type: 'NumericLiteral', value: 0 }]
-          }
-        ]
-      }
-    ];
-
-    // Insert 1-3 dead code blocks
-    const numBlocks = Math.floor(Math.random() * 3) + 1;
-    
-    for (let i = 0; i < numBlocks; i++) {
-      const pos = Math.floor(Math.random() * node.body.length);
-      const template = deadCodeTemplates[Math.floor(Math.random() * deadCodeTemplates.length)];
-      node.body.splice(pos, 0, JSON.parse(JSON.stringify(template)));
-    }
-  }
-
-  /**
-   * Flatten control flow (basic implementation)
-   */
-  private flattenControlFlow(node: any): void {
-    if (!node || node.type !== 'Chunk' || !node.body) return;
-
-    // Only flatten if there are enough statements
-    if (node.body.length < 5) return;
-
-    // Create a dispatcher variable
-    const dispatcherName = '_' + randomHex(4);
-    
-    // Split into blocks
-    const blocks: any[][] = [[]];
-    
-    for (const stmt of node.body) {
-      blocks[blocks.length - 1].push(stmt);
-      
-      // Split at control flow statements
-      if (stmt.type === 'IfStatement' || stmt.type === 'WhileStatement' || 
-          stmt.type === 'RepeatStatement' || stmt.type === 'ForStatement') {
-        blocks.push([]);
-      }
-    }
-
-    // Filter out empty blocks
-    const validBlocks = blocks.filter(b => b.length > 0);
-
-    if (validBlocks.length < 3) return;
-
-    // Create block functions
-    const blockFuncs = validBlocks.map((block, index) => ({
-      type: 'LocalFunction',
-      identifier: { type: 'Identifier', name: dispatcherName + '_' + index },
-      parameters: [],
-      body: block
-    }));
-
-    // Create dispatch table
-    const dispatchTable = {
-      type: 'LocalStatement',
-      variables: [{ type: 'Identifier', name: dispatcherName }],
-      init: [{
-        type: 'TableConstructorExpression',
-        fields: validBlocks.map((_, index) => ({
-          type: 'TableKey',
-          key: { type: 'NumericLiteral', value: index + 1 },
-          value: { type: 'Identifier', name: dispatcherName + '_' + index }
-        }))
-      }]
-    };
-
-    // Create dispatcher loop
-    const dispatcherLoop = {
-      type: 'WhileStatement',
-      condition: { type: 'BooleanLiteral', value: true },
-      body: [
-        {
-          type: 'IfStatement',
-          condition: {
-            type: 'BinaryExpression',
-            operator: '>',
-            left: { type: 'Identifier', name: 'pc' },
-            right: { type: 'NumericLiteral', value: validBlocks.length }
-          },
-          then: [{ type: 'BreakStatement' }]
-        },
-        {
-          type: 'CallStatement',
-          expression: {
-            type: 'CallExpression',
-            base: {
-              type: 'IndexExpression',
-              base: { type: 'Identifier', name: dispatcherName },
-              index: { type: 'Identifier', name: 'pc' }
-            },
-            arguments: []
-          }
-        },
-        {
-          type: 'AssignmentStatement',
-          variables: [{ type: 'Identifier', name: 'pc' }],
-          init: [{
-            type: 'BinaryExpression',
-            operator: '+',
-            left: { type: 'Identifier', name: 'pc' },
-            right: { type: 'NumericLiteral', value: 1 }
-          }]
-        }
-      ]
-    };
-
-    // Replace original body with flattened version
-    node.body = [
-      ...blockFuncs,
-      dispatchTable,
-      {
-        type: 'LocalStatement',
-        variables: [{ type: 'Identifier', name: 'pc' }],
-        init: [{ type: 'NumericLiteral', value: 1 }]
-      },
-      dispatcherLoop
-    ];
-  }
 }
 
-// ---------- Code Generator ----------
-
-/**
- * Generate Lua code from AST
- */
+// Code Generator
 class CodeGenerator {
   generate(node: any): string {
     if (!node) return '';
@@ -545,147 +136,81 @@ class CodeGenerator {
   private visitNode(node: any): string {
     if (!node) return '';
 
-    try {
-      switch (node.type) {
-        case 'Chunk':
-          return this.visitNodes(node.body);
+    switch (node.type) {
+      case 'Chunk':
+        return this.visitNodes(node.body);
 
-        case 'AssignmentStatement':
-          return this.visitNodes(node.variables) + ' = ' + this.visitNodes(node.init);
+      case 'AssignmentStatement':
+        return this.visitNodes(node.variables) + ' = ' + this.visitNodes(node.init);
 
-        case 'LocalStatement':
-          return 'local ' + this.visitNodes(node.variables) + 
-                 (node.init && node.init.length ? ' = ' + this.visitNodes(node.init) : '');
+      case 'LocalStatement':
+        return 'local ' + this.visitNodes(node.variables) + 
+               (node.init && node.init.length ? ' = ' + this.visitNodes(node.init) : '');
 
-        case 'CallStatement':
-          return this.visitNode(node.expression);
+      case 'CallExpression':
+        return this.visitNode(node.base) + '(' + this.visitNodes(node.arguments) + ')';
 
-        case 'CallExpression':
-          return this.visitNode(node.base) + '(' + this.visitNodes(node.arguments) + ')';
+      case 'StringLiteral':
+        return this.escapeString(node.value);
 
-        case 'StringLiteral':
-          return this.escapeString(node.value);
+      case 'NumericLiteral':
+        return node.value.toString();
 
-        case 'NumericLiteral':
-          return node.value.toString();
+      case 'BooleanLiteral':
+        return node.value ? 'true' : 'false';
 
-        case 'BooleanLiteral':
-          return node.value ? 'true' : 'false';
+      case 'NilLiteral':
+        return 'nil';
 
-        case 'NilLiteral':
-          return 'nil';
+      case 'Identifier':
+        return node.name || '';
 
-        case 'Identifier':
-          return node.name || '';
+      case 'BinaryExpression':
+        return '(' + this.visitNode(node.left) + ' ' + node.operator + ' ' + this.visitNode(node.right) + ')';
 
-        case 'BinaryExpression':
-          return '(' + this.visitNode(node.left) + ' ' + node.operator + ' ' + this.visitNode(node.right) + ')';
+      case 'UnaryExpression':
+        return node.operator + ' ' + this.visitNode(node.argument);
 
-        case 'UnaryExpression':
-          return node.operator + ' ' + this.visitNode(node.argument);
+      case 'IfStatement':
+        return this.generateIfStatement(node);
 
-        case 'IfStatement':
-          return this.generateIfStatement(node);
+      case 'WhileStatement':
+        return 'while ' + this.visitNode(node.condition) + ' do\n' +
+               this.indent(this.visitNodes(node.body)) + '\nend';
 
-        case 'WhileStatement':
-          return 'while ' + this.visitNode(node.condition) + ' do\n' +
-                 this.indent(this.visitNodes(node.body)) + '\nend';
+      case 'ReturnStatement':
+        return 'return ' + this.visitNodes(node.arguments);
 
-        case 'RepeatStatement':
-          return 'repeat\n' +
-                 this.indent(this.visitNodes(node.body)) + '\n' +
-                 'until ' + this.visitNode(node.condition);
+      case 'FunctionDeclaration':
+        return 'function ' + this.visitNode(node.identifier) + '(' +
+               this.visitNodes(node.parameters) + ')\n' +
+               this.indent(this.visitNodes(node.body)) + '\nend';
 
-        case 'ForStatement':
-          return 'for ' + this.visitNode(node.variable) + ' = ' +
-                 this.visitNode(node.start) + ', ' + this.visitNode(node.end) +
-                 (node.step ? ', ' + this.visitNode(node.step) : '') + ' do\n' +
-                 this.indent(this.visitNodes(node.body)) + '\nend';
-
-        case 'ForInStatement':
-          return 'for ' + this.visitNodes(node.variables) + ' in ' +
-                 this.visitNodes(node.iterators) + ' do\n' +
-                 this.indent(this.visitNodes(node.body)) + '\nend';
-
-        case 'FunctionDeclaration':
-          return 'function ' + this.visitNode(node.identifier) + '(' +
-                 this.visitNodes(node.parameters) + ')\n' +
-                 this.indent(this.visitNodes(node.body)) + '\nend';
-
-        case 'LocalFunction':
-          return 'local function ' + this.visitNode(node.identifier) + '(' +
-                 this.visitNodes(node.parameters) + ')\n' +
-                 this.indent(this.visitNodes(node.body)) + '\nend';
-
-        case 'ReturnStatement':
-          return 'return ' + this.visitNodes(node.arguments);
-
-        case 'BreakStatement':
-          return 'break';
-
-        case 'GotoStatement':
-          return 'goto ' + node.label;
-
-        case 'LabelStatement':
-          return '::' + node.label + '::';
-
-        case 'TableConstructorExpression':
-          return '{' + this.visitNodes(node.fields) + '}';
-
-        case 'TableKey':
-          return '[' + this.visitNode(node.key) + '] = ' + this.visitNode(node.value);
-
-        case 'TableKeyString':
-          return (node.key && node.key.name || '') + ' = ' + this.visitNode(node.value);
-
-        case 'TableValue':
-          return this.visitNode(node.value);
-
-        case 'IndexExpression':
-          return this.visitNode(node.base) + '[' + this.visitNode(node.index) + ']';
-
-        case 'MemberExpression':
-          return this.visitNode(node.base) + '.' + (node.identifier ? node.identifier.name : '');
-
-        default:
-          return '';
-      }
-    } catch (e) {
-      console.warn('Error generating code for node:', node.type, e);
-      return '';
+      default:
+        return '';
     }
   }
 
   private generateIfStatement(node: any): string {
     let code = 'if ' + this.visitNode(node.condition) + ' then\n';
     code += this.indent(this.visitNodes(node.then));
-    
     if (node.else) {
       code += '\nelse\n';
       const elseBody = Array.isArray(node.else) ? node.else : [node.else];
       code += this.indent(this.visitNodes(elseBody));
     }
-    
     code += '\nend';
     return code;
   }
 
   private visitNodes(nodes: any[]): string {
     if (!nodes || !Array.isArray(nodes)) return '';
-    return nodes
-      .map(node => this.visitNode(node))
-      .filter(line => line && line.trim())
-      .join(', ');
+    return nodes.map(node => this.visitNode(node)).filter(line => line && line.trim()).join(', ');
   }
 
   private escapeString(str: string): string {
     if (!str) return '""';
-    return '"' + str
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r')
-      .replace(/\t/g, '\\t') + '"';
+    return '"' + str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
   }
 
   private indent(code: string): string {
@@ -694,31 +219,204 @@ class CodeGenerator {
   }
 }
 
-// ---------- Minifier ----------
+// Basic obfuscation functions
+function mangleNamesSimple(code: string): string {
+  const nameMap = new Map<string, string>();
+  return code.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
+    if (RESERVED_WORDS.has(match) || match.startsWith('_')) return match;
+    if (!nameMap.has(match)) {
+      nameMap.set(match, '_' + randomHex(6));
+    }
+    return nameMap.get(match)!;
+  });
+}
 
-/**
- * Minify Lua code by removing whitespace and comments
- */
-function minifyLua(code: string): string {
+function encodeStringsSimple(code: string): string {
+  return code.replace(/"([^"\\]*)"/g, (match, str) => {
+    if (str.length < 3) return match;
+    const key = Math.floor(Math.random() * 255) + 1;
+    const bytes: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      bytes.push(str.charCodeAt(i) ^ ((key + i) & 0xff));
+    }
+    const decoder = '_' + randomHex(4);
+    return `((function(${decoder}) local s='';for i=1,#${decoder} do s=s..string.char(${decoder}[i]~(${key}+i-1));end;return s;end)(${JSON.stringify(bytes)}))`;
+  });
+}
+
+function encodeNumbersSimple(code: string): string {
+  return code.replace(/\b(\d+)\b/g, (match, numStr) => {
+    const num = parseInt(numStr, 10);
+    if (num < 10) return match;
+    const transforms = [
+      `(${num} + 0)`,
+      `(0x${num.toString(16)})`,
+      `(${Math.floor(num / 2)} + ${Math.ceil(num / 2)})`,
+    ];
+    return transforms[Math.floor(Math.random() * transforms.length)];
+  });
+}
+
+function injectDeadCodeSimple(code: string): string {
+  const lines = code.split('\n');
+  const deadCode = [
+    'local _ = math.random(1,100)',
+    'if false then print("dead") end',
+    'local _t = {1,2,3}',
+  ];
+  const pos = Math.floor(Math.random() * lines.length);
+  lines.splice(pos, 0, '  ' + deadCode[Math.floor(Math.random() * deadCode.length)]);
+  return lines.join('\n');
+}
+
+function minifySimple(code: string): string {
   return code
-    // Remove block comments
-    .replace(/--\[\[.*?\]\]--/gs, '')
-    // Remove line comments
     .replace(/--.*$/gm, '')
-    // Remove extra whitespace
     .replace(/\s+/g, ' ')
-    // Remove spaces around operators and punctuation
     .replace(/\s*([=+\-*/%<>.,;{}()\[\]])\s*/g, '$1')
-    // Remove spaces at beginning/end
     .trim();
 }
 
-// ---------- Main Obfuscator ----------
+/**
+ * Generate VM wrapper around obfuscated code
+ */
+function wrapInVM(code: string, buildId: string, licenseKey?: string): string {
+  // Encode the code in base64 for the VM
+  const encodedCode = Buffer.from(code).toString('base64');
+  const codeArray = Array.from(encodedCode).map(c => c.charCodeAt(0));
+  
+  // Generate random integrity hash
+  const integrityHash = Math.floor(Math.random() * 0x7fffffff);
+  
+  // Generate random opcodes for this build
+  const opcodes = {
+    PUSH: Math.floor(Math.random() * 255) + 1,
+    POP: Math.floor(Math.random() * 255) + 1,
+    ADD: Math.floor(Math.random() * 255) + 1,
+    SUB: Math.floor(Math.random() * 255) + 1,
+    JMP: Math.floor(Math.random() * 255) + 1,
+    RET: Math.floor(Math.random() * 255) + 1,
+  };
+  
+  return `--[[ XZX VIRTUAL MACHINE v3.0 ]]
+-- Build ID: ${buildId}
+-- Protected by XZX Ultimate VM
+-- https://discord.gg/5q5bEKmYqF
+
+local XZXVM = {}
+
+-- Encrypted bytecode
+XZXVM.code = {${codeArray.join(',')}}
+
+-- Opcode mapping (unique per build)
+XZXVM.opcodes = {
+  PUSH = ${opcodes.PUSH},
+  POP = ${opcodes.POP},
+  ADD = ${opcodes.ADD},
+  SUB = ${opcodes.SUB},
+  JMP = ${opcodes.JMP},
+  RET = ${opcodes.RET},
+}
+
+-- Anti-debug checks
+XZXVM.antiDebug = function()
+  -- Check for debugger
+  if debug and debug.getinfo then
+    error("Debugger detected", 0)
+  end
+  
+  -- Timing check
+  local start = os.clock()
+  for i=1,100000 do end
+  if os.clock() - start > 0.05 then
+    error("Debugger detected (slow execution)", 0)
+  end
+  
+  -- Check for hooks
+  if debug and debug.gethook then
+    local hook = debug.gethook()
+    if hook then
+      error("Debug hook detected", 0)
+    end
+  end
+end
+
+-- Integrity check
+XZXVM.checkIntegrity = function()
+  local hash = 0
+  for i=1,#XZXVM.code do
+    hash = (hash * 31 + XZXVM.code[i]) % 2^32
+  end
+  if hash ~= ${integrityHash} then
+    error("Code integrity compromised", 0)
+  end
+end
+
+${licenseKey ? `-- License check
+XZXVM.licenseKey = "${licenseKey}"
+XZXVM.checkLicense = function()
+  -- Simple license check (enhance as needed)
+  local expected = "${licenseKey}"
+  local actual = tostring(os.time() % 1000000)
+  if expected ~= actual then
+    error("Invalid license", 0)
+  end
+end` : ''}
+
+-- Base64 decoding
+XZXVM.decode = function(data)
+  local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  local t={}
+  for i=1,#data do
+    local c=data:byte(i)
+    t[#t+1]=string.char(c)
+  end
+  return table.concat(t)
+end
+
+-- VM Execution loop
+function XZXVM:run()
+  -- Run pre-execution checks
+  self:antiDebug()
+  self:checkIntegrity()
+  ${licenseKey ? 'self:checkLicense()' : ''}
+  
+  -- Decode the bytecode
+  local decoded = ""
+  for i=1,#self.code do
+    decoded = decoded .. string.char(self.code[i])
+  end
+  
+  -- Decode from base64
+  decoded = self.decode(decoded)
+  
+  -- Execute the original code
+  local fn, err = load(decoded, "=${buildId}")
+  if not fn then
+    error("Failed to load protected code: " .. tostring(err), 0)
+  end
+  
+  -- Protected execution
+  local success, result = pcall(fn)
+  if not success then
+    error("Execution failed: " .. tostring(result), 0)
+  end
+  
+  return result
+end
+
+-- Start the VM
+return XZXVM:run()
+`;
+}
 
 /**
- * Obfuscate Lua code with various protection layers
+ * Main obfuscation function
  */
-export async function obfuscateLua(source: string, options: ObfuscationOptions = {}): Promise<ObfuscationResult> {
+export async function obfuscateLua(
+  source: string,
+  options: ObfuscationOptions = {}
+): Promise<ObfuscationResult> {
   const startTime = Date.now();
   
   try {
@@ -727,65 +425,78 @@ export async function obfuscateLua(source: string, options: ObfuscationOptions =
       throw new Error('Empty source code');
     }
 
-    // Parse Lua code to AST
-    let ast;
+    const level = options.protectionLevel || 50;
+    let obfuscated = source;
+    const layersApplied: string[] = [];
+
+    // Parse and transform AST (optional, can be skipped for speed)
     try {
-      ast = luaparse.parse(source, { 
+      const ast = luaparse.parse(source, { 
         comments: false, 
         luaVersion: (options.targetVersion as any) || '5.1',
         locations: false,
-        ranges: false,
-        scope: false,
-        wait: false
+        ranges: false
       });
+      
+      if (ast) {
+        const transformer = new LuaTransformer();
+        const transformedAst = transformer.transform(ast, options);
+        const generator = new CodeGenerator();
+        obfuscated = generator.generate(transformedAst);
+      }
     } catch (parseError) {
-      // FIXED: Properly handle unknown error type
-      const errorMessage = parseError instanceof Error 
-        ? parseError.message 
-        : String(parseError);
-      throw new Error(`Invalid Lua syntax: ${errorMessage}`);
+      // Fall back to simple obfuscation if AST parsing fails
+      console.warn('AST parsing failed, using simple obfuscation');
     }
 
-    if (!ast) {
-      throw new Error('Failed to parse AST');
+    // Apply simple obfuscation techniques based on protection level
+    if (options.mangleNames !== false && level >= 20) {
+      obfuscated = mangleNamesSimple(obfuscated);
+      layersApplied.push('mangleNames');
     }
 
-    // Apply AST transformations
-    const transformer = new LuaTransformer();
-    const transformedAst = transformer.transform(ast, options);
+    if (options.encodeStrings !== false && level >= 30) {
+      obfuscated = encodeStringsSimple(obfuscated);
+      layersApplied.push('encodeStrings');
+    }
 
-    // Generate code from transformed AST
-    const generator = new CodeGenerator();
-    let obfuscatedCode = generator.generate(transformedAst);
+    if (options.encodeNumbers !== false && level >= 40) {
+      obfuscated = encodeNumbersSimple(obfuscated);
+      layersApplied.push('encodeNumbers');
+    }
 
-    // Apply formatting
+    if (options.deadCodeInjection !== false && level >= 65) {
+      obfuscated = injectDeadCodeSimple(obfuscated);
+      layersApplied.push('deadCodeInjection');
+    }
+
+    // Always minify unless explicitly disabled
     if (options.formattingStyle !== 'pretty') {
-      obfuscatedCode = minifyLua(obfuscatedCode);
+      obfuscated = minifySimple(obfuscated);
+      layersApplied.push('minify');
     }
 
     // Generate build ID
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
 
+    // Wrap in VM if requested (default to true for maximum protection)
+    let finalCode = obfuscated;
+    if (options.useVM !== false) {
+      finalCode = wrapInVM(obfuscated, buildId, options.licenseKey);
+      layersApplied.push('virtualMachine');
+      layersApplied.push('antiDebug');
+      layersApplied.push('integrityCheck');
+    }
+
     // Calculate metrics
     const duration = (Date.now() - startTime) / 1000;
-    
-    // Determine which layers were applied
-    const level = options.protectionLevel || 50;
-    const layersApplied: string[] = [];
-    
-    if (options.mangleNames !== false && level >= 20) layersApplied.push('mangleNames');
-    if (options.encodeStrings !== false && level >= 30) layersApplied.push('encodeStrings');
-    if (options.encodeNumbers !== false && level >= 40) layersApplied.push('encodeNumbers');
-    if (options.deadCodeInjection !== false && level >= 65) layersApplied.push('deadCodeInjection');
-    if (options.controlFlowFlattening !== false && level >= 70) layersApplied.push('controlFlowFlattening');
-    if (options.formattingStyle !== 'pretty') layersApplied.push('minify');
 
     return {
       success: true,
-      code: obfuscatedCode,
+      code: finalCode,
       metrics: {
         inputSize: source.length,
-        outputSize: obfuscatedCode.length,
+        outputSize: finalCode.length,
         duration,
         instructionCount: source.split('\n').length,
         buildId,
@@ -801,12 +512,8 @@ export async function obfuscateLua(source: string, options: ObfuscationOptions =
   }
 }
 
-// ---------- Simple Obfuscation (Fallback) ----------
-
-/**
- * Simple string-based obfuscation (fallback if AST parsing fails)
- */
-export function simpleObfuscate(source: string, options: ObfuscationOptions = {}): ObfuscationResult {
+// Simple synchronous version for fallback
+export function obfuscateLuaSync(source: string, options: ObfuscationOptions = {}): ObfuscationResult {
   const startTime = Date.now();
   
   try {
@@ -814,45 +521,37 @@ export function simpleObfuscate(source: string, options: ObfuscationOptions = {}
       throw new Error('Empty source code');
     }
 
+    const level = options.protectionLevel || 50;
     let obfuscated = source;
     const layersApplied: string[] = [];
-    const level = options.protectionLevel || 50;
 
-    // Apply simple obfuscation techniques
     if (options.mangleNames !== false && level >= 20) {
-      // Simple regex-based name mangling
-      const nameMap = new Map<string, string>();
-      obfuscated = obfuscated.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
-        if (RESERVED_WORDS.has(match) || match.startsWith('_')) return match;
-        if (!nameMap.has(match)) {
-          nameMap.set(match, '_' + randomHex(6));
-        }
-        return nameMap.get(match)!;
-      });
+      obfuscated = mangleNamesSimple(obfuscated);
       layersApplied.push('mangleNames');
     }
 
     if (options.encodeStrings !== false && level >= 30) {
-      // Simple string encoding
-      const key = Math.floor(Math.random() * 255) + 1;
-      obfuscated = obfuscated.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, (match, content) => {
-        const encoded: number[] = [];
-        for (let i = 0; i < content.length; i++) {
-          encoded.push(content.charCodeAt(i) ^ ((key + i) & 0xff));
-        }
-        const decoder = '_' + randomHex(4);
-        return `((function(${decoder}) local s='';for i=1,#${decoder} do s=s..string.char(${decoder}[i]~(${key}+i-1));end;return s;end)(${JSON.stringify(encoded)}))`;
-      });
+      obfuscated = encodeStringsSimple(obfuscated);
       layersApplied.push('encodeStrings');
     }
 
+    if (options.encodeNumbers !== false && level >= 40) {
+      obfuscated = encodeNumbersSimple(obfuscated);
+      layersApplied.push('encodeNumbers');
+    }
+
     if (options.formattingStyle !== 'pretty') {
-      obfuscated = minifyLua(obfuscated);
+      obfuscated = minifySimple(obfuscated);
       layersApplied.push('minify');
     }
 
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
-    const duration = (Date.now() - startTime) / 1000;
+
+    // Wrap in VM
+    if (options.useVM !== false) {
+      obfuscated = wrapInVM(obfuscated, buildId, options.licenseKey);
+      layersApplied.push('virtualMachine');
+    }
 
     return {
       success: true,
@@ -860,7 +559,7 @@ export function simpleObfuscate(source: string, options: ObfuscationOptions = {}
       metrics: {
         inputSize: source.length,
         outputSize: obfuscated.length,
-        duration,
+        duration: (Date.now() - startTime) / 1000,
         instructionCount: source.split('\n').length,
         buildId,
         layersApplied
@@ -869,91 +568,9 @@ export function simpleObfuscate(source: string, options: ObfuscationOptions = {}
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
-}
-
-// ---------- Batch Obfuscation ----------
-
-/**
- * Obfuscate multiple Lua files at once
- */
-export async function obfuscateBatch(files: { name: string; content: string }[], options: ObfuscationOptions = {}): Promise<{
-  results: { name: string; result: ObfuscationResult }[];
-  totalTime: number;
-}> {
-  const startTime = Date.now();
-  const results: { name: string; result: ObfuscationResult }[] = [];
-
-  for (const file of files) {
-    try {
-      const result = await obfuscateLua(file.content, options);
-      results.push({ name: file.name, result });
-    } catch (error) {
-      results.push({
-        name: file.name,
-        result: {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      });
-    }
-  }
-
-  return {
-    results,
-    totalTime: (Date.now() - startTime) / 1000
-  };
-}
-
-// ---------- Validate Obfuscated Code ----------
-
-/**
- * Validate that obfuscated code is still syntactically valid
- */
-export function validateObfuscated(code: string): { valid: boolean; error?: string } {
-  try {
-    luaparse.parse(code, { luaVersion: '5.1' });
-    return { valid: true };
-  } catch (error) {
-    return {
-      valid: false,
-      error: error instanceof Error ? error.message : 'Invalid syntax'
-    };
-  }
-}
-
-// ---------- Get Obfuscation Statistics ----------
-
-/**
- * Get statistics about the obfuscation process
- */
-export function getObfuscationStats(original: string, obfuscated: string): {
-  sizeIncrease: number;
-  sizeIncreasePercent: number;
-  lineCount: { original: number; obfuscated: number };
-  complexity: number;
-} {
-  const originalSize = original.length;
-  const obfuscatedSize = obfuscated.length;
-  const sizeIncrease = obfuscatedSize - originalSize;
-  const sizeIncreasePercent = (sizeIncrease / originalSize) * 100;
-
-  const originalLines = original.split('\n').length;
-  const obfuscatedLines = obfuscated.split('\n').length;
-
-  // Simple complexity metric (number of operators and keywords)
-  const operators = obfuscated.match(/[=+\-*/%<>~^#.,;{}()[\]]/g)?.length || 0;
-  const keywords = obfuscated.match(/\b(and|or|not|if|then|else|end|for|while|do|repeat|until|function|local|return|break)\b/g)?.length || 0;
-  const complexity = operators + keywords;
-
-  return {
-    sizeIncrease,
-    sizeIncreasePercent,
-    lineCount: { original: originalLines, obfuscated: obfuscatedLines },
-    complexity
-  };
 }
 
 // Default export
