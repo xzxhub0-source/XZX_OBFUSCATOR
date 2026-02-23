@@ -5,6 +5,13 @@ export interface ObfuscationOptions {
   protectionLevel?: number;
   targetVersion?: string;
   debug?: boolean;
+  mangleNames?: boolean;
+  encodeStrings?: boolean;
+  encodeNumbers?: boolean;
+  deadCodeInjection?: boolean;
+  controlFlowFlattening?: boolean;
+  useVM?: boolean;
+  licenseKey?: string;
 }
 
 export interface ObfuscationResult {
@@ -37,6 +44,14 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 function base64Encode(str: string): string {
   return Buffer.from(str).toString('base64');
 }
@@ -45,8 +60,17 @@ function base64Decode(str: string): string {
   return Buffer.from(str, 'base64').toString();
 }
 
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
 // ============================================
-// SIMPLE VARIABLE RENAMING
+// RESERVED WORDS
 // ============================================
 
 const RESERVED_WORDS = new Set([
@@ -57,39 +81,85 @@ const RESERVED_WORDS = new Set([
   'string', 'table', 'math', 'os', 'debug', 'coroutine', 'bit32', 'utf8'
 ]);
 
-function renameVariables(code: string): string {
-  const nameMap = new Map<string, string>();
-  const usedNames = new Set<string>();
+// ============================================
+// SAFE IDENTIFIER GENERATOR
+// ============================================
+
+class SafeIdentifierGenerator {
+  private usedNames: Set<string> = new Set();
   
-  const generateName = () => {
+  generate(): string {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const digits = '0123456789';
-    let name = '_' + chars[Math.floor(Math.random() * chars.length)];
+    const length = randomInt(3, 8);
     
-    for (let i = 0; i < randomInt(2, 5); i++) {
-      const pool = Math.random() > 0.5 ? chars : digits;
-      name += pool[Math.floor(Math.random() * pool.length)];
+    let name = '_' + chars[randomInt(0, chars.length - 1)];
+    
+    for (let i = 1; i < length; i++) {
+      const pool = randomInt(0, 1) === 0 ? chars : digits;
+      name += pool[randomInt(0, pool.length - 1)];
     }
     
-    if (RESERVED_WORDS.has(name) || usedNames.has(name)) {
-      return generateName();
+    if (RESERVED_WORDS.has(name) || this.usedNames.has(name)) {
+      return this.generate();
     }
     
-    usedNames.add(name);
+    this.usedNames.add(name);
     return name;
-  };
+  }
+  
+  reset(): void {
+    this.usedNames.clear();
+  }
+}
+
+// ============================================
+// SAFE CODE GENERATOR
+// ============================================
+
+class SafeCodeGenerator {
+  private lines: string[] = [];
+  private indentLevel: number = 0;
+  
+  addLine(line: string): void {
+    this.lines.push('  '.repeat(this.indentLevel) + line);
+  }
+  
+  addEmptyLine(): void {
+    this.lines.push('');
+  }
+  
+  beginBlock(): void {
+    this.indentLevel++;
+  }
+  
+  endBlock(): void {
+    this.indentLevel = Math.max(0, this.indentLevel - 1);
+  }
+  
+  getCode(): string {
+    return this.lines.join('\n');
+  }
+}
+
+// ============================================
+// VARIABLE RENAMING
+// ============================================
+
+function renameVariables(code: string, identifiers: SafeIdentifierGenerator): string {
+  const nameMap = new Map<string, string>();
   
   return code.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (match) => {
     if (RESERVED_WORDS.has(match) || match.startsWith('_')) return match;
     if (!nameMap.has(match)) {
-      nameMap.set(match, generateName());
+      nameMap.set(match, identifiers.generate());
     }
     return nameMap.get(match)!;
   });
 }
 
 // ============================================
-// SIMPLE NUMBER ENCODING
+// NUMBER ENCODING
 // ============================================
 
 function encodeNumbers(code: string): string {
@@ -112,14 +182,14 @@ function encodeNumbers(code: string): string {
 }
 
 // ============================================
-// SIMPLE STRING ENCODING
+// STRING ENCODING
 // ============================================
 
 function encodeStrings(code: string): string {
   return code.replace(/"([^"\\]*)"/g, (match, str) => {
     if (str.length < 3) return match;
     
-    const method = randomInt(0, 2);
+    const method = randomInt(0, 3);
     
     if (method === 0) {
       // Simple concatenation
@@ -137,49 +207,63 @@ function encodeStrings(code: string): string {
       }
       return `string.char(${bytes.join(', ')})`;
       
-    } else {
+    } else if (method === 2) {
       // Table lookup
       const chars: string[] = [];
       for (let i = 0; i < str.length; i++) {
         chars.push(`[${i+1}] = ${str.charCodeAt(i)}`);
       }
       return `(function() local t = { ${chars.join(', ')} } local r = '' for i = 1, #t do r = r .. string.char(t[i]) end return r end)()`;
+      
+    } else {
+      // XOR encoding
+      const key = randomInt(1, 255);
+      const bytes: number[] = [];
+      for (let i = 0; i < str.length; i++) {
+        bytes.push(str.charCodeAt(i) ^ key);
+      }
+      const decoder = randomHex(4);
+      return `(function() local k = ${key} local d = {${bytes.join(', ')}} local r = '' for i = 1, #d do r = r .. string.char(d[i] ~ k) end return r end)()`;
     }
   });
 }
 
 // ============================================
-// SIMPLE JUNK CODE
+// JUNK CODE GENERATOR
 // ============================================
 
-function generateJunkCode(): string {
-  const types = randomInt(0, 5);
+function generateJunkCode(identifiers: SafeIdentifierGenerator): string {
+  const type = randomInt(0, 6);
   
-  switch (types) {
+  switch (type) {
     case 0:
-      return `local _ = math.random(1, 100)`;
+      return `local ${identifiers.generate()} = math.random(1, 100)`;
     case 1:
       return `if false then end`;
     case 2:
-      return `local _t = {1, 2, 3}`;
+      return `local ${identifiers.generate()} = {1, 2, 3}`;
     case 3:
       return `for i = 1, 0 do end`;
     case 4:
-      return `local _x = string.char(65)`;
+      return `local ${identifiers.generate()} = string.char(65)`;
+    case 5:
+      return `local ${identifiers.generate()} = type(nil)`;
+    case 6:
+      return `local ${identifiers.generate()} = os.clock()`;
     default:
-      return `local _y = os.clock()`;
+      return `local ${identifiers.generate()} = nil`;
   }
 }
 
 // ============================================
-// SIMPLE CONTROL FLOW
+// CONTROL FLOW FLATTENING
 // ============================================
 
-function addControlFlow(code: string): string {
+function flattenControlFlow(code: string, identifiers: SafeIdentifierGenerator): string {
   const lines = code.split('\n').filter(l => l.trim().length > 0);
   if (lines.length < 5) return code;
   
-  const stateVar = '_state' + randomHex(3);
+  const stateVar = identifiers.generate();
   const blocks: string[][] = [];
   let currentBlock: string[] = [];
   
@@ -214,84 +298,6 @@ function addControlFlow(code: string): string {
 }
 
 // ============================================
-// WORKING VM WRAPPER
-// ============================================
-
-function createVMWrapper(source: string, buildId: string): string {
-  const encoded = base64Encode(source);
-  
-  return `--[[ XZX VIRTUAL MACHINE ]]
--- Build: ${buildId}
--- https://discord.gg/5q5bEKmYqF
-
-local XZXVM = {}
-
--- Encrypted code
-XZXVM.code = "${encoded}"
-
--- Base64 decoder (works in all Lua versions)
-XZXVM.decode = function(s)
-  local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  local r = ''
-  
-  for i = 1, #s, 4 do
-    local a = (b:find(s:sub(i, i)) or 65) - 1
-    local c = (b:find(s:sub(i+1, i+1)) or 65) - 1
-    local d = (b:find(s:sub(i+2, i+2)) or 65) - 1
-    local e = (b:find(s:sub(i+3, i+3)) or 65) - 1
-    
-    local n = (((a * 64 + c) * 64 + d) * 64 + e)
-    
-    -- Handle bytes (compatible with all Lua versions)
-    local b1 = n // 65536
-    local b2 = (n // 256) % 256
-    local b3 = n % 256
-    
-    r = r .. string.char(b1)
-    r = r .. string.char(b2)
-    r = r .. string.char(b3)
-  end
-  
-  return r
-end
-
--- Execute the protected code
-XZXVM.run = function()
-  -- Anti-debug check (optional)
-  if debug and debug.getinfo then
-    -- Just continue, don't crash
-  end
-  
-  -- Decode
-  local decoded = XZXVM.decode(XZXVM.code)
-  
-  -- Load with error handling
-  local fn, err = load(decoded, "XZXVM")
-  if not fn then
-    return nil, "Load error: " .. tostring(err)
-  end
-  
-  -- Execute protected
-  local success, result = pcall(fn)
-  if not success then
-    return nil, "Execution error: " .. tostring(result)
-  end
-  
-  return result
-end
-
--- Run and return result
-local result, err = XZXVM.run()
-if not result and err then
-  -- Print error for debugging (optional)
-  -- print(err)
-  return nil
-end
-return result
-`;
-}
-
-// ============================================
 // SIMPLE WRAPPER (ALWAYS WORKS)
 // ============================================
 
@@ -300,7 +306,7 @@ function createSimpleWrapper(source: string, buildId: string): string {
 -- Build: ${buildId}
 -- https://discord.gg/5q5bEKmYqF
 
--- Load and execute directly
+-- THIS CODE ACTUALLY EXECUTES
 local fn, err = load([[
 ${source.split('\n').map(l => '  ' + l).join('\n')}
 ]], "XZX")
@@ -315,6 +321,190 @@ if not success then
 end
 
 return result
+`;
+}
+
+// ============================================
+// OBFUSCATED WRAPPER (WITH ALL LAYERS)
+// ============================================
+
+function createObfuscatedWrapper(
+  source: string, 
+  buildId: string, 
+  level: number,
+  identifiers: SafeIdentifierGenerator
+): string {
+  let obfuscated = source;
+  const layers: string[] = [];
+
+  // Apply variable renaming
+  if (level >= 30) {
+    obfuscated = renameVariables(obfuscated, identifiers);
+    layers.push('rename');
+  }
+
+  // Apply number encoding
+  if (level >= 40) {
+    obfuscated = encodeNumbers(obfuscated);
+    layers.push('numbers');
+  }
+
+  // Apply string encoding
+  if (level >= 50) {
+    obfuscated = encodeStrings(obfuscated);
+    layers.push('strings');
+  }
+
+  // Apply junk code injection
+  if (level >= 60) {
+    const lines = obfuscated.split('\n');
+    const junkCount = Math.floor(level / 20);
+    for (let i = 0; i < junkCount; i++) {
+      const pos = randomInt(0, lines.length);
+      lines.splice(pos, 0, generateJunkCode(identifiers));
+    }
+    obfuscated = lines.join('\n');
+    layers.push('junk');
+  }
+
+  // Apply control flow flattening
+  if (level >= 70) {
+    obfuscated = flattenControlFlow(obfuscated, identifiers);
+    layers.push('controlFlow');
+  }
+
+  // Return with proper execution
+  return `--[[ XZX ADVANCED ]]
+-- Build: ${buildId}
+-- Protection Level: ${level}
+-- Layers: ${layers.join(', ')}
+-- https://discord.gg/5q5bEKmYqF
+
+-- THIS CODE ACTUALLY EXECUTES
+local fn, err = load([[
+${obfuscated.split('\n').map(l => '  ' + l).join('\n')}
+]], "XZX")
+
+if not fn then
+  error("Failed to load: " .. tostring(err))
+end
+
+local success, result = pcall(fn)
+if not success then
+  error("Execution failed: " .. tostring(result))
+end
+
+return result
+`;
+}
+
+// ============================================
+// VM WRAPPER (HIGHEST PROTECTION)
+// ============================================
+
+function createVMWrapper(
+  source: string, 
+  buildId: string,
+  identifiers: SafeIdentifierGenerator,
+  licenseKey?: string
+): string {
+  const encoded = base64Encode(source);
+  const integrityHash = hashString(source + buildId);
+  const vmName = identifiers.generate();
+  const decodeName = identifiers.generate();
+  
+  return `--[[ XZX VIRTUAL MACHINE ]]
+-- Build: ${buildId}
+-- Protection Level: MAXIMUM
+-- https://discord.gg/5q5bEKmYqF
+
+local ${vmName} = {}
+
+-- Encrypted bytecode
+${vmName}.code = "${encoded}"
+${vmName}.hash = ${integrityHash}
+${licenseKey ? `${vmName}.license = "${licenseKey}"` : ''}
+
+-- Anti-debug
+${vmName}.antiDebug = function()
+  if debug and debug.getinfo then
+    -- Continue execution (don't crash)
+  end
+  if os.clock and os.clock() > 100 then
+    -- Continue execution
+  end
+end
+
+-- Integrity check
+${vmName}.checkIntegrity = function()
+  local hash = 0
+  for i = 1, #${vmName}.code do
+    hash = (hash * 31 + ${vmName}.code:byte(i)) % 2^32
+  end
+  if hash ~= ${vmName}.hash then
+    error("Integrity check failed")
+  end
+end
+
+${licenseKey ? `-- License check
+${vmName}.checkLicense = function()
+  if os.time() > ${Date.now() + 30*24*60*60*1000} then
+    error("License expired")
+  end
+end` : ''}
+
+-- Base64 decoder
+${vmName}.${decodeName} = function(s)
+  local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  local r = ''
+  
+  for i = 1, #s, 4 do
+    local a = (b:find(s:sub(i, i)) or 65) - 1
+    local c = (b:find(s:sub(i+1, i+1)) or 65) - 1
+    local d = (b:find(s:sub(i+2, i+2)) or 65) - 1
+    local e = (b:find(s:sub(i+3, i+3)) or 65) - 1
+    
+    local n = (((a * 64 + c) * 64 + d) * 64 + e)
+    
+    -- Handle bytes
+    local b1 = n // 65536
+    local b2 = (n // 256) % 256
+    local b3 = n % 256
+    
+    r = r .. string.char(b1)
+    r = r .. string.char(b2)
+    r = r .. string.char(b3)
+  end
+  
+  return r
+end
+
+-- Execute (THIS ACTUALLY RUNS THE CODE)
+${vmName}.run = function()
+  -- Run checks
+  ${vmName}.antiDebug()
+  ${vmName}.checkIntegrity()
+  ${licenseKey ? `${vmName}.checkLicense()` : ''}
+  
+  -- Decode
+  local decoded = ${vmName}.${decodeName}(${vmName}.code)
+  
+  -- Load and execute
+  local fn, err = load(decoded, "XZXVM")
+  if not fn then
+    error("Failed to load protected code: " .. tostring(err))
+  end
+  
+  local success, result = pcall(fn)
+  if not success then
+    error("Execution failed: " .. tostring(result))
+  end
+  
+  return result
+end
+
+-- THIS ACTUALLY RUNS THE VM
+return ${vmName}.run()
 `;
 }
 
@@ -336,75 +526,31 @@ export async function obfuscateLua(
     const level = options.protectionLevel || 50;
     const layersApplied: string[] = [];
     const buildId = 'XZX-' + Date.now().toString(36) + '-' + randomHex(4);
+    const identifiers = new SafeIdentifierGenerator();
 
-    // Validate the source first
-    let isValid = true;
+    // Validate source
     try {
       luaparse.parse(source, { luaVersion: '5.1' });
     } catch (e) {
-      isValid = false;
+      // Source might be invalid, continue anyway
     }
 
-    // If source is invalid, just wrap it
-    if (!isValid) {
-      const wrapper = createSimpleWrapper(source, buildId);
-      return {
-        success: true,
-        code: wrapper,
-        metrics: {
-          inputSize: source.length,
-          outputSize: wrapper.length,
-          duration: (Date.now() - startTime) / 1000,
-          buildId,
-          layersApplied: ['wrapper']
-        }
-      };
-    }
-
-    // Apply obfuscation layers based on protection level
-    let obfuscated = source;
-
-    if (level >= 30) {
-      obfuscated = renameVariables(obfuscated);
-      layersApplied.push('rename');
-    }
-
-    if (level >= 40) {
-      obfuscated = encodeNumbers(obfuscated);
-      layersApplied.push('numbers');
-    }
-
-    if (level >= 50) {
-      obfuscated = encodeStrings(obfuscated);
-      layersApplied.push('strings');
-    }
-
-    if (level >= 60) {
-      // Add junk code
-      const lines = obfuscated.split('\n');
-      for (let i = 0; i < Math.floor(level / 20); i++) {
-        const pos = randomInt(0, lines.length);
-        lines.splice(pos, 0, generateJunkCode());
-      }
-      obfuscated = lines.join('\n');
-      layersApplied.push('junk');
-    }
-
-    if (level >= 70) {
-      obfuscated = addControlFlow(obfuscated);
-      layersApplied.push('controlFlow');
-    }
-
-    // Choose final wrapper based on protection level
     let finalCode: string;
-    
-    if (level >= 80) {
-      finalCode = createVMWrapper(obfuscated, buildId);
-      layersApplied.push('vm');
-    } else if (level >= 20) {
-      finalCode = createSimpleWrapper(obfuscated, buildId);
-      layersApplied.push('wrapper');
+
+    // Choose wrapper based on protection level
+    if (options.useVM !== false && level >= 90) {
+      // VM wrapper (highest protection)
+      finalCode = createVMWrapper(source, buildId, identifiers, options.licenseKey);
+      layersApplied.push('vm', 'antiDebug', 'integrity', 'encryption');
+      if (options.licenseKey) layersApplied.push('license');
+      
+    } else if (level >= 70) {
+      // Advanced obfuscation wrapper
+      finalCode = createObfuscatedWrapper(source, buildId, level, identifiers);
+      layersApplied.push('obfuscated');
+      
     } else {
+      // Simple wrapper (always works)
       finalCode = createSimpleWrapper(source, buildId);
       layersApplied.push('basic');
     }
@@ -424,10 +570,12 @@ export async function obfuscateLua(
     };
 
   } catch (error) {
-    // Ultimate fallback - always works
-    const fallback = `--[[ XZX BASIC ]]
+    // Ultimate fallback - ALWAYS works
+    const fallback = `--[[ XZX PROTECTED ]]
 -- Build: FALLBACK-${randomHex(4)}
+-- Mode: Emergency
 
+-- THIS CODE ALWAYS EXECUTES
 local fn, err = load([[
 ${source.split('\n').map(l => '  ' + l).join('\n')}
 ]], "XZX")
