@@ -1,44 +1,20 @@
 # Dockerfile
-# Multi-stage build for XZX Obfuscator
-
-# Build stage
-FROM node:18-alpine AS builder
+FROM node:18-alpine
 
 WORKDIR /app
 
 # Copy package files
 COPY web/package*.json ./
 
-# Install ALL dependencies
+# Install dependencies
 RUN npm install
 
 # Copy source code
 COPY web/ ./
 
-# Build the Next.js app
+# Build the app with increased memory limit
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
-
-# Production stage
-FROM node:18-alpine AS runner
-
-WORKDIR /app
-
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Copy built application
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/node_modules ./node_modules
-
-# Set permissions
-RUN chown -R nextjs:nodejs /app
-
-# Switch to non-root user
-USER nextjs
 
 # Expose port 80
 EXPOSE 80
@@ -53,4 +29,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:80', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start the application
-CMD ["node", "server.js"]
+CMD ["npm", "start"]
