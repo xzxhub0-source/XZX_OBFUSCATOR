@@ -40,6 +40,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { obfuscateLua } from "@/lib/obfuscator";
+import { XZXReverseEngineer } from "@/lib/reverse-engineer";
+import * as Dialog from '@radix-ui/react-dialog';
 
 // Simple counter API without Firebase
 const getTotalObfuscations = async (): Promise<number> => {
@@ -142,6 +144,8 @@ export default function Home() {
 
   // Reverse engineering mode
   const [reverseMode, setReverseMode] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -214,7 +218,7 @@ export default function Home() {
 
   useEffect(() => {
     document.title = reverseMode 
-      ? "XZX Reverse Engineer - Code Analysis" 
+      ? "XZX Reverse Engineer - Advanced Code Analysis" 
       : "XZX Lua Obfuscator - Advanced Protection";
     
     const handleMouseMove = (e: MouseEvent) => {
@@ -366,15 +370,27 @@ export default function Home() {
     clearInterval(progressInterval);
   };
 
-  const analyzeCode = () => {
+  const analyzeCode = async () => {
     if (!inputCode && !outputCode) {
       setError("No code to analyze");
       return;
     }
 
-    // Simple analysis alert
-    const codeToAnalyze = outputCode || inputCode;
-    alert(`Analysis would show:\n\n- Code length: ${codeToAnalyze.length} characters\n- Lines: ${codeToAnalyze.split('\n').length}\n- This is a placeholder for the full reverse engineering toolkit`);
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const engineer = new XZXReverseEngineer();
+      const codeToAnalyze = outputCode || inputCode;
+      const result = await engineer.analyze(codeToAnalyze);
+      
+      setAnalysisResult(result);
+      setShowAnalysis(true);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Analysis failed");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const copyToClipboard = async () => {
@@ -547,7 +563,7 @@ export default function Home() {
                   )}
                 >
                   <Bug className="w-3.5 h-3.5" />
-                  <span>{reverseMode ? "REVERSE ON" : "REVERSE"}</span>
+                  <span>{reverseMode ? "REVERSE MODE ON" : "REVERSE MODE"}</span>
                 </button>
 
                 <a
@@ -580,7 +596,7 @@ export default function Home() {
               </h1>
               <p className="text-gray-400 mt-1">
                 {reverseMode 
-                  ? "Analyze and understand obfuscated Lua code" 
+                  ? "Advanced code analysis and reverse engineering toolkit" 
                   : "Advanced protection for your Lua code"}
               </p>
             </div>
@@ -835,7 +851,7 @@ export default function Home() {
                 <div className="p-6 border-b border-gray-700">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold">
-                      {reverseMode ? "Analysis Info" : "Protection Settings"}
+                      {reverseMode ? "Analysis Settings" : "Protection Settings"}
                     </h3>
                     {!reverseMode && (
                       <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
@@ -856,33 +872,44 @@ export default function Home() {
                         <ul className="space-y-2 text-sm text-gray-300">
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Extract all strings
+                            Function extraction
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Identify functions
+                            String decryption
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Detect VM bytecode
+                            Bytecode analysis
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Find globals
+                            Control flow visualization
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Measure complexity
+                            Metadata extraction
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            Complexity metrics
                           </li>
                         </ul>
                       </div>
 
                       <div className="p-4 bg-gray-700/30 rounded-xl">
-                        <h4 className="text-sm font-medium text-yellow-400 mb-2">How to use</h4>
-                        <p className="text-sm text-gray-300">
-                          Paste your obfuscated Lua code in the input field and click "Analyze". 
-                          The tool will attempt to reverse engineer the protection and show you what's inside.
-                        </p>
+                        <h4 className="text-sm font-medium text-yellow-400 mb-2 flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4" />
+                          Supported Obfuscators
+                        </h4>
+                        <ul className="space-y-1 text-sm text-gray-300">
+                          <li>• XZX Obfuscator</li>
+                          <li>• Luraph</li>
+                          <li>• IronBrew</li>
+                          <li>• Synapse</li>
+                          <li>• MoonSec</li>
+                          <li>• Custom VM-based</li>
+                        </ul>
                       </div>
                     </div>
                   ) : (
@@ -1101,6 +1128,134 @@ export default function Home() {
           </footer>
         </div>
       </div>
+
+      {/* Analysis Dialog */}
+      <Dialog.Root open={showAnalysis} onOpenChange={setShowAnalysis}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-4xl max-h-[85vh] overflow-hidden bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50">
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <Dialog.Title className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+                <Bug className="w-6 h-6 text-red-400" />
+                Reverse Engineering Analysis
+              </Dialog.Title>
+              <Dialog.Close className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </Dialog.Close>
+            </div>
+
+            <div className="h-[400px] overflow-y-auto p-6">
+              {analysisResult && (
+                <div className="space-y-6">
+                  {/* Metrics */}
+                  {analysisResult.metrics && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-gray-800/50 rounded-xl">
+                        <div className="text-sm text-gray-400 mb-1">Duration</div>
+                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.duration.toFixed(2)}s</div>
+                      </div>
+                      <div className="p-4 bg-gray-800/50 rounded-xl">
+                        <div className="text-sm text-gray-400 mb-1">Functions</div>
+                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.functions}</div>
+                      </div>
+                      <div className="p-4 bg-gray-800/50 rounded-xl">
+                        <div className="text-sm text-gray-400 mb-1">Strings</div>
+                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.strings}</div>
+                      </div>
+                      <div className="p-4 bg-gray-800/50 rounded-xl">
+                        <div className="text-sm text-gray-400 mb-1">Complexity</div>
+                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.complexity}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Strings */}
+                  {analysisResult.data?.strings?.data?.decrypted && analysisResult.data.strings.data.decrypted.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-red-400">Decrypted Strings</h3>
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        {analysisResult.data.strings.data.decrypted.map((str: string, i: number) => (
+                          <div key={i} className="text-sm text-gray-300 mb-2 border-b border-gray-700 pb-2 font-mono">
+                            "{str}"
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Functions */}
+                  {analysisResult.data?.decompiled?.data?.functions && analysisResult.data.decompiled.data.functions.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-red-400">Functions</h3>
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        {analysisResult.data.decompiled.data.functions.map((fn: any, i: number) => (
+                          <div key={i} className="mb-4 border-b border-gray-700 pb-2">
+                            <div className="text-sm font-semibold text-purple-400">{fn.name}</div>
+                            <div className="text-xs text-gray-400">Params: {fn.params.join(', ')}</div>
+                            <div className="text-xs text-gray-400">Lines: {fn.lines.start}-{fn.lines.end}</div>
+                            <div className="text-xs text-gray-400">Complexity: {fn.complexity}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bytecode */}
+                  {analysisResult.data?.vm?.data?.instructions && analysisResult.data.vm.data.instructions.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-red-400">Bytecode Instructions</h3>
+                      <div className="grid grid-cols-4 gap-2 p-4 bg-gray-800/30 rounded-xl">
+                        {analysisResult.data.vm.data.instructions.slice(0, 20).map((instr: any) => (
+                          <div key={instr.index} className="text-xs bg-gray-900/50 p-2 rounded border border-gray-700">
+                            <span className="text-purple-400">[{instr.index}]</span>{' '}
+                            <span className="text-red-400">{instr.decoded}</span>{' '}
+                            <span className="text-gray-500">({instr.opcode})</span>
+                          </div>
+                        ))}
+                        {analysisResult.data.vm.data.instructions.length > 20 && (
+                          <div className="col-span-4 text-center text-gray-500 text-sm">
+                            ... and {analysisResult.data.vm.data.instructions.length - 20} more
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Metadata */}
+                  {analysisResult.data?.metadata?.data && (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-red-400">Metadata</h3>
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <pre className="text-sm text-gray-300 whitespace-pre-wrap">
+                          {JSON.stringify(analysisResult.data.metadata.data, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-700">
+              <Button
+                variant="outline"
+                onClick={() => setShowAnalysis(false)}
+                className="border-gray-700 hover:bg-gray-800"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(analysisResult, null, 2));
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Copy Results
+              </Button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
