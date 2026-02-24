@@ -9,7 +9,7 @@ WORKDIR /app
 # Copy package files
 COPY web/package*.json ./
 
-# Install ALL dependencies (including Vercel packages)
+# Install ALL dependencies (including Tailwind CSS)
 RUN npm install
 
 # Copy source code
