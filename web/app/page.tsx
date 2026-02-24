@@ -28,6 +28,48 @@ import {
   Moon,
   Sun,
   WifiOff,
+  Bug,
+  Search,
+  Code,
+  Braces,
+  Hash,
+  Key,
+  FileJson,
+  FileCode,
+  Network,
+  Cpu,
+  Database,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  Terminal,
+  ScrollText,
+  Brain,
+  Sparkles,
+  Sword,
+  Shield as ShieldIcon,
+  Skull,
+  Flame,
+  ZapOff,
+  RefreshCw,
+  DownloadCloud,
+  UploadCloud,
+  Layers,
+  Box,
+  Boxes,
+  GitBranch,
+  GitMerge,
+  Workflow,
+  PieChart,
+  BarChart,
+  LineChart,
+  Activity,
+  CheckCheck,
+  XCircle,
+  HelpCircle,
+  Info,
+  AlertOctagon,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
@@ -38,67 +80,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { obfuscateLua } from "@/lib/obfuscator";
+import { XZXReverseEngineer } from "@/lib/reverse-engineer";
 
-// Types
-interface ObfuscationMetrics {
-  inputSize: number;
-  outputSize: number;
-  duration: number;
-  instructionCount: number;
-  buildId: string;
-  layersApplied: string[];
-}
-
-interface ObfuscationProgress {
-  stage: string;
-  percent: number;
-  currentStep: number;
-  totalSteps: number;
-}
-
-interface ObfuscationResponse {
-  success: boolean;
-  code?: string;
-  error?: string;
-  metrics?: ObfuscationMetrics;
-}
-
-interface ObfuscatorSettings {
-  mangleNames: boolean;
-  encodeStrings: boolean;
-  encodeNumbers: boolean;
-  minify: boolean;
-  compressionLevel: number;
-  encryptionAlgorithm: string;
-  controlFlowFlattening: boolean;
-  deadCodeInjection: boolean;
-  antiDebugging: boolean;
-  formattingStyle: string;
-  targetVersion: string;
-  optimizationLevel: number;
-}
-
-const DEFAULT_LUA_CODE = `-- Welcome to XZX Obfuscator
--- Paste your Lua code below
--- Example:
-
-local function calculateScore(basePoints, multiplier)
-  local maxScore = 1000
-  local result = basePoints * multiplier
-  
-  if result > maxScore then
-    result = maxScore
-  end
-  
-  return result
-end
-
-print("Score: " .. calculateScore(100, 5))`;
-
-const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2 [https://discord.gg/5q5bEKmYqF]\n\n";
-
-// Simple counter API without Firebase (SSR-safe)
+// Simple counter API without Firebase
 const getTotalObfuscations = async (): Promise<number> => {
   if (typeof window !== 'undefined') {
     try {
@@ -125,6 +123,58 @@ const incrementTotalObfuscations = async (): Promise<number> => {
   return 151;
 };
 
+// Types
+interface ObfuscationMetrics {
+  inputSize: number;
+  outputSize: number;
+  duration: number;
+  instructionCount: number;
+  buildId: string;
+  layersApplied: string[];
+}
+
+interface ObfuscationProgress {
+  stage: string;
+  percent: number;
+  currentStep: number;
+  totalSteps: number;
+}
+
+interface ObfuscatorSettings {
+  mangleNames: boolean;
+  encodeStrings: boolean;
+  encodeNumbers: boolean;
+  minify: boolean;
+  compressionLevel: number;
+  encryptionAlgorithm: string;
+  controlFlowFlattening: boolean;
+  deadCodeInjection: boolean;
+  antiDebugging: boolean;
+  formattingStyle: string;
+  targetVersion: string;
+  optimizationLevel: number;
+  useVM: boolean;
+}
+
+const DEFAULT_LUA_CODE = `-- Welcome to XZX Obfuscator
+-- Paste your Lua code below
+-- Example:
+
+local function calculateScore(basePoints, multiplier)
+  local maxScore = 1000
+  local result = basePoints * multiplier
+  
+  if result > maxScore then
+    result = maxScore
+  end
+  
+  return result
+end
+
+print("Score: " .. calculateScore(100, 5))`;
+
+const OUTPUT_HEADER = "-- PROTECTED USING XZX OBFUSCATOR V2 [https://discord.gg/5q5bEKmYqF]\n\n";
+
 export default function Home() {
   const [inputCode, setInputCode] = useState(DEFAULT_LUA_CODE);
   const [outputCode, setOutputCode] = useState("");
@@ -145,6 +195,12 @@ export default function Home() {
   const [isOffline, setIsOffline] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Reverse engineering mode
+  const [reverseMode, setReverseMode] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
     encodeStrings: true,
@@ -158,6 +214,7 @@ export default function Home() {
     formattingStyle: "minified",
     targetVersion: "5.1",
     optimizationLevel: 2,
+    useVM: true,
   });
 
   // Load total obfuscations on mount
@@ -214,7 +271,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    document.title = "XZX Lua Obfuscator - Advanced Protection";
+    document.title = reverseMode 
+      ? "XZX Reverse Engineer - Advanced Code Analysis" 
+      : "XZX Lua Obfuscator - Advanced Protection";
     
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({
@@ -232,7 +291,7 @@ export default function Home() {
         window.removeEventListener('mousemove', handleMouseMove);
       }
     };
-  }, []);
+  }, [reverseMode]);
 
   const handleInputChange = (newCode: string) => {
     setInputCode(newCode);
@@ -294,24 +353,10 @@ export default function Home() {
         optimizationLevel: settings.optimizationLevel,
         encryptionAlgorithm: settings.encryptionAlgorithm,
         formattingStyle: settings.formattingStyle,
+        useVM: settings.useVM,
       };
       
-      // Use setTimeout to prevent UI blocking
-      const result = await new Promise<ObfuscationResponse>((resolve, reject) => {
-        setTimeout(async () => {
-          try {
-            if (abortControllerRef.current?.signal.aborted) {
-              reject(new Error('Cancelled'));
-              return;
-            }
-            
-            const res = await obfuscateLua(inputCode, options);
-            resolve(res as ObfuscationResponse);
-          } catch (err) {
-            reject(err);
-          }
-        }, 100);
-      });
+      const result = await obfuscateLua(inputCode, options);
       
       setProgress({ stage: "Finalizing", percent: 100, currentStep: 5, totalSteps: 5 });
       
@@ -360,7 +405,6 @@ export default function Home() {
     setWarning(null);
     setOutputCode("");
     
-    // Progress simulation
     setProgress({ stage: "Initializing", percent: 5, currentStep: 1, totalSteps: 5 });
     
     const progressInterval = setInterval(() => {
@@ -378,6 +422,29 @@ export default function Home() {
     await performObfuscation();
     
     clearInterval(progressInterval);
+  };
+
+  const analyzeCode = async () => {
+    if (!inputCode && !outputCode) {
+      setError("No code to analyze");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const engineer = new XZXReverseEngineer();
+      const codeToAnalyze = outputCode || inputCode;
+      const result = await engineer.analyze(codeToAnalyze);
+      
+      setAnalysisResult(result);
+      setShowAnalysis(true);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Analysis failed");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const copyToClipboard = async () => {
@@ -415,6 +482,7 @@ export default function Home() {
     if (settings.controlFlowFlattening) count++;
     if (settings.deadCodeInjection) count++;
     if (settings.antiDebugging) count++;
+    if (settings.useVM) count++;
     return count;
   };
 
@@ -514,14 +582,18 @@ export default function Home() {
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur opacity-50"></div>
                   <div className="relative w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-white" />
+                    {reverseMode ? (
+                      <Bug className="w-4 h-4 text-white" />
+                    ) : (
+                      <Shield className="w-4 h-4 text-white" />
+                    )}
                   </div>
                 </div>
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
                   XZX
                 </span>
                 <span className="text-xs px-2 py-1 bg-purple-600/20 rounded-full text-purple-300 border border-purple-600/30 flex items-center gap-2">
-                  V2
+                  {reverseMode ? "RE" : "V2"}
                   <Users className="w-3 h-3 text-purple-400" />
                   {totalObfuscations.toLocaleString()}+
                 </span>
@@ -534,6 +606,19 @@ export default function Home() {
                     <span className="text-xs text-yellow-300">Offline</span>
                   </div>
                 )}
+
+                <button
+                  onClick={() => setReverseMode(!reverseMode)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors text-sm",
+                    reverseMode 
+                      ? "bg-red-600 hover:bg-red-700 text-white" 
+                      : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+                  )}
+                >
+                  <Bug className="w-3.5 h-3.5" />
+                  <span>{reverseMode ? "REVERSE MODE ON" : "REVERSE MODE"}</span>
+                </button>
 
                 <a
                   href="https://discord.gg/5q5bEKmYqF"
@@ -561,19 +646,29 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-                XZX Lua Obfuscator
+                {reverseMode ? "XZX Reverse Engineer" : "XZX Lua Obfuscator"}
               </h1>
-              <p className="text-gray-400 mt-1">Advanced protection for your Lua code</p>
+              <p className="text-gray-400 mt-1">
+                {reverseMode 
+                  ? "Advanced code analysis and reverse engineering toolkit" 
+                  : "Advanced protection for your Lua code"}
+              </p>
             </div>
             
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700">
                 <TrendingUp className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-gray-300">{totalObfuscations.toLocaleString()}+ scripts protected</span>
+                <span className="text-sm text-gray-300">{totalObfuscations.toLocaleString()}+ scripts processed</span>
               </div>
               <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700">
-                <Award className="w-4 h-4 text-pink-400" />
-                <span className="text-sm text-gray-300">Advanced protection</span>
+                {reverseMode ? (
+                  <Bug className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Award className="w-4 h-4 text-pink-400" />
+                )}
+                <span className="text-sm text-gray-300">
+                  {reverseMode ? "Analysis Mode" : "Advanced protection"}
+                </span>
               </div>
             </div>
           </div>
@@ -604,35 +699,60 @@ export default function Home() {
                       <Upload className="w-4 h-4 mr-2" />
                       Upload
                     </Button>
-                    <Button
-                      onClick={obfuscateCode}
-                      disabled={!inputCode || isProcessing || isOffline}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                      {isProcessing ? (
-                        <div className="flex items-center justify-center">
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Processing
-                        </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {reverseMode ? (
+                        <Button
+                          onClick={analyzeCode}
+                          disabled={!inputCode || isProcessing}
+                          className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
+                        >
+                          {isProcessing ? (
+                            <div className="flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Analyzing
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center">
+                              <Bug className="w-4 h-4 mr-2" />
+                              Analyze
+                            </div>
+                          )}
+                        </Button>
                       ) : (
-                        <div className="flex items-center justify-center">
-                          <Shield className="w-4 h-4 mr-2" />
-                          Obfuscate
-                        </div>
+                        <Button
+                          onClick={obfuscateCode}
+                          disabled={!inputCode || isProcessing || isOffline}
+                          className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                          {isProcessing ? (
+                            <div className="flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Processing
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center">
+                              <Shield className="w-4 h-4 mr-2" />
+                              Obfuscate
+                            </div>
+                          )}
+                        </Button>
                       )}
-                    </Button>
-                    {isProcessing && (
-                      <Button
-                        onClick={cancelObfuscation}
-                        variant="outline"
-                        size="sm"
-                        className="border-gray-700 hover:bg-gray-700"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Cancel
-                      </Button>
-                    )}
+                      
+                      {isProcessing && (
+                        <Button
+                          onClick={cancelObfuscation}
+                          variant="outline"
+                          size="sm"
+                          className="border-gray-700 hover:bg-gray-700"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+
                     {fileName && (
                       <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
                         <File className="w-3 h-3 text-purple-400" />
@@ -663,7 +783,9 @@ export default function Home() {
               {isProcessing && progress && (
                 <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">Obfuscation Progress</h3>
+                    <h3 className="text-lg font-semibold">
+                      {reverseMode ? "Analysis Progress" : "Obfuscation Progress"}
+                    </h3>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-gray-400" />
                       <span className="text-sm text-gray-400">{formatTime(elapsedTime)}</span>
@@ -686,7 +808,7 @@ export default function Home() {
                 </Card>
               )}
 
-              {outputCode && (
+              {!reverseMode && outputCode && (
                 <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
                   <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -742,7 +864,7 @@ export default function Home() {
                 </Card>
               )}
 
-              {metrics && (
+              {!reverseMode && metrics && (
                 <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
                   <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -782,172 +904,240 @@ export default function Home() {
               <Card className="sticky top-24 border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
                 <div className="p-6 border-b border-gray-700">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Settings</h3>
-                    <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
-                      {getActiveAdvancedCount()} active
-                    </div>
+                    <h3 className="text-lg font-semibold">
+                      {reverseMode ? "Analysis Settings" : "Protection Settings"}
+                    </h3>
+                    {!reverseMode && (
+                      <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
+                        {getActiveAdvancedCount()} active
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="p-6 max-h-[600px] overflow-y-auto custom-scrollbar">
-                  <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Basic</h4>
-                    {renderSwitch(
-                      "mangle-names",
-                      "Mangle Names",
-                      "Replace identifiers with random strings",
-                      settings.mangleNames,
-                      (checked) => setSettings({ ...settings, mangleNames: checked })
-                    )}
-                    {renderSwitch(
-                      "encode-strings",
-                      "Encode Strings",
-                      "Convert strings to encrypted byte arrays",
-                      settings.encodeStrings,
-                      (checked) => setSettings({ ...settings, encodeStrings: checked }),
-                      "pink"
-                    )}
-                    {renderSwitch(
-                      "encode-numbers",
-                      "Encode Numbers",
-                      "Transform numbers into expressions",
-                      settings.encodeNumbers,
-                      (checked) => setSettings({ ...settings, encodeNumbers: checked })
-                    )}
-                    {renderSwitch(
-                      "minify",
-                      "Minify",
-                      "Remove whitespace and comments",
-                      settings.minify,
-                      (checked) => setSettings({ ...settings, minify: checked })
-                    )}
-                  </div>
+                  {reverseMode ? (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-gray-700/30 rounded-xl">
+                        <h4 className="text-sm font-medium text-red-400 mb-2 flex items-center gap-2">
+                          <Bug className="w-4 h-4" />
+                          Analysis Features
+                        </h4>
+                        <ul className="space-y-2 text-sm text-gray-300">
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            Function extraction
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            String decryption
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            Bytecode analysis
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            Control flow visualization
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            Metadata extraction
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-green-400" />
+                            Complexity metrics
+                          </li>
+                        </ul>
+                      </div>
 
-                  <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Advanced</h4>
-                    {renderSwitch(
-                      "dead-code",
-                      "Dead Code Injection",
-                      "Inject unreachable code blocks",
-                      settings.deadCodeInjection,
-                      (checked) => setSettings({ ...settings, deadCodeInjection: checked }),
-                      "orange",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "control-flow",
-                      "Control Flow Flattening",
-                      "Transform into state machine",
-                      settings.controlFlowFlattening,
-                      (checked) => setSettings({ ...settings, controlFlowFlattening: checked }),
-                      "purple",
-                      "Advanced"
-                    )}
-                    {renderSwitch(
-                      "anti-debug",
-                      "Anti-Debugging",
-                      "Runtime debugger detection",
-                      settings.antiDebugging,
-                      (checked) => setSettings({ ...settings, antiDebugging: checked }),
-                      "red",
-                      "Advanced"
-                    )}
-                  </div>
-
-                  <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Target</h4>
-                    <Select
-                      value={settings.targetVersion}
-                      onValueChange={(value: string) => setSettings({ ...settings, targetVersion: value })}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5.1">Lua 5.1</SelectItem>
-                        <SelectItem value="5.2">Lua 5.2</SelectItem>
-                        <SelectItem value="5.3">Lua 5.3</SelectItem>
-                        <SelectItem value="5.4">Lua 5.4</SelectItem>
-                        <SelectItem value="luajit">LuaJIT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
-                    <Select
-                      value={settings.optimizationLevel.toString()}
-                      onValueChange={(value: string) => setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 })}
-                      disabled={isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">Level 0 (None)</SelectItem>
-                        <SelectItem value="1">Level 1 (Basic)</SelectItem>
-                        <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
-                        <SelectItem value="3">Level 3 (Maximum)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-4 mb-8">
-                    <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Encryption</h4>
-                    <Select
-                      value={settings.encryptionAlgorithm}
-                      onValueChange={(value: string) => setSettings({ ...settings, encryptionAlgorithm: value })}
-                      disabled={!settings.encodeStrings || isProcessing}
-                    >
-                      <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        <SelectItem value="xor">XOR</SelectItem>
-                        <SelectItem value="base64">Base64</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="mt-8 pt-8 border-t border-gray-700">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-sm font-medium">Protection Level</span>
-                      <span className={cn(
-                        "px-3 py-1 rounded-full text-xs font-medium",
-                        protectionStrength === "none" && "bg-gray-600/20 text-gray-300",
-                        protectionStrength === "low" && "bg-purple-500/20 text-purple-300",
-                        protectionStrength === "medium" && "bg-pink-500/20 text-pink-300",
-                        protectionStrength === "high" && "bg-orange-500/20 text-orange-300",
-                        protectionStrength === "maximum" && "bg-red-500/20 text-red-300 animate-pulse"
-                      )}>
-                        {settings.compressionLevel}%
-                      </span>
+                      <div className="p-4 bg-gray-700/30 rounded-xl">
+                        <h4 className="text-sm font-medium text-yellow-400 mb-2 flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4" />
+                          Supported Obfuscators
+                        </h4>
+                        <ul className="space-y-1 text-sm text-gray-300">
+                          <li>• XZX Obfuscator</li>
+                          <li>• Luraph</li>
+                          <li>• IronBrew</li>
+                          <li>• Synapse</li>
+                          <li>• MoonSec</li>
+                          <li>• Custom VM-based</li>
+                        </ul>
+                      </div>
                     </div>
-                    <Slider
-                      value={[settings.compressionLevel]}
-                      onValueChange={value => {
-                        const level = value[0];
-                        setSettings({
-                          ...settings,
-                          compressionLevel: level,
-                          minify: level >= 10,
-                          mangleNames: level >= 20,
-                          encodeStrings: level >= 30,
-                          encodeNumbers: level >= 40,
-                          deadCodeInjection: level >= 65,
-                          controlFlowFlattening: level >= 70,
-                          antiDebugging: level >= 80,
-                          optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
-                        });
-                      }}
-                      max={100}
-                      step={5}
-                      className="w-full"
-                      disabled={isProcessing}
-                    />
-                  </div>
+                  ) : (
+                    <>
+                      <div className="space-y-4 mb-8">
+                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Basic</h4>
+                        {renderSwitch(
+                          "mangle-names",
+                          "Mangle Names",
+                          "Replace identifiers with random strings",
+                          settings.mangleNames,
+                          (checked) => setSettings({ ...settings, mangleNames: checked })
+                        )}
+                        {renderSwitch(
+                          "encode-strings",
+                          "Encode Strings",
+                          "Convert strings to encrypted byte arrays",
+                          settings.encodeStrings,
+                          (checked) => setSettings({ ...settings, encodeStrings: checked }),
+                          "pink"
+                        )}
+                        {renderSwitch(
+                          "encode-numbers",
+                          "Encode Numbers",
+                          "Transform numbers into expressions",
+                          settings.encodeNumbers,
+                          (checked) => setSettings({ ...settings, encodeNumbers: checked })
+                        )}
+                        {renderSwitch(
+                          "minify",
+                          "Minify",
+                          "Remove whitespace and comments",
+                          settings.minify,
+                          (checked) => setSettings({ ...settings, minify: checked })
+                        )}
+                      </div>
+
+                      <div className="space-y-4 mb-8">
+                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Advanced</h4>
+                        {renderSwitch(
+                          "dead-code",
+                          "Dead Code Injection",
+                          "Inject unreachable code blocks",
+                          settings.deadCodeInjection,
+                          (checked) => setSettings({ ...settings, deadCodeInjection: checked }),
+                          "orange",
+                          "Advanced"
+                        )}
+                        {renderSwitch(
+                          "control-flow",
+                          "Control Flow Flattening",
+                          "Transform into state machine",
+                          settings.controlFlowFlattening,
+                          (checked) => setSettings({ ...settings, controlFlowFlattening: checked }),
+                          "purple",
+                          "Advanced"
+                        )}
+                        {renderSwitch(
+                          "anti-debug",
+                          "Anti-Debugging",
+                          "Runtime debugger detection",
+                          settings.antiDebugging,
+                          (checked) => setSettings({ ...settings, antiDebugging: checked }),
+                          "red",
+                          "Advanced"
+                        )}
+                        {renderSwitch(
+                          "use-vm",
+                          "Virtual Machine",
+                          "Wrap code in custom VM",
+                          settings.useVM,
+                          (checked) => setSettings({ ...settings, useVM: checked }),
+                          "blue",
+                          "Advanced"
+                        )}
+                      </div>
+
+                      <div className="space-y-4 mb-8">
+                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Target</h4>
+                        <Select
+                          value={settings.targetVersion}
+                          onValueChange={(value: string) => setSettings({ ...settings, targetVersion: value })}
+                          disabled={isProcessing}
+                        >
+                          <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5.1">Lua 5.1</SelectItem>
+                            <SelectItem value="5.2">Lua 5.2</SelectItem>
+                            <SelectItem value="5.3">Lua 5.3</SelectItem>
+                            <SelectItem value="5.4">Lua 5.4</SelectItem>
+                            <SelectItem value="luajit">LuaJIT</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-4 mb-8">
+                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
+                        <Select
+                          value={settings.optimizationLevel.toString()}
+                          onValueChange={(value: string) => setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 })}
+                          disabled={isProcessing}
+                        >
+                          <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Level 0 (None)</SelectItem>
+                            <SelectItem value="1">Level 1 (Basic)</SelectItem>
+                            <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
+                            <SelectItem value="3">Level 3 (Maximum)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-4 mb-8">
+                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Encryption</h4>
+                        <Select
+                          value={settings.encryptionAlgorithm}
+                          onValueChange={(value: string) => setSettings({ ...settings, encryptionAlgorithm: value })}
+                          disabled={!settings.encodeStrings || isProcessing}
+                        >
+                          <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="xor">XOR</SelectItem>
+                            <SelectItem value="base64">Base64</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="mt-8 pt-8 border-t border-gray-700">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-sm font-medium">Protection Level</span>
+                          <span className={cn(
+                            "px-3 py-1 rounded-full text-xs font-medium",
+                            protectionStrength === "none" && "bg-gray-600/20 text-gray-300",
+                            protectionStrength === "low" && "bg-purple-500/20 text-purple-300",
+                            protectionStrength === "medium" && "bg-pink-500/20 text-pink-300",
+                            protectionStrength === "high" && "bg-orange-500/20 text-orange-300",
+                            protectionStrength === "maximum" && "bg-red-500/20 text-red-300 animate-pulse"
+                          )}>
+                            {settings.compressionLevel}%
+                          </span>
+                        </div>
+                        <Slider
+                          value={[settings.compressionLevel]}
+                          onValueChange={value => {
+                            const level = value[0];
+                            setSettings({
+                              ...settings,
+                              compressionLevel: level,
+                              minify: level >= 10,
+                              mangleNames: level >= 20,
+                              encodeStrings: level >= 30,
+                              encodeNumbers: level >= 40,
+                              deadCodeInjection: level >= 65,
+                              controlFlowFlattening: level >= 70,
+                              antiDebugging: level >= 80,
+                              useVM: level >= 85,
+                              optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
+                            });
+                          }}
+                          max={100}
+                          step={5}
+                          className="w-full"
+                          disabled={isProcessing}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </Card>
             </div>
@@ -992,6 +1182,176 @@ export default function Home() {
           </footer>
         </div>
       </div>
+
+      {/* Analysis Dialog */}
+      <AlertDialog open={showAnalysis} onOpenChange={setShowAnalysis}>
+        <AlertDialogContent className="bg-gray-900 border-gray-700 text-white max-w-6xl max-h-[90vh] overflow-hidden">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+              <Bug className="w-6 h-6 text-red-400" />
+              Reverse Engineering Analysis
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              Detailed analysis of the obfuscated code
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-6 mb-4 bg-gray-800">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-red-600">Overview</TabsTrigger>
+              <TabsTrigger value="strings" className="data-[state=active]:bg-red-600">Strings</TabsTrigger>
+              <TabsTrigger value="functions" className="data-[state=active]:bg-red-600">Functions</TabsTrigger>
+              <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600">Bytecode</TabsTrigger>
+              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600">Metadata</TabsTrigger>
+              <TabsTrigger value="flow" className="data-[state=active]:bg-red-600">Control Flow</TabsTrigger>
+            </TabsList>
+
+            <ScrollArea className="h-[500px] pr-4">
+              {analysisResult && (
+                <>
+                  <TabsContent value="overview" className="space-y-6">
+                    {/* Metrics */}
+                    {analysisResult.metrics && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Duration</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.duration.toFixed(2)}s</div>
+                        </div>
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Functions</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.functions}</div>
+                        </div>
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Strings</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.strings}</div>
+                        </div>
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Complexity</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.complexity}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">VM Detected</div>
+                        <div className="text-lg font-semibold text-green-400">
+                          {analysisResult.data?.vm?.data?.instructions?.length > 0 ? "Yes" : "No"}
+                        </div>
+                      </div>
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">Encrypted Strings</div>
+                        <div className="text-lg font-semibold text-yellow-400">
+                          {analysisResult.data?.strings?.data?.matches?.length || 0}
+                        </div>
+                      </div>
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">Decrypted Strings</div>
+                        <div className="text-lg font-semibold text-green-400">
+                          {analysisResult.data?.strings?.data?.decrypted?.length || 0}
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="strings" className="space-y-4">
+                    {analysisResult.data?.strings?.data?.decrypted && analysisResult.data.strings.data.decrypted.length > 0 ? (
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-semibold text-red-400">Decrypted Strings</h3>
+                        <div className="p-4 bg-gray-800/30 rounded-xl">
+                          {analysisResult.data.strings.data.decrypted.map((str: string, i: number) => (
+                            <div key={i} className="text-sm text-gray-300 mb-2 border-b border-gray-700 pb-2 font-mono">
+                              "{str}"
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No strings found</div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="functions" className="space-y-4">
+                    {analysisResult.data?.decompiled?.data?.functions && analysisResult.data.decompiled.data.functions.length > 0 ? (
+                      <div className="space-y-4">
+                        {analysisResult.data.decompiled.data.functions.map((fn: any, i: number) => (
+                          <div key={i} className="p-4 bg-gray-800/30 rounded-xl">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-lg font-semibold text-purple-400">{fn.name}</div>
+                              <Badge variant="outline" className="border-red-500 text-red-400">
+                                Complexity: {fn.complexity}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                              <div className="text-gray-400">Parameters:</div>
+                              <div className="text-gray-300">{fn.params.join(', ') || 'none'}</div>
+                              <div className="text-gray-400">Lines:</div>
+                              <div className="text-gray-300">{fn.lines.start}-{fn.lines.end}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No functions found</div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="bytecode" className="space-y-4">
+                    {analysisResult.data?.vm?.data?.instructions && analysisResult.data.vm.data.instructions.length > 0 ? (
+                      <div className="grid grid-cols-4 gap-2">
+                        {analysisResult.data.vm.data.instructions.map((instr: any) => (
+                          <div key={instr.index} className="text-xs bg-gray-900/50 p-2 rounded border border-gray-700">
+                            <span className="text-purple-400">[{instr.index}]</span>{' '}
+                            <span className="text-red-400">{instr.decoded}</span>{' '}
+                            <span className="text-gray-500">({instr.opcode})</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No bytecode found</div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="metadata" className="space-y-4">
+                    {analysisResult.data?.metadata?.data && (
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <pre className="text-sm text-gray-300 whitespace-pre-wrap">
+                          {JSON.stringify(analysisResult.data.metadata.data, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="flow" className="space-y-4">
+                    <div className="p-4 bg-gray-800/30 rounded-xl">
+                      <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
+                        {analysisResult.data?.flow?.data?.nodes?.length > 0 
+                          ? `Found ${analysisResult.data.flow.data.nodes.length} nodes and ${analysisResult.data.flow.data.edges?.length || 0} edges`
+                          : "No control flow data available"}
+                      </pre>
+                    </div>
+                  </TabsContent>
+                </>
+              )}
+            </ScrollArea>
+          </Tabs>
+
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700">
+              Close
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(analysisResult, null, 2));
+              }}
+            >
+              Copy Results
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
