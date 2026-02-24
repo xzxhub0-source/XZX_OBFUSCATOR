@@ -1,40 +1,57 @@
-# Debug Dockerfile
-FROM node:18-alpine
+# Dockerfile
+# Multi-stage build for XZX Obfuscator
+# Optimized for production deployment
+
+# Build stage
+FROM node:18-alpine AS builder
 
 WORKDIR /app
-
-# Install curl and bash for debugging
-RUN apk add --no-cache curl bash
 
 # Copy package files
 COPY web/package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (clean install)
+RUN npm ci
 
 # Copy source code
 COPY web/ ./
 
-# Build the app
+# Build the Next.js app with memory limit
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
-EXPOSE 80
+# Production stage
+FROM node:18-alpine AS runner
 
-# Create a debug startup script
-RUN echo '#!/bin/bash' > /start.sh && \
-    echo 'echo "=== STARTUP ==="' >> /start.sh && \
-    echo 'ls -la .next' >> /start.sh && \
-    echo 'echo "=== ENV ==="' >> /start.sh && \
-    echo 'env' >> /start.sh && \
-    echo 'echo "=== RUNNING APP ==="' >> /start.sh && \
-    echo 'PORT=80 HOSTNAME=0.0.0.0 npm start 2>&1 | tee /app.log' >> /start.sh && \
-    echo 'EXIT_CODE=${PIPESTATUS[0]}' >> /start.sh && \
-    echo 'echo "App exited with code $EXIT_CODE at $(date)" >> /app.log' >> /start.sh && \
-    echo '# Keep container alive for debugging' >> /start.sh && \
-    echo 'tail -f /app.log' >> /start.sh && \
-    chmod +x /start.sh
+WORKDIR /app
 
-# No health check to avoid premature killing
-# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 CMD curl -f http://localhost:80/ || exit 1
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-CMD ["/start.sh"]
+# Copy built application
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/node_modules ./node_modules
+
+# Set proper permissions
+RUN chown -R nextjs:nodejs /app
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Set environment variables
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Start the application
+CMD ["node", "server.js"]
