@@ -29,6 +29,33 @@ import {
   Sun,
   WifiOff,
   Bug,
+  Code,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  Sparkles,
+  Skull,
+  Flame,
+  ZapOff,
+  RefreshCw,
+  DownloadCloud,
+  UploadCloud,
+  Layers,
+  Box,
+  Boxes,
+  GitBranch,
+  GitMerge,
+  Workflow,
+  PieChart,
+  BarChart,
+  LineChart,
+  Activity,
+  CheckCheck,
+  XCircle,
+  HelpCircle,
+  Info,
+  AlertOctagon,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
@@ -39,6 +66,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { obfuscateLua } from "@/lib/obfuscator";
 import { XZXReverseEngineer } from "@/lib/reverse-engineer";
 
@@ -1128,85 +1166,123 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Simple Analysis Modal */}
-      {showAnalysis && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAnalysis(false)} />
-          <div className="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-700">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
-                <Bug className="w-6 h-6 text-red-400" />
-                Reverse Engineering Analysis
-              </h2>
-              <button
-                onClick={() => setShowAnalysis(false)}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
+      {/* Analysis Dialog */}
+      <Dialog open={showAnalysis} onOpenChange={setShowAnalysis}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+              <Bug className="w-6 h-6 text-red-400" />
+              Reverse Engineering Analysis
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Detailed analysis of the obfuscated code
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="h-[400px] overflow-y-auto p-6">
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid grid-cols-6 mb-4 bg-gray-800">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-red-600">Overview</TabsTrigger>
+              <TabsTrigger value="strings" className="data-[state=active]:bg-red-600">Strings</TabsTrigger>
+              <TabsTrigger value="functions" className="data-[state=active]:bg-red-600">Functions</TabsTrigger>
+              <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600">Bytecode</TabsTrigger>
+              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600">Metadata</TabsTrigger>
+              <TabsTrigger value="flow" className="data-[state=active]:bg-red-600">Control Flow</TabsTrigger>
+            </TabsList>
+
+            <ScrollArea className="h-[500px] pr-4">
               {analysisResult && (
-                <div className="space-y-6">
-                  {/* Metrics */}
-                  {analysisResult.metrics && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-4 bg-gray-800/50 rounded-xl">
-                        <div className="text-sm text-gray-400 mb-1">Duration</div>
-                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.duration.toFixed(2)}s</div>
+                <>
+                  <TabsContent value="overview" className="space-y-6">
+                    {/* Metrics */}
+                    {analysisResult.metrics && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Duration</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.duration.toFixed(2)}s</div>
+                        </div>
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Functions</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.functions}</div>
+                        </div>
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Strings</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.strings}</div>
+                        </div>
+                        <div className="p-4 bg-gray-800/50 rounded-xl">
+                          <div className="text-sm text-gray-400 mb-1">Complexity</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.complexity}</div>
+                        </div>
                       </div>
-                      <div className="p-4 bg-gray-800/50 rounded-xl">
-                        <div className="text-sm text-gray-400 mb-1">Functions</div>
-                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.functions}</div>
+                    )}
+
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">VM Detected</div>
+                        <div className="text-lg font-semibold text-green-400">
+                          {analysisResult.data?.vm?.data?.instructions?.length > 0 ? "Yes" : "No"}
+                        </div>
                       </div>
-                      <div className="p-4 bg-gray-800/50 rounded-xl">
-                        <div className="text-sm text-gray-400 mb-1">Strings</div>
-                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.strings}</div>
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">Encrypted Strings</div>
+                        <div className="text-lg font-semibold text-yellow-400">
+                          {analysisResult.data?.strings?.data?.matches?.length || 0}
+                        </div>
                       </div>
-                      <div className="p-4 bg-gray-800/50 rounded-xl">
-                        <div className="text-sm text-gray-400 mb-1">Complexity</div>
-                        <div className="text-xl font-bold text-red-400">{analysisResult.metrics.complexity}</div>
+                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                        <div className="text-xs text-gray-500 mb-1">Decrypted Strings</div>
+                        <div className="text-lg font-semibold text-green-400">
+                          {analysisResult.data?.strings?.data?.decrypted?.length || 0}
+                        </div>
                       </div>
                     </div>
-                  )}
+                  </TabsContent>
 
-                  {/* Strings */}
-                  {analysisResult.data?.strings?.data?.decrypted && analysisResult.data.strings.data.decrypted.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold text-red-400">Decrypted Strings</h3>
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
-                        {analysisResult.data.strings.data.decrypted.map((str: string, i: number) => (
-                          <div key={i} className="text-sm text-gray-300 mb-2 border-b border-gray-700 pb-2 font-mono">
-                            "{str}"
-                          </div>
-                        ))}
+                  <TabsContent value="strings" className="space-y-4">
+                    {analysisResult.data?.strings?.data?.decrypted && analysisResult.data.strings.data.decrypted.length > 0 ? (
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-semibold text-red-400">Decrypted Strings</h3>
+                        <div className="p-4 bg-gray-800/30 rounded-xl">
+                          {analysisResult.data.strings.data.decrypted.map((str: string, i: number) => (
+                            <div key={i} className="text-sm text-gray-300 mb-2 border-b border-gray-700 pb-2 font-mono">
+                              "{str}"
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No strings found</div>
+                    )}
+                  </TabsContent>
 
-                  {/* Functions */}
-                  {analysisResult.data?.decompiled?.data?.functions && analysisResult.data.decompiled.data.functions.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold text-red-400">Functions</h3>
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
+                  <TabsContent value="functions" className="space-y-4">
+                    {analysisResult.data?.decompiled?.data?.functions && analysisResult.data.decompiled.data.functions.length > 0 ? (
+                      <div className="space-y-4">
                         {analysisResult.data.decompiled.data.functions.map((fn: any, i: number) => (
-                          <div key={i} className="mb-4 border-b border-gray-700 pb-2">
-                            <div className="text-sm font-semibold text-purple-400">{fn.name}</div>
-                            <div className="text-xs text-gray-400">Params: {fn.params.join(', ')}</div>
-                            <div className="text-xs text-gray-400">Lines: {fn.lines.start}-{fn.lines.end}</div>
-                            <div className="text-xs text-gray-400">Complexity: {fn.complexity}</div>
+                          <div key={i} className="p-4 bg-gray-800/30 rounded-xl">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-lg font-semibold text-purple-400">{fn.name}</div>
+                              <Badge variant="outline" className="border-red-500 text-red-400">
+                                Complexity: {fn.complexity}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                              <div className="text-gray-400">Parameters:</div>
+                              <div className="text-gray-300">{fn.params.join(', ') || 'none'}</div>
+                              <div className="text-gray-400">Lines:</div>
+                              <div className="text-gray-300">{fn.lines.start}-{fn.lines.end}</div>
+                            </div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No functions found</div>
+                    )}
+                  </TabsContent>
 
-                  {/* Bytecode */}
-                  {analysisResult.data?.vm?.data?.instructions && analysisResult.data.vm.data.instructions.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold text-red-400">Bytecode Instructions</h3>
-                      <div className="grid grid-cols-4 gap-2 p-4 bg-gray-800/30 rounded-xl">
+                  <TabsContent value="bytecode" className="space-y-4">
+                    {analysisResult.data?.vm?.data?.instructions && analysisResult.data.vm.data.instructions.length > 0 ? (
+                      <div className="grid grid-cols-4 gap-2">
                         {analysisResult.data.vm.data.instructions.slice(0, 20).map((instr: any) => (
                           <div key={instr.index} className="text-xs bg-gray-900/50 p-2 rounded border border-gray-700">
                             <span className="text-purple-400">[{instr.index}]</span>{' '}
@@ -1220,44 +1296,54 @@ export default function Home() {
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No bytecode found</div>
+                    )}
+                  </TabsContent>
 
-                  {/* Metadata */}
-                  {analysisResult.data?.metadata?.data && (
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold text-red-400">Metadata</h3>
+                  <TabsContent value="metadata" className="space-y-4">
+                    {analysisResult.data?.metadata?.data && (
                       <div className="p-4 bg-gray-800/30 rounded-xl">
                         <pre className="text-sm text-gray-300 whitespace-pre-wrap">
                           {JSON.stringify(analysisResult.data.metadata.data, null, 2)}
                         </pre>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    )}
+                  </TabsContent>
 
-            <div className="flex justify-end gap-3 p-6 border-t border-gray-700">
-              <Button
-                variant="outline"
-                onClick={() => setShowAnalysis(false)}
-                className="border-gray-700 hover:bg-gray-800"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => {
-                  navigator.clipboard.writeText(JSON.stringify(analysisResult, null, 2));
-                }}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Copy Results
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+                  <TabsContent value="flow" className="space-y-4">
+                    <div className="p-4 bg-gray-800/30 rounded-xl">
+                      <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
+                        {analysisResult.data?.flow?.data?.nodes?.length > 0 
+                          ? `Found ${analysisResult.data.flow.data.nodes.length} nodes and ${analysisResult.data.flow.data.edges?.length || 0} edges`
+                          : "No control flow data available"}
+                      </pre>
+                    </div>
+                  </TabsContent>
+                </>
+              )}
+            </ScrollArea>
+          </Tabs>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAnalysis(false)}
+              className="border-gray-700 hover:bg-gray-800"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(analysisResult, null, 2));
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Copy Results
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
