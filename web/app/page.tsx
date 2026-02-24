@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/select";
 import { obfuscateLua } from "@/lib/obfuscator";
 import { XZXReverseEngineer } from "@/lib/reverse-engineer";
-import * as Dialog from '@radix-ui/react-dialog';
 
 // Simple counter API without Firebase
 const getTotalObfuscations = async (): Promise<number> => {
@@ -1129,19 +1128,22 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Analysis Dialog */}
-      <Dialog.Root open={showAnalysis} onOpenChange={setShowAnalysis}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-4xl max-h-[85vh] overflow-hidden bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50">
+      {/* Simple Analysis Modal */}
+      {showAnalysis && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAnalysis(false)} />
+          <div className="relative bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[85vh] overflow-hidden">
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
-              <Dialog.Title className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
                 <Bug className="w-6 h-6 text-red-400" />
                 Reverse Engineering Analysis
-              </Dialog.Title>
-              <Dialog.Close className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+              </h2>
+              <button
+                onClick={() => setShowAnalysis(false)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              >
                 <X className="w-5 h-5 text-gray-400" />
-              </Dialog.Close>
+              </button>
             </div>
 
             <div className="h-[400px] overflow-y-auto p-6">
@@ -1253,9 +1255,9 @@ export default function Home() {
                 Copy Results
               </Button>
             </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
