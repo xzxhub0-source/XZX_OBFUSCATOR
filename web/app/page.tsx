@@ -29,47 +29,6 @@ import {
   Sun,
   WifiOff,
   Bug,
-  Search,
-  Code,
-  Braces,
-  Hash,
-  Key,
-  FileJson,
-  FileCode,
-  Network,
-  Cpu,
-  Database,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock,
-  Terminal,
-  ScrollText,
-  Brain,
-  Sparkles,
-  Sword,
-  Shield as ShieldIcon,
-  Skull,
-  Flame,
-  ZapOff,
-  RefreshCw,
-  DownloadCloud,
-  UploadCloud,
-  Layers,
-  Box,
-  Boxes,
-  GitBranch,
-  GitMerge,
-  Workflow,
-  PieChart,
-  BarChart,
-  LineChart,
-  Activity,
-  CheckCheck,
-  XCircle,
-  HelpCircle,
-  Info,
-  AlertOctagon,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
@@ -80,21 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { obfuscateLua } from "@/lib/obfuscator";
-import { XZXReverseEngineer } from "@/lib/reverse-engineer";
 
 // Simple counter API without Firebase
 const getTotalObfuscations = async (): Promise<number> => {
@@ -197,9 +142,6 @@ export default function Home() {
 
   // Reverse engineering mode
   const [reverseMode, setReverseMode] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -272,7 +214,7 @@ export default function Home() {
 
   useEffect(() => {
     document.title = reverseMode 
-      ? "XZX Reverse Engineer - Advanced Code Analysis" 
+      ? "XZX Reverse Engineer - Code Analysis" 
       : "XZX Lua Obfuscator - Advanced Protection";
     
     const handleMouseMove = (e: MouseEvent) => {
@@ -424,27 +366,15 @@ export default function Home() {
     clearInterval(progressInterval);
   };
 
-  const analyzeCode = async () => {
+  const analyzeCode = () => {
     if (!inputCode && !outputCode) {
       setError("No code to analyze");
       return;
     }
 
-    setIsProcessing(true);
-    setError(null);
-
-    try {
-      const engineer = new XZXReverseEngineer();
-      const codeToAnalyze = outputCode || inputCode;
-      const result = await engineer.analyze(codeToAnalyze);
-      
-      setAnalysisResult(result);
-      setShowAnalysis(true);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Analysis failed");
-    } finally {
-      setIsProcessing(false);
-    }
+    // Simple analysis alert
+    const codeToAnalyze = outputCode || inputCode;
+    alert(`Analysis would show:\n\n- Code length: ${codeToAnalyze.length} characters\n- Lines: ${codeToAnalyze.split('\n').length}\n- This is a placeholder for the full reverse engineering toolkit`);
   };
 
   const copyToClipboard = async () => {
@@ -617,7 +547,7 @@ export default function Home() {
                   )}
                 >
                   <Bug className="w-3.5 h-3.5" />
-                  <span>{reverseMode ? "REVERSE MODE ON" : "REVERSE MODE"}</span>
+                  <span>{reverseMode ? "REVERSE ON" : "REVERSE"}</span>
                 </button>
 
                 <a
@@ -650,7 +580,7 @@ export default function Home() {
               </h1>
               <p className="text-gray-400 mt-1">
                 {reverseMode 
-                  ? "Advanced code analysis and reverse engineering toolkit" 
+                  ? "Analyze and understand obfuscated Lua code" 
                   : "Advanced protection for your Lua code"}
               </p>
             </div>
@@ -905,7 +835,7 @@ export default function Home() {
                 <div className="p-6 border-b border-gray-700">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold">
-                      {reverseMode ? "Analysis Settings" : "Protection Settings"}
+                      {reverseMode ? "Analysis Info" : "Protection Settings"}
                     </h3>
                     {!reverseMode && (
                       <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
@@ -926,44 +856,33 @@ export default function Home() {
                         <ul className="space-y-2 text-sm text-gray-300">
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Function extraction
+                            Extract all strings
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            String decryption
+                            Identify functions
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Bytecode analysis
+                            Detect VM bytecode
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Control flow visualization
+                            Find globals
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3 h-3 text-green-400" />
-                            Metadata extraction
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            Complexity metrics
+                            Measure complexity
                           </li>
                         </ul>
                       </div>
 
                       <div className="p-4 bg-gray-700/30 rounded-xl">
-                        <h4 className="text-sm font-medium text-yellow-400 mb-2 flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          Supported Obfuscators
-                        </h4>
-                        <ul className="space-y-1 text-sm text-gray-300">
-                          <li>• XZX Obfuscator</li>
-                          <li>• Luraph</li>
-                          <li>• IronBrew</li>
-                          <li>• Synapse</li>
-                          <li>• MoonSec</li>
-                          <li>• Custom VM-based</li>
-                        </ul>
+                        <h4 className="text-sm font-medium text-yellow-400 mb-2">How to use</h4>
+                        <p className="text-sm text-gray-300">
+                          Paste your obfuscated Lua code in the input field and click "Analyze". 
+                          The tool will attempt to reverse engineer the protection and show you what's inside.
+                        </p>
                       </div>
                     </div>
                   ) : (
@@ -1182,176 +1101,6 @@ export default function Home() {
           </footer>
         </div>
       </div>
-
-      {/* Analysis Dialog */}
-      <AlertDialog open={showAnalysis} onOpenChange={setShowAnalysis}>
-        <AlertDialogContent className="bg-gray-900 border-gray-700 text-white max-w-6xl max-h-[90vh] overflow-hidden">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
-              <Bug className="w-6 h-6 text-red-400" />
-              Reverse Engineering Analysis
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-400">
-              Detailed analysis of the obfuscated code
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-6 mb-4 bg-gray-800">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-red-600">Overview</TabsTrigger>
-              <TabsTrigger value="strings" className="data-[state=active]:bg-red-600">Strings</TabsTrigger>
-              <TabsTrigger value="functions" className="data-[state=active]:bg-red-600">Functions</TabsTrigger>
-              <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600">Bytecode</TabsTrigger>
-              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600">Metadata</TabsTrigger>
-              <TabsTrigger value="flow" className="data-[state=active]:bg-red-600">Control Flow</TabsTrigger>
-            </TabsList>
-
-            <ScrollArea className="h-[500px] pr-4">
-              {analysisResult && (
-                <>
-                  <TabsContent value="overview" className="space-y-6">
-                    {/* Metrics */}
-                    {analysisResult.metrics && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="p-4 bg-gray-800/50 rounded-xl">
-                          <div className="text-sm text-gray-400 mb-1">Duration</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.duration.toFixed(2)}s</div>
-                        </div>
-                        <div className="p-4 bg-gray-800/50 rounded-xl">
-                          <div className="text-sm text-gray-400 mb-1">Functions</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.functions}</div>
-                        </div>
-                        <div className="p-4 bg-gray-800/50 rounded-xl">
-                          <div className="text-sm text-gray-400 mb-1">Strings</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.strings}</div>
-                        </div>
-                        <div className="p-4 bg-gray-800/50 rounded-xl">
-                          <div className="text-sm text-gray-400 mb-1">Complexity</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.complexity}</div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
-                        <div className="text-xs text-gray-500 mb-1">VM Detected</div>
-                        <div className="text-lg font-semibold text-green-400">
-                          {analysisResult.data?.vm?.data?.instructions?.length > 0 ? "Yes" : "No"}
-                        </div>
-                      </div>
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
-                        <div className="text-xs text-gray-500 mb-1">Encrypted Strings</div>
-                        <div className="text-lg font-semibold text-yellow-400">
-                          {analysisResult.data?.strings?.data?.matches?.length || 0}
-                        </div>
-                      </div>
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
-                        <div className="text-xs text-gray-500 mb-1">Decrypted Strings</div>
-                        <div className="text-lg font-semibold text-green-400">
-                          {analysisResult.data?.strings?.data?.decrypted?.length || 0}
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="strings" className="space-y-4">
-                    {analysisResult.data?.strings?.data?.decrypted && analysisResult.data.strings.data.decrypted.length > 0 ? (
-                      <div className="space-y-2">
-                        <h3 className="text-lg font-semibold text-red-400">Decrypted Strings</h3>
-                        <div className="p-4 bg-gray-800/30 rounded-xl">
-                          {analysisResult.data.strings.data.decrypted.map((str: string, i: number) => (
-                            <div key={i} className="text-sm text-gray-300 mb-2 border-b border-gray-700 pb-2 font-mono">
-                              "{str}"
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">No strings found</div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="functions" className="space-y-4">
-                    {analysisResult.data?.decompiled?.data?.functions && analysisResult.data.decompiled.data.functions.length > 0 ? (
-                      <div className="space-y-4">
-                        {analysisResult.data.decompiled.data.functions.map((fn: any, i: number) => (
-                          <div key={i} className="p-4 bg-gray-800/30 rounded-xl">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="text-lg font-semibold text-purple-400">{fn.name}</div>
-                              <Badge variant="outline" className="border-red-500 text-red-400">
-                                Complexity: {fn.complexity}
-                              </Badge>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                              <div className="text-gray-400">Parameters:</div>
-                              <div className="text-gray-300">{fn.params.join(', ') || 'none'}</div>
-                              <div className="text-gray-400">Lines:</div>
-                              <div className="text-gray-300">{fn.lines.start}-{fn.lines.end}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">No functions found</div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="bytecode" className="space-y-4">
-                    {analysisResult.data?.vm?.data?.instructions && analysisResult.data.vm.data.instructions.length > 0 ? (
-                      <div className="grid grid-cols-4 gap-2">
-                        {analysisResult.data.vm.data.instructions.map((instr: any) => (
-                          <div key={instr.index} className="text-xs bg-gray-900/50 p-2 rounded border border-gray-700">
-                            <span className="text-purple-400">[{instr.index}]</span>{' '}
-                            <span className="text-red-400">{instr.decoded}</span>{' '}
-                            <span className="text-gray-500">({instr.opcode})</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">No bytecode found</div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="metadata" className="space-y-4">
-                    {analysisResult.data?.metadata?.data && (
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
-                        <pre className="text-sm text-gray-300 whitespace-pre-wrap">
-                          {JSON.stringify(analysisResult.data.metadata.data, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="flow" className="space-y-4">
-                    <div className="p-4 bg-gray-800/30 rounded-xl">
-                      <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
-                        {analysisResult.data?.flow?.data?.nodes?.length > 0 
-                          ? `Found ${analysisResult.data.flow.data.nodes.length} nodes and ${analysisResult.data.flow.data.edges?.length || 0} edges`
-                          : "No control flow data available"}
-                      </pre>
-                    </div>
-                  </TabsContent>
-                </>
-              )}
-            </ScrollArea>
-          </Tabs>
-
-          <AlertDialogFooter className="mt-4">
-            <AlertDialogCancel className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700">
-              Close
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(analysisResult, null, 2));
-              }}
-            >
-              Copy Results
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
