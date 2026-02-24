@@ -4,29 +4,24 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy package files
-COPY web/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy source code
-COPY web/ ./
+COPY . .
 
-# Build the app with increased memory limit
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Build the app
 RUN npm run build
 
-# Expose port 80
-EXPOSE 80
+# Expose port
+EXPOSE 3000
 
-# Set environment variables
-ENV PORT=80
+# Set environment
+ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV NODE_ENV=production
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:80', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-
-# Start the application
+# Start
 CMD ["npm", "start"]
