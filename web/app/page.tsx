@@ -29,33 +29,6 @@ import {
   Sun,
   WifiOff,
   Bug,
-  Code,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock,
-  Sparkles,
-  Skull,
-  Flame,
-  ZapOff,
-  RefreshCw,
-  DownloadCloud,
-  UploadCloud,
-  Layers,
-  Box,
-  Boxes,
-  GitBranch,
-  GitMerge,
-  Workflow,
-  PieChart,
-  BarChart,
-  LineChart,
-  Activity,
-  CheckCheck,
-  XCircle,
-  HelpCircle,
-  Info,
-  AlertOctagon,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
@@ -346,7 +319,19 @@ export default function Home() {
       if (result.success && result.code) {
         const finalCode = OUTPUT_HEADER + result.code;
         setOutputCode(finalCode);
-        setMetrics(result.metrics || null);
+        
+        // FIXED: Ensure metrics has all required fields
+        if (result.metrics) {
+          const fullMetrics: ObfuscationMetrics = {
+            inputSize: result.metrics.inputSize || 0,
+            outputSize: result.metrics.outputSize || 0,
+            duration: result.metrics.duration || 0,
+            instructionCount: result.metrics.instructionCount || 0,
+            buildId: result.metrics.buildId || 'unknown',
+            layersApplied: result.metrics.layersApplied || []
+          };
+          setMetrics(fullMetrics);
+        }
         
         try {
           const newTotal = await incrementTotalObfuscations();
@@ -931,21 +916,6 @@ export default function Home() {
                             <CheckCircle className="w-3 h-3 text-green-400" />
                             Complexity metrics
                           </li>
-                        </ul>
-                      </div>
-
-                      <div className="p-4 bg-gray-700/30 rounded-xl">
-                        <h4 className="text-sm font-medium text-yellow-400 mb-2 flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          Supported Obfuscators
-                        </h4>
-                        <ul className="space-y-1 text-sm text-gray-300">
-                          <li>• XZX Obfuscator</li>
-                          <li>• Luraph</li>
-                          <li>• IronBrew</li>
-                          <li>• Synapse</li>
-                          <li>• MoonSec</li>
-                          <li>• Custom VM-based</li>
                         </ul>
                       </div>
                     </div>
