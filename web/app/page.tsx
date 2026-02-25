@@ -80,14 +80,15 @@ const incrementTotalObfuscations = async (): Promise<number> => {
   return 151;
 };
 
-// Types
+// Types - UPDATED to match what obfuscator actually returns
 interface ObfuscationMetrics {
   inputSize: number;
   outputSize: number;
   duration: number;
-  instructionCount: number;
   buildId: string;
   layersApplied: string[];
+  // instructionCount is optional since it might not exist
+  instructionCount?: number;
 }
 
 interface ObfuscationProgress {
@@ -320,16 +321,19 @@ export default function Home() {
         const finalCode = OUTPUT_HEADER + result.code;
         setOutputCode(finalCode);
         
-        // FIXED: Ensure metrics has all required fields
+        // FIXED: Properly handle metrics with optional instructionCount
         if (result.metrics) {
           const fullMetrics: ObfuscationMetrics = {
             inputSize: result.metrics.inputSize || 0,
             outputSize: result.metrics.outputSize || 0,
             duration: result.metrics.duration || 0,
-            instructionCount: result.metrics.instructionCount || 0,
             buildId: result.metrics.buildId || 'unknown',
-            layersApplied: result.metrics.layersApplied || []
+            layersApplied: result.metrics.layersApplied || [],
           };
+          // Only add instructionCount if it exists
+          if ('instructionCount' in result.metrics) {
+            fullMetrics.instructionCount = result.metrics.instructionCount;
+          }
           setMetrics(fullMetrics);
         }
         
@@ -853,6 +857,13 @@ export default function Home() {
                       <div className="text-xl font-bold">{metrics.duration.toFixed(1)}s</div>
                     </div>
                   </div>
+
+                  {metrics.instructionCount !== undefined && (
+                    <div className="mt-4 p-4 bg-gray-700/30 rounded-xl">
+                      <div className="text-sm text-gray-400">Instruction Count</div>
+                      <div className="text-lg font-semibold text-purple-400">{metrics.instructionCount}</div>
+                    </div>
+                  )}
 
                   <div className="mt-6">
                     <h4 className="text-sm font-medium text-gray-400 mb-3">Applied Layers</h4>
