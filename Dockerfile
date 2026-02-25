@@ -23,32 +23,21 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Install curl for debugging
-RUN apk add --no-cache curl
-
 # Copy built application
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Create a debug script
-RUN echo '#!/bin/sh' > /debug.sh && \
-    echo 'echo "=== DEBUG INFO ==="' >> /debug.sh && \
-    echo 'echo "Port: $PORT"' >> /debug.sh && \
-    echo 'echo "Host: $HOSTNAME"' >> /debug.sh && \
-    echo 'echo "Node version: $(node -v)"' >> /debug.sh && \
-    echo 'echo "Files in current directory:"' >> /debug.sh && \
-    echo 'ls -la' >> /debug.sh && \
-    echo 'echo "=== STARTING APP ==="' >> /debug.sh && \
-    echo 'node server.js' >> /debug.sh && \
-    chmod +x /debug.sh
+# Expose port 8080 (to match what your app is using)
+EXPOSE 8080
 
-# Expose port 80
-EXPOSE 80
-
-# Set environment - FORCE PORT 80
-ENV PORT=80
+# Set environment - FORCE PORT 8080
+ENV PORT=8080
 ENV HOSTNAME="0.0.0.0"
 
-# Use debug script to start
-CMD ["/debug.sh"]
+# Health check for port 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+
+# Start the application
+CMD ["node", "server.js"]
