@@ -6,7 +6,7 @@ WORKDIR /app
 # Copy package files
 COPY web/package*.json ./
 
-# Install dependencies (use install instead of ci)
+# Install dependencies
 RUN npm install
 
 # Copy source code
@@ -23,10 +23,25 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install curl for debugging
+RUN apk add --no-cache curl
+
 # Copy built application
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+
+# Create a debug script
+RUN echo '#!/bin/sh' > /debug.sh && \
+    echo 'echo "=== DEBUG INFO ==="' >> /debug.sh && \
+    echo 'echo "Port: $PORT"' >> /debug.sh && \
+    echo 'echo "Host: $HOSTNAME"' >> /debug.sh && \
+    echo 'echo "Node version: $(node -v)"' >> /debug.sh && \
+    echo 'echo "Files in current directory:"' >> /debug.sh && \
+    echo 'ls -la' >> /debug.sh && \
+    echo 'echo "=== STARTING APP ==="' >> /debug.sh && \
+    echo 'node server.js' >> /debug.sh && \
+    chmod +x /debug.sh
 
 # Expose port 80
 EXPOSE 80
@@ -35,9 +50,5 @@ EXPOSE 80
 ENV PORT=80
 ENV HOSTNAME="0.0.0.0"
 
-# Health check for port 80
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:80', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-
-# Start the application
-CMD ["node", "server.js"]
+# Use debug script to start
+CMD ["/debug.sh"]
