@@ -28,12 +28,16 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Expose port
-EXPOSE 3000
+# Expose port 80
+EXPOSE 80
 
-# Set environment
-ENV PORT=3000
+# Set environment - FORCE PORT 80
+ENV PORT=80
 ENV HOSTNAME="0.0.0.0"
+
+# Health check for port 80
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:80', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start the application
 CMD ["node", "server.js"]
