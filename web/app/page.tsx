@@ -87,7 +87,6 @@ interface ObfuscationMetrics {
   duration: number;
   buildId: string;
   layersApplied: string[];
-  // instructionCount is optional since it might not exist
   instructionCount?: number;
 }
 
@@ -321,19 +320,23 @@ export default function Home() {
         const finalCode = OUTPUT_HEADER + result.code;
         setOutputCode(finalCode);
         
-        // FIXED: Properly handle metrics with optional instructionCount
+        // FIXED: Type-safe metrics assignment
         if (result.metrics) {
+          // Create base metrics with required fields
           const fullMetrics: ObfuscationMetrics = {
-            inputSize: result.metrics.inputSize || 0,
-            outputSize: result.metrics.outputSize || 0,
-            duration: result.metrics.duration || 0,
-            buildId: result.metrics.buildId || 'unknown',
-            layersApplied: result.metrics.layersApplied || [],
+            inputSize: typeof result.metrics.inputSize === 'number' ? result.metrics.inputSize : 0,
+            outputSize: typeof result.metrics.outputSize === 'number' ? result.metrics.outputSize : 0,
+            duration: typeof result.metrics.duration === 'number' ? result.metrics.duration : 0,
+            buildId: typeof result.metrics.buildId === 'string' ? result.metrics.buildId : 'unknown',
+            layersApplied: Array.isArray(result.metrics.layersApplied) ? result.metrics.layersApplied : [],
           };
-          // Only add instructionCount if it exists
-          if ('instructionCount' in result.metrics) {
-            fullMetrics.instructionCount = result.metrics.instructionCount;
+          
+          // Safely add instructionCount if it exists and is a number
+          const instructionCount = (result.metrics as any).instructionCount;
+          if (typeof instructionCount === 'number') {
+            fullMetrics.instructionCount = instructionCount;
           }
+          
           setMetrics(fullMetrics);
         }
         
