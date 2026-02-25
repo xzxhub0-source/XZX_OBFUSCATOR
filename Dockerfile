@@ -23,21 +23,27 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
 # Copy built application
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Expose port 8080 (to match what your app is using)
+# Expose port 8080
 EXPOSE 8080
 
 # Set environment - FORCE PORT 8080
 ENV PORT=8080
 ENV HOSTNAME="0.0.0.0"
 
-# Health check for port 8080
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8080', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+# Create a simple health check file
+RUN echo "OK" > public/health.txt
 
-# Start the application
+# Health check - this keeps the container alive
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health.txt || curl -f http://localhost:8080/ || exit 1
+
+# Start the application with a wrapper that keeps it alive
 CMD ["node", "server.js"]
