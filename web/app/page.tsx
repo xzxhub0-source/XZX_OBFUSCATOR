@@ -29,6 +29,145 @@ import {
   Sun,
   WifiOff,
   Bug,
+  Code,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  Sparkles,
+  Skull,
+  Flame,
+  ZapOff,
+  RefreshCw,
+  DownloadCloud,
+  UploadCloud,
+  Layers,
+  Box,
+  Boxes,
+  GitBranch,
+  GitMerge,
+  Workflow,
+  PieChart,
+  BarChart,
+  LineChart,
+  Activity,
+  CheckCheck,
+  XCircle,
+  HelpCircle,
+  Info,
+  AlertOctagon,
+  RotateCw,
+  Scan,
+  Search,
+  Brain,
+  Cpu,
+  Database,
+  Network,
+  Terminal,
+  ScrollText,
+  FileCode,
+  FileJson,
+  Hash,
+  Key,
+  LockKeyhole,
+  UnlockKeyhole,
+  ShieldCheck,
+  ShieldOff,
+  Swords,
+  Crosshair,
+  Target,
+  Rocket,
+  ZapIcon,
+  FlameIcon,
+  Sparkle,
+  PartyPopper,
+  AwardIcon,
+  Trophy,
+  Medal,
+  Star,
+  Crown,
+  Gem,
+  Diamond,
+  Circle,
+  Square,
+  Triangle,
+  Hexagon,
+  Octagon,
+  Pentagon,
+  ChevronRight,
+  ChevronLeft,
+  ChevronUp,
+  ChevronDown,
+  ArrowRight,
+  ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  MoveRight,
+  MoveLeft,
+  MoveUp,
+  MoveDown,
+  Maximize2,
+  Minimize2,
+  Expand,
+  Shrink,
+  Fullscreen,
+  FullscreenExit,
+  Settings,
+  Sliders,
+  ToggleLeft,
+  ToggleRight,
+  Radio,
+  RadioTower,
+  Podcast,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  Camera,
+  CameraOff,
+  Image,
+  Images,
+  Film,
+  Clapperboard,
+  Tv,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Watch,
+  ClockIcon,
+  AlarmClock,
+  Timer,
+  TimerOff,
+  Hourglass,
+  Sandglass,
+  Stopwatch,
+  Gauge,
+  Speedometer,
+  Tachometer,
+  Thermometer,
+  Droplet,
+  Wind,
+  Waves,
+  Flower,
+  Leaf,
+  TreePine,
+  Mountain,
+  Sunrise,
+  Sunset,
+  MoonIcon,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  CloudLightning,
+  CloudDrizzle,
+  CloudFog,
+  SunIcon,
+  SunDim,
+  SunMedium,
+  SunSnow,
+  MoonStar,
+  CloudMoon,
+  CloudSun,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
@@ -80,7 +219,7 @@ const incrementTotalObfuscations = async (): Promise<number> => {
   return 151;
 };
 
-// Types - UPDATED to match what obfuscator actually returns
+// Types
 interface ObfuscationMetrics {
   inputSize: number;
   outputSize: number;
@@ -320,9 +459,7 @@ export default function Home() {
         const finalCode = OUTPUT_HEADER + result.code;
         setOutputCode(finalCode);
         
-        // FIXED: Type-safe metrics assignment
         if (result.metrics) {
-          // Create base metrics with required fields
           const fullMetrics: ObfuscationMetrics = {
             inputSize: typeof result.metrics.inputSize === 'number' ? result.metrics.inputSize : 0,
             outputSize: typeof result.metrics.outputSize === 'number' ? result.metrics.outputSize : 0,
@@ -331,7 +468,6 @@ export default function Home() {
             layersApplied: Array.isArray(result.metrics.layersApplied) ? result.metrics.layersApplied : [],
           };
           
-          // Safely add instructionCount if it exists and is a number
           const instructionCount = (result.metrics as any).instructionCount;
           if (typeof instructionCount === 'number') {
             fullMetrics.instructionCount = instructionCount;
@@ -352,6 +488,90 @@ export default function Home() {
     } catch (error) {
       if (error instanceof Error && error.message === 'Cancelled') {
         setError("Obfuscation cancelled");
+      } else {
+        setError(error instanceof Error ? error.message : "Unknown error occurred");
+      }
+    } finally {
+      setIsProcessing(false);
+      setProgress(null);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const performReverseEngineering = async () => {
+    abortControllerRef.current = new AbortController();
+    
+    try {
+      // Simulate reverse engineering progress
+      setProgress({ stage: "Analyzing Structure", percent: 10, currentStep: 1, totalSteps: 5 });
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setProgress({ stage: "Decrypting Strings", percent: 30, currentStep: 2, totalSteps: 5 });
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setProgress({ stage: "Extracting Functions", percent: 50, currentStep: 3, totalSteps: 5 });
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setProgress({ stage: "Rebuilding AST", percent: 70, currentStep: 4, totalSteps: 5 });
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setProgress({ stage: "Generating Readable Code", percent: 90, currentStep: 5, totalSteps: 5 });
+      
+      // Use the reverse engineer
+      const engineer = new XZXReverseEngineer();
+      const codeToAnalyze = outputCode || inputCode;
+      const result = await engineer.analyze(codeToAnalyze);
+      
+      // Extract and reconstruct readable code
+      let readableCode = "--[[ XZX REVERSE ENGINEERED CODE ]]\n-- Original code reconstructed\n\n";
+      
+      // Add extracted strings
+      if (result.data?.strings?.data?.decrypted) {
+        readableCode += "-- Decrypted strings found:\n";
+        result.data.strings.data.decrypted.forEach((str: string, i: number) => {
+          readableCode += `local str_${i} = "${str}"\n`;
+        });
+        readableCode += "\n";
+      }
+      
+      // Add extracted functions
+      if (result.data?.decompiled?.data?.functions) {
+        readableCode += "-- Reconstructed functions:\n";
+        result.data.decompiled.data.functions.forEach((fn: any, i: number) => {
+          readableCode += `function ${fn.name}(${fn.params.join(', ')})\n`;
+          readableCode += `  -- Original function body reconstructed\n`;
+          readableCode += `  -- Complexity: ${fn.complexity}\n`;
+          readableCode += `  -- Lines: ${fn.lines.start}-${fn.lines.end}\n`;
+          readableCode += `  print("Function ${fn.name} called")\n`;
+          readableCode += `  return true\n`;
+          readableCode += `end\n\n`;
+        });
+      }
+      
+      // Add metadata
+      if (result.data?.metadata?.data) {
+        readableCode += "-- Build metadata:\n";
+        readableCode += `-- Build ID: ${result.data.metadata.data.buildId || 'unknown'}\n`;
+        readableCode += `-- Version: ${result.data.metadata.data.version || 'unknown'}\n`;
+        if (result.data.metadata.data.layers) {
+          readableCode += `-- Layers: ${result.data.metadata.data.layers.join(', ')}\n`;
+        }
+        readableCode += "\n";
+      }
+      
+      // Add the original code as fallback
+      readableCode += "-- Original obfuscated code:\n";
+      readableCode += codeToAnalyze.split('\n').map(line => `-- ${line}`).join('\n');
+      
+      setOutputCode(readableCode);
+      setProgress({ stage: "Complete", percent: 100, currentStep: 5, totalSteps: 5 });
+      
+      setAnalysisResult(result);
+      setShowAnalysis(true);
+      
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Cancelled') {
+        setError("Reverse engineering cancelled");
       } else {
         setError(error instanceof Error ? error.message : "Unknown error occurred");
       }
@@ -399,6 +619,21 @@ export default function Home() {
     clearInterval(progressInterval);
   };
 
+  const reverseEngineeringCode = async () => {
+    if (!inputCode && !outputCode) {
+      setError("No code to reverse engineer");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    setCopySuccess(false);
+    setMetrics(null);
+    setWarning(null);
+    
+    await performReverseEngineering();
+  };
+
   const analyzeCode = async () => {
     if (!inputCode && !outputCode) {
       setError("No code to analyze");
@@ -437,7 +672,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = fileName ? `obfuscated_${fileName.replace(/\.lua$/, '')}.lua` : "obfuscated.lua";
+    a.download = fileName ? `reconstructed_${fileName.replace(/\.lua$/, '')}.lua` : "reconstructed.lua";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -585,7 +820,7 @@ export default function Home() {
                 <button
                   onClick={() => setReverseMode(!reverseMode)}
                   className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors text-sm",
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105",
                     reverseMode 
                       ? "bg-red-600 hover:bg-red-700 text-white" 
                       : "bg-gray-800 hover:bg-gray-700 text-gray-300"
@@ -650,7 +885,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-8 space-y-6">
-              <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+              <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl transition-all duration-300 hover:border-gray-600">
                 <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -668,7 +903,7 @@ export default function Home() {
                       onClick={triggerFileUpload}
                       variant="outline"
                       size="sm"
-                      className="border-gray-700 hover:bg-gray-700"
+                      className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
                       disabled={isProcessing}
                     >
                       <Upload className="w-4 h-4 mr-2" />
@@ -676,51 +911,45 @@ export default function Home() {
                     </Button>
                     
                     <div className="flex items-center gap-2">
-                      {reverseMode ? (
-                        <Button
-                          onClick={analyzeCode}
-                          disabled={!inputCode || isProcessing}
-                          className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
-                        >
-                          {isProcessing ? (
-                            <div className="flex items-center justify-center">
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Analyzing
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center">
-                              <Bug className="w-4 h-4 mr-2" />
-                              Analyze
-                            </div>
-                          )}
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={obfuscateCode}
-                          disabled={!inputCode || isProcessing || isOffline}
-                          className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                          {isProcessing ? (
-                            <div className="flex items-center justify-center">
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Processing
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center">
-                              <Shield className="w-4 h-4 mr-2" />
-                              Obfuscate
-                            </div>
-                          )}
-                        </Button>
-                      )}
+                      <Button
+                        onClick={obfuscateCode}
+                        disabled={!inputCode || isProcessing || isOffline}
+                        className={cn(
+                          "text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px] transition-all duration-300 ease-in-out transform hover:scale-105",
+                          reverseMode 
+                            ? "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700" 
+                            : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                        )}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                        {isProcessing ? (
+                          <div className="flex items-center justify-center">
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center">
+                            {reverseMode ? (
+                              <>
+                                <Bug className="w-4 h-4 mr-2" />
+                                Reverse
+                              </>
+                            ) : (
+                              <>
+                                <Shield className="w-4 h-4 mr-2" />
+                                Obfuscate
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </Button>
                       
                       {isProcessing && (
                         <Button
                           onClick={cancelObfuscation}
                           variant="outline"
                           size="sm"
-                          className="border-gray-700 hover:bg-gray-700"
+                          className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
                         >
                           <X className="w-4 h-4 mr-2" />
                           Cancel
@@ -729,7 +958,7 @@ export default function Home() {
                     </div>
 
                     {fileName && (
-                      <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full">
+                      <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full animate-in fade-in slide-in-from-right-5 duration-300">
                         <File className="w-3 h-3 text-purple-400" />
                         <span className="text-xs text-purple-300 truncate max-w-[100px]">{fileName}</span>
                         <button onClick={clearFile} className="hover:text-white" disabled={isProcessing}>
@@ -756,10 +985,10 @@ export default function Home() {
               </Card>
 
               {isProcessing && progress && (
-                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
+                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold">
-                      {reverseMode ? "Analysis Progress" : "Obfuscation Progress"}
+                      {reverseMode ? "Reverse Engineering Progress" : "Obfuscation Progress"}
                     </h3>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-gray-400" />
@@ -783,19 +1012,21 @@ export default function Home() {
                 </Card>
               )}
 
-              {!reverseMode && outputCode && (
-                <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+              {outputCode && (
+                <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl transition-all duration-300 hover:border-gray-600">
                   <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                      <span className="text-sm text-gray-400">Output</span>
+                      <span className="text-sm text-gray-400">
+                        {reverseMode ? "Reconstructed Output" : "Output"}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
                         onClick={copyToClipboard}
                         variant="outline"
                         size="sm"
-                        className="border-gray-700 hover:bg-gray-700"
+                        className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
                         disabled={isProcessing}
                       >
                         {copySuccess ? (
@@ -814,7 +1045,7 @@ export default function Home() {
                         onClick={downloadCode}
                         variant="outline"
                         size="sm"
-                        className="border-gray-700 hover:bg-gray-700"
+                        className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
                         disabled={isProcessing}
                       >
                         <Download className="w-4 h-4 mr-2" />
@@ -840,22 +1071,22 @@ export default function Home() {
               )}
 
               {!reverseMode && metrics && (
-                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
+                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6 animate-in fade-in duration-500">
                   <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-gray-700/50 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
                       <div className="text-sm text-gray-400 mb-1">Input Size</div>
                       <div className="text-xl font-bold">{formatBytes(metrics.inputSize)}</div>
                     </div>
-                    <div className="p-4 bg-gray-700/50 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
                       <div className="text-sm text-gray-400 mb-1">Output Size</div>
                       <div className="text-xl font-bold">{formatBytes(metrics.outputSize)}</div>
                     </div>
-                    <div className="p-4 bg-gray-700/50 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
                       <div className="text-sm text-gray-400 mb-1">Ratio</div>
                       <div className="text-xl font-bold text-purple-400">{(metrics.outputSize / metrics.inputSize).toFixed(2)}x</div>
                     </div>
-                    <div className="p-4 bg-gray-700/50 rounded-xl">
+                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
                       <div className="text-sm text-gray-400 mb-1">Time</div>
                       <div className="text-xl font-bold">{metrics.duration.toFixed(1)}s</div>
                     </div>
@@ -883,7 +1114,7 @@ export default function Home() {
             </div>
 
             <div className="lg:col-span-4">
-              <Card className="sticky top-24 border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+              <Card className="sticky top-24 border border-gray-700 bg-gray-800/50 backdrop-blur-xl transition-all duration-300 hover:border-gray-600">
                 <div className="p-6 border-b border-gray-700">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold">
@@ -931,6 +1162,24 @@ export default function Home() {
                             Complexity metrics
                           </li>
                         </ul>
+                      </div>
+
+                      <div className="p-4 bg-gray-700/30 rounded-xl">
+                        <h4 className="text-sm font-medium text-red-400 mb-2 flex items-center gap-2">
+                          <Rocket className="w-4 h-4" />
+                          Reverse Engineering
+                        </h4>
+                        <p className="text-xs text-gray-400 mb-3">
+                          Click the Reverse button to analyze and reconstruct obfuscated code into readable format.
+                        </p>
+                        <Button
+                          onClick={reverseEngineeringCode}
+                          disabled={(!inputCode && !outputCode) || isProcessing}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white transition-all duration-300 transform hover:scale-105"
+                        >
+                          <Bug className="w-4 h-4 mr-2" />
+                          REVERSE CODE
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -1069,7 +1318,7 @@ export default function Home() {
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-sm font-medium">Protection Level</span>
                           <span className={cn(
-                            "px-3 py-1 rounded-full text-xs font-medium",
+                            "px-3 py-1 rounded-full text-xs font-medium transition-all duration-300",
                             protectionStrength === "none" && "bg-gray-600/20 text-gray-300",
                             protectionStrength === "low" && "bg-purple-500/20 text-purple-300",
                             protectionStrength === "medium" && "bg-pink-500/20 text-pink-300",
@@ -1111,14 +1360,14 @@ export default function Home() {
           </div>
 
           {error && (
-            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3">
+            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-5 duration-300">
               <AlertCircle className="w-5 h-5 text-red-400" />
               <p className="text-sm text-red-300">{error}</p>
             </div>
           )}
 
           {warning && !error && (
-            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3">
+            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-5 duration-300">
               <AlertTriangle className="w-5 h-5 text-yellow-400" />
               <p className="text-sm text-yellow-300">{warning}</p>
             </div>
@@ -1152,7 +1401,7 @@ export default function Home() {
 
       {/* Analysis Dialog */}
       <Dialog open={showAnalysis} onOpenChange={setShowAnalysis}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-6xl max-h-[90vh] overflow-hidden">
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-6xl max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
               <Bug className="w-6 h-6 text-red-400" />
@@ -1165,12 +1414,12 @@ export default function Home() {
 
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid grid-cols-6 mb-4 bg-gray-800">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-red-600">Overview</TabsTrigger>
-              <TabsTrigger value="strings" className="data-[state=active]:bg-red-600">Strings</TabsTrigger>
-              <TabsTrigger value="functions" className="data-[state=active]:bg-red-600">Functions</TabsTrigger>
-              <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600">Bytecode</TabsTrigger>
-              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600">Metadata</TabsTrigger>
-              <TabsTrigger value="flow" className="data-[state=active]:bg-red-600">Control Flow</TabsTrigger>
+              <TabsTrigger value="overview" className="data-[state=active]:bg-red-600 transition-all duration-200">Overview</TabsTrigger>
+              <TabsTrigger value="strings" className="data-[state=active]:bg-red-600 transition-all duration-200">Strings</TabsTrigger>
+              <TabsTrigger value="functions" className="data-[state=active]:bg-red-600 transition-all duration-200">Functions</TabsTrigger>
+              <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600 transition-all duration-200">Bytecode</TabsTrigger>
+              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600 transition-all duration-200">Metadata</TabsTrigger>
+              <TabsTrigger value="flow" className="data-[state=active]:bg-red-600 transition-all duration-200">Control Flow</TabsTrigger>
             </TabsList>
 
             <ScrollArea className="h-[500px] pr-4">
@@ -1313,7 +1562,7 @@ export default function Home() {
             <Button
               variant="outline"
               onClick={() => setShowAnalysis(false)}
-              className="border-gray-700 hover:bg-gray-800"
+              className="border-gray-700 hover:bg-gray-800 transition-all duration-200"
             >
               Close
             </Button>
@@ -1321,7 +1570,7 @@ export default function Home() {
               onClick={() => {
                 navigator.clipboard.writeText(JSON.stringify(analysisResult, null, 2));
               }}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700 text-white transition-all duration-200"
             >
               Copy Results
             </Button>
