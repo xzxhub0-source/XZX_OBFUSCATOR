@@ -1,198 +1,235 @@
 // web/lib/reverse-engineer/index.ts
-// Professional Reverse Engineering Toolkit
-
 import * as luaparse from 'luaparse';
 
-export interface REOptions {
+export interface ReverseEngineerOptions {
   verbose?: boolean;
-  outputFormat?: 'json' | 'yaml' | 'table';
-  includeMetadata?: boolean;
   maxDepth?: number;
   timeout?: number;
+  analyzeVM?: boolean;
+  decryptStrings?: boolean;
+  emulateBytecode?: boolean;
+  traceExecution?: boolean;
+  bypassAntiTamper?: boolean;
 }
 
-export interface REAnalysis {
+export interface ReverseEngineerResult {
   success: boolean;
-  data?: any;
-  error?: string;
-  metrics?: {
+  deobfuscated?: string;
+  analysis?: {
+    vmDetected: boolean;
+    bytecode?: number[];
+    opcodes?: Map<number, string>;
+    handlers?: Map<number, string>;
+    strings?: Map<string, string>;
+    functions?: FunctionInfo[];
+    controlFlow?: ControlFlowGraph;
+    antiTamper?: AntiTamperInfo[];
+    warnings?: string[];
+  };
+  stats?: {
     duration: number;
-    functions: number;
-    strings: number;
-    globals: number;
+    stringsDecoded: number;
+    functionsFound: number;
+    vmInstructions: number;
     complexity: number;
   };
+  error?: string;
 }
-
-// ============================================
-// LUA DECOMPILER / ANALYZER
-// ============================================
 
 interface FunctionInfo {
   name: string;
   params: string[];
-  lines: { start: number; end: number };
+  lines: [number, number];
   complexity: number;
-  code?: string;
+  decompiled?: string;
 }
 
-interface InstructionInfo {
-  index: number;
-  opcode: number;
-  decoded: string;
+interface ControlFlowGraph {
+  nodes: Array<{ id: number; type: string; line: number }>;
+  edges: Array<{ from: number; to: number; type: string }>;
 }
 
-interface HandlerInfo {
-  index: number;
-  code: string;
+interface AntiTamperInfo {
+  type: 'integrity' | 'environment' | 'debug' | 'timeout';
+  location: number;
+  bypassed: boolean;
 }
 
-interface CFNode {
-  id: number;
-  type: string;
-  line: number;
-}
+export class XZXReverseEngineer {
+  private options: ReverseEngineerOptions;
+  private warnings: string[] = [];
 
-interface CFEdge {
-  from: number;
-  to: number;
-  type: string;
-}
+  constructor(options: ReverseEngineerOptions = {}) {
+    this.options = {
+      verbose: false,
+      maxDepth: 100,
+      timeout: 30000,
+      analyzeVM: true,
+      decryptStrings: true,
+      emulateBytecode: true,
+      traceExecution: false,
+      bypassAntiTamper: true,
+      ...options
+    };
+  }
 
-export class LuaDecompiler {
-  private ast: any;
-  private functions: Map<string, FunctionInfo> = new Map();
-  private strings: Set<string> = new Set();
-  private globals: Set<string> = new Set();
-  private complexity: number = 0;
-
-  analyze(code: string): REAnalysis {
+  /**
+   * Main reverse engineering entry point
+   */
+  async reverse(code: string): Promise<ReverseEngineerResult> {
     const startTime = Date.now();
-    
+    const stats = {
+      duration: 0,
+      stringsDecoded: 0,
+      functionsFound: 0,
+      vmInstructions: 0,
+      complexity: 0
+    };
+
     try {
-      // Parse AST
-      this.ast = luaparse.parse(code, {
+      if (!code || code.trim().length === 0) {
+        throw new Error('Empty code provided');
+      }
+
+      let deobfuscated = code;
+      const analysis: ReverseEngineerResult['analysis'] = {
+        vmDetected: false,
+        strings: new Map(),
+        functions: [],
+        warnings: []
+      };
+
+      // PHASE 1: Static Analysis - Parse into AST
+      if (this.options.verbose) console.log('🔍 Phase 1: Static Analysis');
+      const ast = await this.parseAST(code);
+      analysis.functions = this.extractFunctions(ast);
+      stats.functionsFound = analysis.functions.length;
+      analysis.controlFlow = this.buildControlFlow(ast);
+      stats.complexity = analysis.controlFlow.nodes.length;
+
+      // PHASE 2: VM Detection and Analysis
+      if (this.options.analyzeVM) {
+        if (this.options.verbose) console.log('🖥️ Phase 2: VM Analysis');
+        const vmAnalysis = this.analyzeVM(code);
+        analysis.vmDetected = vmAnalysis.detected;
+        analysis.bytecode = vmAnalysis.bytecode;
+        analysis.opcodes = vmAnalysis.opcodes;
+        analysis.handlers = vmAnalysis.handlers;
+        stats.vmInstructions = vmAnalysis.bytecode?.length || 0;
+      }
+
+      // PHASE 3: String Decryption
+      if (this.options.decryptStrings) {
+        if (this.options.verbose) console.log('🔑 Phase 3: String Decryption');
+        const strings = await this.decryptAllStrings(deobfuscated);
+        analysis.strings = strings.map;
+        stats.stringsDecoded = strings.count;
+        deobfuscated = strings.code;
+      }
+
+      // PHASE 4: Bytecode Emulation (if VM detected)
+      if (this.options.emulateBytecode && analysis.vmDetected && analysis.bytecode) {
+        if (this.options.verbose) console.log('⚙️ Phase 4: Bytecode Emulation');
+        const emulation = await this.emulateBytecode(analysis);
+        if (emulation.success) {
+          deobfuscated = emulation.code + '\n\n-- [[ Emulated VM Output ]]\n' + deobfuscated;
+        }
+      }
+
+      // PHASE 5: Anti-Tamper Bypass
+      if (this.options.bypassAntiTamper) {
+        if (this.options.verbose) console.log('🛡️ Phase 5: Anti-Tamper Bypass');
+        const tamperAnalysis = this.detectAntiTamper(code);
+        analysis.antiTamper = tamperAnalysis;
+        deobfuscated = this.bypassAntiTamper(deobfuscated, tamperAnalysis);
+      }
+
+      // PHASE 6: Control Flow Reconstruction
+      if (analysis.controlFlow) {
+        if (this.options.verbose) console.log('🔄 Phase 6: Control Flow Reconstruction');
+        deobfuscated = this.reconstructControlFlow(deobfuscated, analysis.controlFlow);
+      }
+
+      // PHASE 7: Final Beautification
+      deobfuscated = this.beautify(deobfuscated);
+
+      stats.duration = (Date.now() - startTime) / 1000;
+      analysis.warnings = this.warnings;
+
+      return {
+        success: true,
+        deobfuscated,
+        analysis,
+        stats
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stats
+      };
+    }
+  }
+
+  /**
+   * PHASE 1: Parse code into AST
+   */
+  private async parseAST(code: string): Promise<any> {
+    try {
+      return luaparse.parse(code, {
         comments: true,
         locations: true,
         ranges: true
       });
-
-      // Walk AST
-      this.walkAST(this.ast);
-
-      // Extract metadata
-      const functions = Array.from(this.functions.values());
-      const strings = Array.from(this.strings);
-      const globals = Array.from(this.globals);
-
-      return {
-        success: true,
-        data: {
-          functions,
-          strings,
-          globals,
-          ast: this.ast
-        },
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: functions.length,
-          strings: strings.length,
-          globals: globals.length,
-          complexity: this.complexity
-        }
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: 0,
-          globals: 0,
-          complexity: 0
-        }
-      };
+    } catch (e) {
+      this.warnings.push(`AST parsing failed: ${e}`);
+      return null;
     }
   }
 
-  private walkAST(node: any, depth: number = 0) {
-    if (!node || depth > 100) return;
-
-    this.complexity++;
-
-    switch (node.type) {
-      case 'FunctionDeclaration':
-      case 'LocalFunction':
-        this.analyzeFunction(node);
-        break;
-
-      case 'StringLiteral':
-        if (node.value && node.value.length > 3) {
-          this.strings.add(node.value);
-        }
-        break;
-
-      case 'Identifier':
-        if (node.name && !node.name.startsWith('_')) {
-          this.globals.add(node.name);
-        }
-        break;
-
-      case 'CallExpression':
-        this.analyzeCall(node);
-        break;
-    }
-
-    // Recursively walk children
-    for (const key in node) {
-      if (node.hasOwnProperty(key)) {
-        const child = node[key];
-        if (Array.isArray(child)) {
-          child.forEach((item: any) => this.walkAST(item, depth + 1));
-        } else if (child && typeof child === 'object') {
-          this.walkAST(child, depth + 1);
+  /**
+   * Extract functions from AST
+   */
+  private extractFunctions(ast: any): FunctionInfo[] {
+    const functions: FunctionInfo[] = [];
+    
+    const walk = (node: any) => {
+      if (!node) return;
+      
+      if (node.type === 'FunctionDeclaration' || node.type === 'LocalFunction') {
+        functions.push({
+          name: node.identifier?.name || 'anonymous',
+          params: node.parameters?.map((p: any) => p.name) || [],
+          lines: [node.loc?.start?.line || 0, node.loc?.end?.line || 0],
+          complexity: this.calculateComplexity(node)
+        });
+      }
+      
+      for (const key in node) {
+        if (node.hasOwnProperty(key)) {
+          const child = node[key];
+          if (Array.isArray(child)) {
+            child.forEach(walk);
+          } else if (child && typeof child === 'object') {
+            walk(child);
+          }
         }
       }
-    }
-  }
-
-  private analyzeFunction(node: any) {
-    const info: FunctionInfo = {
-      name: node.identifier?.name || 'anonymous',
-      params: node.parameters?.map((p: any) => p.name) || [],
-      lines: this.getFunctionLines(node),
-      complexity: this.calculateFunctionComplexity(node),
-      code: this.extractFunctionCode(node)
     };
     
-    this.functions.set(info.name, info);
+    walk(ast);
+    return functions;
   }
 
-  private analyzeCall(node: any) {
-    if (node.base?.type === 'Identifier') {
-      this.globals.add(node.base.name);
-    }
-  }
-
-  private getFunctionLines(node: any): { start: number; end: number } {
-    return {
-      start: node.loc?.start?.line || 0,
-      end: node.loc?.end?.line || 0
-    };
-  }
-
-  private extractFunctionCode(node: any): string {
-    // Simple code extraction - in a real tool you'd want better formatting
-    return JSON.stringify(node.body);
-  }
-
-  private calculateFunctionComplexity(node: any): number {
+  /**
+   * Calculate cyclomatic complexity
+   */
+  private calculateComplexity(node: any): number {
     let complexity = 1;
     
     const count = (n: any) => {
       if (!n) return;
-      
       if (n.type === 'IfStatement') complexity++;
       if (n.type === 'WhileStatement') complexity++;
       if (n.type === 'ForStatement') complexity++;
@@ -213,410 +250,305 @@ export class LuaDecompiler {
     count(node);
     return complexity;
   }
-}
 
-// ============================================
-// VM BYTECODE ANALYZER
-// ============================================
-
-export class VMAnalyzer {
-  private instructions: Map<number, InstructionInfo> = new Map();
-  private handlers: Map<number, HandlerInfo> = new Map();
-  private constants: any[] = [];
-
-  analyze(vmCode: string): REAnalysis {
-    const startTime = Date.now();
-
-    try {
-      // Extract VM components
-      this.extractBytecode(vmCode);
-      this.extractConstants(vmCode);
-      this.extractHandlers(vmCode);
-
-      return {
-        success: true,
-        data: {
-          instructions: Array.from(this.instructions.values()),
-          handlers: Array.from(this.handlers.values()),
-          constants: this.constants
-        },
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: this.handlers.size,
-          strings: this.constants.filter(c => typeof c === 'string').length,
-          globals: 0,
-          complexity: this.instructions.size
-        }
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: 0,
-          globals: 0,
-          complexity: 0
-        }
-      };
-    }
-  }
-
-  private extractBytecode(code: string) {
-    // Extract bytecode array
-    const bytecodeMatch = code.match(/bytecode\s*=\s*{([^}]+)}/);
-    if (bytecodeMatch) {
-      const bytes = bytecodeMatch[1].split(',').map(b => parseInt(b.trim()));
-      bytes.forEach((byte, i) => {
-        this.instructions.set(i, {
-          index: i,
-          opcode: byte,
-          decoded: this.decodeOpcode(byte)
-        });
+  /**
+   * Build control flow graph
+   */
+  private buildControlFlow(ast: any): ControlFlowGraph {
+    const nodes: ControlFlowGraph['nodes'] = [];
+    const edges: ControlFlowGraph['edges'] = [];
+    let nodeId = 0;
+    
+    const walk = (node: any, parentId?: number) => {
+      if (!node) return;
+      
+      const id = nodeId++;
+      nodes.push({
+        id,
+        type: node.type,
+        line: node.loc?.start?.line || 0
       });
-    }
-  }
-
-  private extractConstants(code: string) {
-    // Extract constants
-    const constantsMatch = code.match(/constants\s*=\s*{([^}]+)}/);
-    if (constantsMatch) {
-      try {
-        this.constants = JSON.parse(`[${constantsMatch[1]}]`);
-      } catch {
-        // Fallback to string extraction
-        const constStr = constantsMatch[1];
-        const matches = constStr.match(/"([^"]*)"/g);
-        if (matches) {
-          this.constants = matches.map(m => m.slice(1, -1));
-        }
+      
+      if (parentId !== undefined) {
+        edges.push({
+          from: parentId,
+          to: id,
+          type: 'contains'
+        });
       }
-    }
-  }
-
-  private extractHandlers(code: string) {
-    // Extract handler functions
-    const handlerMatches = code.match(/handlers\s*=\s*{([^}]+)}/s);
-    if (handlerMatches) {
-      const handlers = handlerMatches[1].split('],');
-      handlers.forEach((handler, i) => {
-        this.handlers.set(i, {
-          index: i,
-          code: handler.trim()
-        });
-      });
-    }
-  }
-
-  private decodeOpcode(opcode: number): string {
-    const opNames: { [key: number]: string } = {
-      0: 'NOP', 1: 'MOV', 2: 'ADD', 3: 'SUB', 4: 'MUL',
-      5: 'DIV', 6: 'JMP', 7: 'JIF', 8: 'CALL', 9: 'RET',
-      10: 'LOADK', 11: 'GETGLOBAL', 12: 'SETGLOBAL'
-    };
-    return opNames[opcode] || `UNKNOWN_${opcode}`;
-  }
-}
-
-// ============================================
-// STRING DECRYPTOR
-// ============================================
-
-export class StringDecryptor {
-  private patterns: RegExp[] = [
-    /string\.char\(([^)]+)\)/g,
-    /\(function\((\w+)\)local s='';for i=1,#\1 do s=s\.\.string\.char\(\1\[i\]~(\d+)\);end;return s;end\)\((\{[^}]+\})\)/g,
-    /"([^"\\]*(\\.[^"\\]*)*)"/g
-  ];
-
-  decrypt(obfuscated: string): REAnalysis {
-    const startTime = Date.now();
-    const decrypted: string[] = [];
-    const matches: string[] = [];
-
-    try {
-      // Find all encoded strings
-      for (const pattern of this.patterns) {
-        const found = obfuscated.matchAll(pattern);
-        for (const match of found) {
-          matches.push(match[0]);
-          
-          // Attempt to decrypt
-          if (match[0].startsWith('string.char')) {
-            const bytes = match[1].split(',').map(b => parseInt(b.trim()));
-            decrypted.push(String.fromCharCode(...bytes));
-          } else if (match[0].includes('function(')) {
-            // XOR decryption
-            const key = parseInt(match[2]);
-            const bytes = JSON.parse(match[3].replace(/{/g, '[').replace(/}/g, ']'));
-            const result = bytes.map((b: number) => String.fromCharCode(b ^ key)).join('');
-            decrypted.push(result);
-          } else {
-            // Plain string
-            decrypted.push(match[1]);
+      
+      for (const key in node) {
+        if (node.hasOwnProperty(key)) {
+          const child = node[key];
+          if (Array.isArray(child)) {
+            child.forEach(item => walk(item, id));
+          } else if (child && typeof child === 'object') {
+            walk(child, id);
           }
         }
       }
-
-      return {
-        success: true,
-        data: {
-          matches,
-          decrypted
-        },
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: decrypted.length,
-          globals: 0,
-          complexity: matches.length
-        }
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: 0,
-          globals: 0,
-          complexity: 0
-        }
-      };
-    }
-  }
-}
-
-// ============================================
-// CONTROL FLOW VISUALIZER
-// ============================================
-
-export class ControlFlowVisualizer {
-  private nodes: Map<number, CFNode> = new Map();
-  private edges: CFEdge[] = [];
-
-  analyze(code: string): REAnalysis {
-    const startTime = Date.now();
-
-    try {
-      const ast = luaparse.parse(code);
-      this.walkAST(ast);
-
-      return {
-        success: true,
-        data: {
-          nodes: Array.from(this.nodes.values()),
-          edges: this.edges
-        },
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: this.nodes.size,
-          strings: 0,
-          globals: 0,
-          complexity: this.edges.length
-        }
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: 0,
-          globals: 0,
-          complexity: 0
-        }
-      };
-    }
+    };
+    
+    walk(ast);
+    return { nodes, edges };
   }
 
-  private walkAST(node: any, parentId?: number) {
-    if (!node) return;
-
-    const nodeId = this.nodes.size;
-    this.nodes.set(nodeId, {
-      id: nodeId,
-      type: node.type,
-      line: node.loc?.start?.line || 0
-    });
-
-    if (parentId !== undefined) {
-      this.edges.push({
-        from: parentId,
-        to: nodeId,
-        type: 'contains'
-      });
-    }
-
-    for (const key in node) {
-      if (node.hasOwnProperty(key)) {
-        const child = node[key];
-        if (Array.isArray(child)) {
-          child.forEach((item: any) => this.walkAST(item, nodeId));
-        } else if (child && typeof child === 'object') {
-          this.walkAST(child, nodeId);
-        }
+  /**
+   * PHASE 2: VM Detection and Analysis
+   */
+  private analyzeVM(code: string): {
+    detected: boolean;
+    bytecode?: number[];
+    opcodes?: Map<number, string>;
+    handlers?: Map<number, string>;
+  } {
+    const result: any = { detected: false };
+    
+    // Pattern 1: Detect bytecode tables
+    const bytecodePattern = /bytecode\s*=\s*{([^}]+)}/;
+    const bytecodeMatch = code.match(bytecodePattern);
+    if (bytecodeMatch) {
+      result.detected = true;
+      try {
+        result.bytecode = bytecodeMatch[1].split(',')
+          .map(b => parseInt(b.trim()))
+          .filter(b => !isNaN(b));
+      } catch {
+        this.warnings.push('Failed to parse bytecode table');
       }
     }
-  }
-
-  generateMermaid(): string {
-    let mermaid = 'graph TD;\n';
     
-    this.nodes.forEach((node) => {
-      mermaid += `  node${node.id}["${node.type} (line ${node.line})"];\n`;
-    });
-    
-    this.edges.forEach((edge) => {
-      mermaid += `  node${edge.from} --> node${edge.to};\n`;
-    });
-    
-    return mermaid;
-  }
-}
-
-// ============================================
-// METADATA EXTRACTOR
-// ============================================
-
-export class MetadataExtractor {
-  extract(code: string): REAnalysis {
-    const startTime = Date.now();
-    const metadata: any = {};
-
-    try {
-      // Extract build ID
-      const buildMatch = code.match(/Build:?\s*([^\n]+)/i);
-      if (buildMatch) metadata.buildId = buildMatch[1].trim();
-
-      // Extract version
-      const versionMatch = code.match(/version:?\s*([^\n]+)/i);
-      if (versionMatch) metadata.version = versionMatch[1].trim();
-
-      // Extract layers
-      const layersMatch = code.match(/layers:?\s*([^\n]+)/i);
-      if (layersMatch) {
-        metadata.layers = layersMatch[1].split(',').map((l: string) => l.trim());
+    // Pattern 2: Detect opcode mapping
+    const opcodePattern = /opcodes?\s*=\s*{([^}]+)}/;
+    const opcodeMatch = code.match(opcodePattern);
+    if (opcodeMatch) {
+      result.detected = true;
+      result.opcodes = new Map();
+      try {
+        const pairs = opcodeMatch[1].split(',');
+        pairs.forEach(pair => {
+          const [key, val] = pair.split('=').map(s => s.trim());
+          if (key && val) {
+            result.opcodes.set(parseInt(val), key);
+          }
+        });
+      } catch {
+        this.warnings.push('Failed to parse opcode mapping');
       }
-
-      // Extract timestamps
-      const timeMatch = code.match(/time:?\s*(\d+)/i);
-      if (timeMatch) metadata.timestamp = parseInt(timeMatch[1]);
-
-      return {
-        success: true,
-        data: metadata,
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: 0,
-          globals: 0,
-          complexity: Object.keys(metadata).length
-        }
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: 0,
-          globals: 0,
-          complexity: 0
-        }
-      };
     }
+    
+    // Pattern 3: Detect handler table
+    const handlerPattern = /handlers?\s*=\s*{([^}]+)}/s;
+    const handlerMatch = code.match(handlerPattern);
+    if (handlerMatch) {
+      result.detected = true;
+      result.handlers = new Map();
+      try {
+        const handlers = handlerMatch[1].split('],');
+        handlers.forEach((h, i) => {
+          result.handlers.set(i, h.trim());
+        });
+      } catch {
+        this.warnings.push('Failed to parse handler table');
+      }
+    }
+    
+    return result;
+  }
+
+  /**
+   * PHASE 3: String Decryption
+   */
+  private async decryptAllStrings(code: string): Promise<{ code: string; count: number; map: Map<string, string> }> {
+    let result = code;
+    let count = 0;
+    const stringMap = new Map<string, string>();
+    
+    // Pattern 1: XOR encrypted strings
+    const xorPattern = /\(function\((\w+)\)local s='';for i=1,#\1 do s=s\.\.string\.char\(\1\[i\]~\((\d+)\+i-1\)\);end;return s;end\)\((\{[^}]+\})\)/g;
+    result = result.replace(xorPattern, (match, varName, key, bytesStr) => {
+      try {
+        const keyNum = parseInt(key, 10);
+        const bytes = JSON.parse(bytesStr.replace(/{/g, '[').replace(/}/g, ']'));
+        const decrypted = bytes.map((b: number, i: number) => 
+          String.fromCharCode(b ^ (keyNum + i))
+        ).join('');
+        stringMap.set(match, decrypted);
+        count++;
+        return `"${this.escapeString(decrypted)}"`;
+      } catch {
+        return match;
+      }
+    });
+    
+    // Pattern 2: Base64 strings
+    const base64Pattern = /\(function\(\)local b='[^']*'local t='([^']*)'local r=''for i=1,#t,4 do[^}]+end return r end\)\(\)/g;
+    result = result.replace(base64Pattern, (match, base64Str) => {
+      try {
+        const decoded = Buffer.from(base64Str, 'base64').toString();
+        stringMap.set(match, decoded);
+        count++;
+        return `"${this.escapeString(decoded)}"`;
+      } catch {
+        return match;
+      }
+    });
+    
+    // Pattern 3: string.char arrays
+    const charPattern = /string\.char\(([^)]+)\)/g;
+    result = result.replace(charPattern, (match, args) => {
+      try {
+        const bytes = args.split(',').map((b: string) => parseInt(b.trim(), 10));
+        const decoded = String.fromCharCode(...bytes);
+        stringMap.set(match, decoded);
+        count++;
+        return `"${this.escapeString(decoded)}"`;
+      } catch {
+        return match;
+      }
+    });
+    
+    return { code: result, count, map: stringMap };
+  }
+
+  /**
+   * PHASE 4: Bytecode Emulation
+   */
+  private async emulateBytecode(analysis: any): Promise<{ success: boolean; code: string }> {
+    if (!analysis.bytecode || !analysis.opcodes) {
+      return { success: false, code: '' };
+    }
+    
+    const emulated: string[] = [];
+    emulated.push('-- [[ VM Bytecode Emulation ]]');
+    emulated.push('-- Decoded instructions:');
+    
+    for (let i = 0; i < analysis.bytecode.length; i++) {
+      const byte = analysis.bytecode[i];
+      const op = analysis.opcodes.get(byte) || `UNKNOWN_${byte}`;
+      emulated.push(`-- [${i}] ${op} (0x${byte.toString(16)})`);
+    }
+    
+    return { success: true, code: emulated.join('\n') };
+  }
+
+  /**
+   * PHASE 5: Anti-Tamper Detection
+   */
+  private detectAntiTamper(code: string): AntiTamperInfo[] {
+    const detections: AntiTamperInfo[] = [];
+    let lineNum = 1;
+    
+    code.split('\n').forEach((line, index) => {
+      // Integrity checks
+      if (line.includes('hash') && line.includes('~=')) {
+        detections.push({
+          type: 'integrity',
+          location: index + 1,
+          bypassed: false
+        });
+      }
+      
+      // Environment checks
+      if (line.includes('debug') && line.includes('getinfo')) {
+        detections.push({
+          type: 'debug',
+          location: index + 1,
+          bypassed: false
+        });
+      }
+      
+      // Timeout checks
+      if (line.includes('os.clock') && line.includes('>')) {
+        detections.push({
+          type: 'timeout',
+          location: index + 1,
+          bypassed: false
+        });
+      }
+      
+      lineNum++;
+    });
+    
+    return detections;
+  }
+
+  /**
+   * Bypass anti-tamper mechanisms
+   */
+  private bypassAntiTamper(code: string, tamper: AntiTamperInfo[]): string {
+    let result = code;
+    
+    tamper.forEach(t => {
+      const lines = result.split('\n');
+      if (lines[t.location - 1]) {
+        // Comment out the check
+        lines[t.location - 1] = '--[BYPASSED] ' + lines[t.location - 1];
+        t.bypassed = true;
+      }
+      result = lines.join('\n');
+    });
+    
+    return result;
+  }
+
+  /**
+   * Reconstruct control flow
+   */
+  private reconstructControlFlow(code: string, flow: ControlFlowGraph): string {
+    // This is complex - for now, add annotations
+    const lines = code.split('\n');
+    const annotated: string[] = [];
+    
+    flow.nodes.forEach(node => {
+      if (node.line > 0 && node.line <= lines.length) {
+        annotated.push(`-- [[ Node ${node.id}: ${node.type} ]]`);
+        annotated.push(lines[node.line - 1]);
+      }
+    });
+    
+    return annotated.join('\n');
+  }
+
+  /**
+   * Final beautification
+   */
+  private beautify(code: string): string {
+    const lines = code.split('\n');
+    let indentLevel = 0;
+    const beautified: string[] = [];
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) continue;
+      
+      // Decrease indent for closing statements
+      if (trimmed.match(/^(end|else|elseif|until)/)) {
+        indentLevel = Math.max(0, indentLevel - 1);
+      }
+      
+      // Add line with proper indentation
+      beautified.push('  '.repeat(indentLevel) + trimmed);
+      
+      // Increase indent for opening statements
+      if (trimmed.match(/(function|if|for|while|repeat|do)\s*($|\(|then|do$)/) && 
+          !trimmed.includes('end')) {
+        indentLevel++;
+      }
+    }
+    
+    return beautified.join('\n');
+  }
+
+  /**
+   * Escape string for safe output
+   */
+  private escapeString(str: string): string {
+    return str
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
   }
 }
-
-// ============================================
-// MAIN REVERSE ENGINEER
-// ============================================
-
-export class XZXReverseEngineer {
-  private decompiler: LuaDecompiler;
-  private vmAnalyzer: VMAnalyzer;
-  private stringDecryptor: StringDecryptor;
-  private flowVisualizer: ControlFlowVisualizer;
-  private metadataExtractor: MetadataExtractor;
-
-  constructor() {
-    this.decompiler = new LuaDecompiler();
-    this.vmAnalyzer = new VMAnalyzer();
-    this.stringDecryptor = new StringDecryptor();
-    this.flowVisualizer = new ControlFlowVisualizer();
-    this.metadataExtractor = new MetadataExtractor();
-  }
-
-  analyze(code: string, options: REOptions = {}): REAnalysis {
-    const startTime = Date.now();
-    const results: any = {};
-
-    try {
-      // Run all analyzers
-      results.decompiled = this.decompiler.analyze(code);
-      results.vm = this.vmAnalyzer.analyze(code);
-      results.strings = this.stringDecryptor.decrypt(code);
-      results.flow = this.flowVisualizer.analyze(code);
-      results.metadata = this.metadataExtractor.extract(code);
-
-      // Calculate overall metrics
-      const totalMetrics = {
-        duration: (Date.now() - startTime) / 1000,
-        functions: results.decompiled.metrics?.functions || 0,
-        strings: results.strings.metrics?.strings || 0,
-        globals: results.decompiled.metrics?.globals || 0,
-        complexity: results.flow.metrics?.complexity || 0
-      };
-
-      return {
-        success: true,
-        data: results,
-        metrics: totalMetrics
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        metrics: {
-          duration: (Date.now() - startTime) / 1000,
-          functions: 0,
-          strings: 0,
-          globals: 0,
-          complexity: 0
-        }
-      };
-    }
-  }
-
-  // Specialized analysis methods
-  extractStrings(code: string): string[] {
-    const result = this.stringDecryptor.decrypt(code);
-    return result.data?.decrypted || [];
-  }
-
-  extractFunctions(code: string): FunctionInfo[] {
-    const result = this.decompiler.analyze(code);
-    return result.data?.functions || [];
-  }
-
-  extractBytecode(code: string): InstructionInfo[] {
-    const result = this.vmAnalyzer.analyze(code);
-    return result.data?.instructions || [];
-  }
-
-  visualizeControlFlow(code: string): string {
-    const result = this.flowVisualizer.analyze(code);
-    return this.flowVisualizer.generateMermaid();
-  }
-}
-
-// ============================================
-// EXPORT
-// ============================================
-
-export default XZXReverseEngineer;
