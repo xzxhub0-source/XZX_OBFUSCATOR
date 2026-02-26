@@ -442,94 +442,37 @@ export default function Home() {
     setError(null);
 
     try {
-      const engineer = new XZXReverseEngineer();
+      const engineer = new XZXReverseEngineer({
+        verbose: true,
+        analyzeVM: true,
+        decryptStrings: true,
+        emulateBytecode: true,
+        bypassAntiTamper: true
+      });
+      
       const codeToReverse = outputCode || inputCode;
+      const result = await engineer.reverse(codeToReverse);
       
-      // Analyze the code
-      const analysis = await engineer.analyze(codeToReverse);
-      
-      // Extract decrypted strings and reconstruct readable code
-      let readableCode = codeToReverse;
-      
-      // If we have decrypted strings, replace encoded versions with readable ones
-      if (analysis.data?.strings?.data?.decrypted && analysis.data.strings.data.matches) {
-        const matches = analysis.data.strings.data.matches;
-        const decrypted = analysis.data.strings.data.decrypted;
+      if (result.success && result.deobfuscated) {
+        setOutputCode(result.deobfuscated);
         
-        for (let i = 0; i < matches.length; i++) {
-          if (matches[i] && decrypted[i]) {
-            // Replace encoded strings with readable ones
-            readableCode = readableCode.replace(matches[i], `"${decrypted[i]}"`);
-          }
-        }
+        // Show detailed analysis in dialog
+        setAnalysisResult(result);
+        setShowAnalysis(true);
+        
+        // Show summary in warning/toast
+        const stats = result.stats;
+        setWarning(
+          `Reverse engineered: ${stats?.stringsDecoded} strings decrypted, ` +
+          `${stats?.functionsFound} functions found, ` +
+          `${stats?.vmInstructions} VM instructions analyzed, ` +
+          `complexity: ${stats?.complexity}`
+        );
+      } else {
+        setError(result.error || "Failed to reverse engineer code");
       }
-      
-      // Format the code nicely
-      readableCode = formatCode(readableCode);
-      
-      setOutputCode(readableCode);
-      setShowAnalysis(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Reverse engineering failed");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const formatCode = (code: string): string => {
-    // Simple code formatter - adds proper indentation
-    const lines = code.split('\n');
-    let indentLevel = 0;
-    const formattedLines: string[] = [];
-    
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.length === 0) {
-        formattedLines.push('');
-        continue;
-      }
-      
-      // Decrease indent for lines starting with end, else, elseif, until
-      if (trimmed.match(/^(end|else|elseif|until)/)) {
-        indentLevel = Math.max(0, indentLevel - 1);
-      }
-      
-      // Add the line with proper indentation
-      formattedLines.push('  '.repeat(indentLevel) + trimmed);
-      
-      // Increase indent for blocks
-      if (trimmed.match(/(function|if|for|while|repeat|do)\s*($|\(|then|do$)/) && 
-          !trimmed.match(/end/)) {
-        indentLevel++;
-      }
-      
-      // Special handling for else/elseif
-      if (trimmed.match(/^else|^elseif/)) {
-        // Already handled above
-      }
-    }
-    
-    return formattedLines.join('\n');
-  };
-
-  const analyzeCode = async () => {
-    if (!inputCode && !outputCode) {
-      setError("No code to analyze");
-      return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
-
-    try {
-      const engineer = new XZXReverseEngineer();
-      const codeToAnalyze = outputCode || inputCode;
-      const result = await engineer.analyze(codeToAnalyze);
-      
-      setAnalysisResult(result);
-      setShowAnalysis(true);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Analysis failed");
     } finally {
       setIsProcessing(false);
     }
@@ -739,13 +682,13 @@ export default function Home() {
                   </motion.div>
                 )}
 
-                {/* REVERSE MODE Button - Same size as Discord button */}
+                {/* REVERSE MODE Button - Smaller width */}
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setReverseMode(!reverseMode)}
                   className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all duration-300 text-sm",
+                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-300 text-xs font-medium",
                     reverseMode 
                       ? "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20" 
                       : "bg-purple-600 hover:bg-purple-700 text-white"
@@ -755,9 +698,9 @@ export default function Home() {
                     animate={{ rotate: reverseMode ? 180 : 0 }}
                     transition={{ duration: 0.3 }}
                   >
-                    {reverseMode ? <Skull className="w-3.5 h-3.5" /> : <Bug className="w-3.5 h-3.5" />}
+                    {reverseMode ? <Skull className="w-3 h-3" /> : <Bug className="w-3 h-3" />}
                   </motion.div>
-                  <span>{reverseMode ? "REVERSE MODE ON" : "REVERSE MODE"}</span>
+                  <span>REVERSE</span>
                 </motion.button>
 
                 <motion.a
@@ -866,19 +809,19 @@ export default function Home() {
                         {reverseMode ? (
                           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                             <Button
-                              onClick={analyzeCode}
+                              onClick={reverseCode}
                               disabled={!inputCode || isProcessing}
                               className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
                             >
                               {isProcessing ? (
                                 <div className="flex items-center justify-center">
                                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  Analyzing
+                                  Reversing
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-center">
-                                  <Bug className="w-4 h-4 mr-2" />
-                                  Analyze
+                                  <RotateCcw className="w-4 h-4 mr-2" />
+                                  Reverse
                                 </div>
                               )}
                             </Button>
@@ -906,7 +849,7 @@ export default function Home() {
                               </Button>
                             </motion.div>
                             
-                            {/* REVERSE CODE Button - Same size as Obfuscate button */}
+                            {/* REVERSE CODE Button */}
                             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                               <Button
                                 onClick={reverseCode}
@@ -1211,7 +1154,16 @@ export default function Home() {
                                 className="flex items-center gap-2"
                               >
                                 <CheckCircle className="w-3 h-3 text-green-400" />
-                                Function extraction
+                                VM Detection & Analysis
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.15 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Bytecode Extraction
                               </motion.li>
                               <motion.li 
                                 initial={{ x: -10, opacity: 0 }}
@@ -1220,7 +1172,16 @@ export default function Home() {
                                 className="flex items-center gap-2"
                               >
                                 <CheckCircle className="w-3 h-3 text-green-400" />
-                                String decryption
+                                Opcode Mapping Recovery
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.25 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Handler Function Extraction
                               </motion.li>
                               <motion.li 
                                 initial={{ x: -10, opacity: 0 }}
@@ -1229,7 +1190,16 @@ export default function Home() {
                                 className="flex items-center gap-2"
                               >
                                 <CheckCircle className="w-3 h-3 text-green-400" />
-                                Bytecode analysis
+                                String Decryption (XOR, Base64, string.char)
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.35 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Bytecode Emulation
                               </motion.li>
                               <motion.li 
                                 initial={{ x: -10, opacity: 0 }}
@@ -1238,7 +1208,16 @@ export default function Home() {
                                 className="flex items-center gap-2"
                               >
                                 <CheckCircle className="w-3 h-3 text-green-400" />
-                                Control flow visualization
+                                Anti-Tamper Bypass
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.45 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Control Flow Reconstruction
                               </motion.li>
                               <motion.li 
                                 initial={{ x: -10, opacity: 0 }}
@@ -1247,17 +1226,32 @@ export default function Home() {
                                 className="flex items-center gap-2"
                               >
                                 <CheckCircle className="w-3 h-3 text-green-400" />
-                                Metadata extraction
+                                Code Beautification
                               </motion.li>
                               <motion.li 
                                 initial={{ x: -10, opacity: 0 }}
                                 animate={{ x: 0, opacity: 1 }}
-                                transition={{ delay: 0.6 }}
+                                transition={{ delay: 0.55 }}
                                 className="flex items-center gap-2"
                               >
                                 <CheckCircle className="w-3 h-3 text-green-400" />
-                                Complexity metrics
+                                Complexity Analysis
                               </motion.li>
+                            </ul>
+                          </div>
+
+                          <div className="p-4 bg-gray-700/30 rounded-xl">
+                            <h4 className="text-sm font-medium text-yellow-400 mb-2 flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4" />
+                              Supported Obfuscators
+                            </h4>
+                            <ul className="space-y-1 text-sm text-gray-300">
+                              <li>• XZX Obfuscator</li>
+                              <li>• Luraph</li>
+                              <li>• IronBrew</li>
+                              <li>• Synapse</li>
+                              <li>• MoonSec</li>
+                              <li>• Custom VM-based</li>
                             </ul>
                           </div>
                         </motion.div>
@@ -1523,10 +1517,10 @@ export default function Home() {
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid grid-cols-6 mb-4 bg-gray-800">
               <TabsTrigger value="overview" className="data-[state=active]:bg-red-600">Overview</TabsTrigger>
+              <TabsTrigger value="vm" className="data-[state=active]:bg-red-600">VM Analysis</TabsTrigger>
               <TabsTrigger value="strings" className="data-[state=active]:bg-red-600">Strings</TabsTrigger>
               <TabsTrigger value="functions" className="data-[state=active]:bg-red-600">Functions</TabsTrigger>
               <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600">Bytecode</TabsTrigger>
-              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600">Metadata</TabsTrigger>
               <TabsTrigger value="flow" className="data-[state=active]:bg-red-600">Control Flow</TabsTrigger>
             </TabsList>
 
@@ -1535,58 +1529,79 @@ export default function Home() {
                 <>
                   <TabsContent value="overview" className="space-y-6">
                     {/* Metrics */}
-                    {analysisResult.metrics && (
+                    {analysisResult.stats && (
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="p-4 bg-gray-800/50 rounded-xl">
                           <div className="text-sm text-gray-400 mb-1">Duration</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.duration.toFixed(2)}s</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.stats.duration.toFixed(2)}s</div>
                         </div>
                         <div className="p-4 bg-gray-800/50 rounded-xl">
                           <div className="text-sm text-gray-400 mb-1">Functions</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.functions}</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.stats.functionsFound}</div>
                         </div>
                         <div className="p-4 bg-gray-800/50 rounded-xl">
                           <div className="text-sm text-gray-400 mb-1">Strings</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.strings}</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.stats.stringsDecoded}</div>
                         </div>
                         <div className="p-4 bg-gray-800/50 rounded-xl">
                           <div className="text-sm text-gray-400 mb-1">Complexity</div>
-                          <div className="text-xl font-bold text-red-400">{analysisResult.metrics.complexity}</div>
+                          <div className="text-xl font-bold text-red-400">{analysisResult.stats.complexity}</div>
                         </div>
                       </div>
                     )}
 
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-3 gap-4">
+                    {/* VM Detection */}
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-gray-800/30 rounded-xl">
                         <div className="text-xs text-gray-500 mb-1">VM Detected</div>
                         <div className="text-lg font-semibold text-green-400">
-                          {analysisResult.data?.vm?.data?.instructions?.length > 0 ? "Yes" : "No"}
+                          {analysisResult.analysis?.vmDetected ? "Yes" : "No"}
                         </div>
                       </div>
                       <div className="p-4 bg-gray-800/30 rounded-xl">
-                        <div className="text-xs text-gray-500 mb-1">Encrypted Strings</div>
+                        <div className="text-xs text-gray-500 mb-1">VM Instructions</div>
                         <div className="text-lg font-semibold text-yellow-400">
-                          {analysisResult.data?.strings?.data?.matches?.length || 0}
-                        </div>
-                      </div>
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
-                        <div className="text-xs text-gray-500 mb-1">Decrypted Strings</div>
-                        <div className="text-lg font-semibold text-green-400">
-                          {analysisResult.data?.strings?.data?.decrypted?.length || 0}
+                          {analysisResult.stats?.vmInstructions || 0}
                         </div>
                       </div>
                     </div>
                   </TabsContent>
 
+                  <TabsContent value="vm" className="space-y-4">
+                    <div className="p-4 bg-gray-800/30 rounded-xl">
+                      <h3 className="text-lg font-semibold text-red-400 mb-2">VM Analysis</h3>
+                      {analysisResult.analysis?.vmDetected ? (
+                        <div className="space-y-2">
+                          <p className="text-sm text-green-400">✓ Virtual Machine detected</p>
+                          {analysisResult.analysis?.opcodes && (
+                            <div className="mt-2">
+                              <p className="text-sm font-semibold text-purple-400">Opcodes:</p>
+                              <pre className="text-xs text-gray-300 mt-1">
+                                {JSON.stringify(Object.fromEntries(analysisResult.analysis.opcodes), null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                          {analysisResult.analysis?.bytecode && (
+                            <div className="mt-2">
+                              <p className="text-sm font-semibold text-purple-400">Bytecode length: {analysisResult.analysis.bytecode.length}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-400">No VM detected</p>
+                      )}
+                    </div>
+                  </TabsContent>
+
                   <TabsContent value="strings" className="space-y-4">
-                    {analysisResult.data?.strings?.data?.decrypted && analysisResult.data.strings.data.decrypted.length > 0 ? (
+                    {analysisResult.analysis?.strings && analysisResult.analysis.strings.size > 0 ? (
                       <div className="space-y-2">
                         <h3 className="text-lg font-semibold text-red-400">Decrypted Strings</h3>
                         <div className="p-4 bg-gray-800/30 rounded-xl">
-                          {analysisResult.data.strings.data.decrypted.map((str: string, i: number) => (
-                            <div key={i} className="text-sm text-gray-300 mb-2 border-b border-gray-700 pb-2 font-mono">
-                              "{str}"
+                          {Array.from(analysisResult.analysis.strings.entries()).map(([encoded, decoded], i) => (
+                            <div key={i} className="mb-3 border-b border-gray-700 pb-2">
+                              <div className="text-xs text-gray-500 break-all">Encoded: {encoded.substring(0, 100)}...</div>
+                              <div className="text-sm text-green-400 mt-1">Decoded: "{decoded}"</div>
                             </div>
                           ))}
                         </div>
@@ -1597,9 +1612,9 @@ export default function Home() {
                   </TabsContent>
 
                   <TabsContent value="functions" className="space-y-4">
-                    {analysisResult.data?.decompiled?.data?.functions && analysisResult.data.decompiled.data.functions.length > 0 ? (
+                    {analysisResult.analysis?.functions && analysisResult.analysis.functions.length > 0 ? (
                       <div className="space-y-4">
-                        {analysisResult.data.decompiled.data.functions.map((fn: any, i: number) => (
+                        {analysisResult.analysis.functions.map((fn: any, i: number) => (
                           <div key={i} className="p-4 bg-gray-800/30 rounded-xl">
                             <div className="flex items-center justify-between mb-2">
                               <div className="text-lg font-semibold text-purple-400">{fn.name}</div>
@@ -1611,7 +1626,7 @@ export default function Home() {
                               <div className="text-gray-400">Parameters:</div>
                               <div className="text-gray-300">{fn.params.join(', ') || 'none'}</div>
                               <div className="text-gray-400">Lines:</div>
-                              <div className="text-gray-300">{fn.lines.start}-{fn.lines.end}</div>
+                              <div className="text-gray-300">{fn.lines[0]}-{fn.lines[1]}</div>
                             </div>
                           </div>
                         ))}
@@ -1622,18 +1637,21 @@ export default function Home() {
                   </TabsContent>
 
                   <TabsContent value="bytecode" className="space-y-4">
-                    {analysisResult.data?.vm?.data?.instructions && analysisResult.data.vm.data.instructions.length > 0 ? (
+                    {analysisResult.analysis?.bytecode && analysisResult.analysis.bytecode.length > 0 ? (
                       <div className="grid grid-cols-4 gap-2">
-                        {analysisResult.data.vm.data.instructions.slice(0, 20).map((instr: any) => (
-                          <div key={instr.index} className="text-xs bg-gray-900/50 p-2 rounded border border-gray-700">
-                            <span className="text-purple-400">[{instr.index}]</span>{' '}
-                            <span className="text-red-400">{instr.decoded}</span>{' '}
-                            <span className="text-gray-500">({instr.opcode})</span>
-                          </div>
-                        ))}
-                        {analysisResult.data.vm.data.instructions.length > 20 && (
+                        {analysisResult.analysis.bytecode.slice(0, 40).map((byte: number, i: number) => {
+                          const op = analysisResult.analysis?.opcodes?.get(byte);
+                          return (
+                            <div key={i} className="text-xs bg-gray-900/50 p-2 rounded border border-gray-700">
+                              <span className="text-purple-400">[{i}]</span>{' '}
+                              <span className={op ? "text-green-400" : "text-red-400"}>{op || 'UNKNOWN'}</span>{' '}
+                              <span className="text-gray-500">(0x{byte.toString(16)})</span>
+                            </div>
+                          );
+                        })}
+                        {analysisResult.analysis.bytecode.length > 40 && (
                           <div className="col-span-4 text-center text-gray-500 text-sm">
-                            ... and {analysisResult.data.vm.data.instructions.length - 20} more
+                            ... and {analysisResult.analysis.bytecode.length - 40} more
                           </div>
                         )}
                       </div>
@@ -1642,23 +1660,24 @@ export default function Home() {
                     )}
                   </TabsContent>
 
-                  <TabsContent value="metadata" className="space-y-4">
-                    {analysisResult.data?.metadata?.data && (
-                      <div className="p-4 bg-gray-800/30 rounded-xl">
-                        <pre className="text-sm text-gray-300 whitespace-pre-wrap">
-                          {JSON.stringify(analysisResult.data.metadata.data, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </TabsContent>
-
                   <TabsContent value="flow" className="space-y-4">
                     <div className="p-4 bg-gray-800/30 rounded-xl">
                       <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
-                        {analysisResult.data?.flow?.data?.nodes?.length > 0 
-                          ? `Found ${analysisResult.data.flow.data.nodes.length} nodes and ${analysisResult.data.flow.data.edges?.length || 0} edges`
+                        {analysisResult.analysis?.controlFlow?.nodes?.length > 0 
+                          ? `Found ${analysisResult.analysis.controlFlow.nodes.length} nodes and ${analysisResult.analysis.controlFlow.edges?.length || 0} edges`
                           : "No control flow data available"}
                       </pre>
+                      {analysisResult.analysis?.antiTamper && analysisResult.analysis.antiTamper.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-yellow-400">Anti-Tamper Detected:</p>
+                          {analysisResult.analysis.antiTamper.map((t: any, i: number) => (
+                            <div key={i} className="text-xs mt-1">
+                              <span className="text-red-400">⚠️ {t.type}</span> at line {t.location} 
+                              {t.bypassed && <span className="text-green-400 ml-2">[BYPASSED]</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                 </>
