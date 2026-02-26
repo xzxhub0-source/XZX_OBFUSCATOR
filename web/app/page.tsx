@@ -56,118 +56,11 @@ import {
   HelpCircle,
   Info,
   AlertOctagon,
-  RotateCw,
-  Scan,
-  Search,
+  RotateCcw,
+  Wand2,
   Brain,
-  Cpu,
-  Database,
-  Network,
-  Terminal,
-  ScrollText,
-  FileCode,
-  FileJson,
-  Hash,
-  Key,
-  LockKeyhole,
-  UnlockKeyhole,
-  ShieldCheck,
-  ShieldOff,
-  Swords,
-  Crosshair,
-  Target,
-  Rocket,
-  ZapIcon,
-  FlameIcon,
-  Sparkle,
-  PartyPopper,
-  AwardIcon,
-  Trophy,
-  Medal,
-  Star,
-  Crown,
-  Gem,
-  Diamond,
-  Circle,
-  Square,
-  Triangle,
-  Hexagon,
-  Octagon,
-  Pentagon,
-  ChevronRight,
-  ChevronLeft,
-  ChevronUp,
-  ChevronDown,
-  ArrowRight,
-  ArrowLeft,
-  ArrowUp,
-  ArrowDown,
-  MoveRight,
-  MoveLeft,
-  MoveUp,
-  MoveDown,
-  Maximize2,
-  Minimize2,
-  Expand,
-  Shrink,
-  Fullscreen,
-  FullscreenExit,
-  Settings,
-  Sliders,
-  ToggleLeft,
-  ToggleRight,
-  Radio,
-  RadioTower,
-  Podcast,
-  Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  Camera,
-  CameraOff,
-  Image,
-  Images,
-  Film,
-  Clapperboard,
-  Tv,
-  Monitor,
-  Tablet,
-  Smartphone,
-  Watch,
-  ClockIcon,
-  AlarmClock,
-  Timer,
-  TimerOff,
-  Hourglass,
-  Sandglass,
-  Stopwatch,
-  Gauge,
-  Speedometer,
-  Tachometer,
-  Thermometer,
-  Droplet,
-  Wind,
-  Waves,
-  Flower,
-  Leaf,
-  TreePine,
-  Mountain,
-  Sunrise,
-  Sunset,
-  MoonIcon,
-  Cloud,
-  CloudRain,
-  CloudSnow,
-  CloudLightning,
-  CloudDrizzle,
-  CloudFog,
-  SunIcon,
-  SunDim,
-  SunMedium,
-  SunSnow,
-  MoonStar,
-  CloudMoon,
-  CloudSun,
+  Sword,
+  Shield as ShieldIcon,
 } from "lucide-react";
 import { CodeEditor } from "@/components/CodeEditor";
 import { Progress } from "@/components/ui/progress";
@@ -191,6 +84,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { obfuscateLua } from "@/lib/obfuscator";
 import { XZXReverseEngineer } from "@/lib/reverse-engineer";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Simple counter API without Firebase
 const getTotalObfuscations = async (): Promise<number> => {
@@ -295,6 +189,7 @@ export default function Home() {
   const [reverseMode, setReverseMode] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [showGui, setShowGui] = useState(true);
 
   const [settings, setSettings] = useState<ObfuscatorSettings>({
     mangleNames: true,
@@ -459,6 +354,7 @@ export default function Home() {
         const finalCode = OUTPUT_HEADER + result.code;
         setOutputCode(finalCode);
         
+        // Type-safe metrics assignment
         if (result.metrics) {
           const fullMetrics: ObfuscationMetrics = {
             inputSize: typeof result.metrics.inputSize === 'number' ? result.metrics.inputSize : 0,
@@ -468,6 +364,7 @@ export default function Home() {
             layersApplied: Array.isArray(result.metrics.layersApplied) ? result.metrics.layersApplied : [],
           };
           
+          // Safely add instructionCount if it exists and is a number
           const instructionCount = (result.metrics as any).instructionCount;
           if (typeof instructionCount === 'number') {
             fullMetrics.instructionCount = instructionCount;
@@ -488,90 +385,6 @@ export default function Home() {
     } catch (error) {
       if (error instanceof Error && error.message === 'Cancelled') {
         setError("Obfuscation cancelled");
-      } else {
-        setError(error instanceof Error ? error.message : "Unknown error occurred");
-      }
-    } finally {
-      setIsProcessing(false);
-      setProgress(null);
-      abortControllerRef.current = null;
-    }
-  };
-
-  const performReverseEngineering = async () => {
-    abortControllerRef.current = new AbortController();
-    
-    try {
-      // Simulate reverse engineering progress
-      setProgress({ stage: "Analyzing Structure", percent: 10, currentStep: 1, totalSteps: 5 });
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setProgress({ stage: "Decrypting Strings", percent: 30, currentStep: 2, totalSteps: 5 });
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setProgress({ stage: "Extracting Functions", percent: 50, currentStep: 3, totalSteps: 5 });
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setProgress({ stage: "Rebuilding AST", percent: 70, currentStep: 4, totalSteps: 5 });
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setProgress({ stage: "Generating Readable Code", percent: 90, currentStep: 5, totalSteps: 5 });
-      
-      // Use the reverse engineer
-      const engineer = new XZXReverseEngineer();
-      const codeToAnalyze = outputCode || inputCode;
-      const result = await engineer.analyze(codeToAnalyze);
-      
-      // Extract and reconstruct readable code
-      let readableCode = "--[[ XZX REVERSE ENGINEERED CODE ]]\n-- Original code reconstructed\n\n";
-      
-      // Add extracted strings
-      if (result.data?.strings?.data?.decrypted) {
-        readableCode += "-- Decrypted strings found:\n";
-        result.data.strings.data.decrypted.forEach((str: string, i: number) => {
-          readableCode += `local str_${i} = "${str}"\n`;
-        });
-        readableCode += "\n";
-      }
-      
-      // Add extracted functions
-      if (result.data?.decompiled?.data?.functions) {
-        readableCode += "-- Reconstructed functions:\n";
-        result.data.decompiled.data.functions.forEach((fn: any, i: number) => {
-          readableCode += `function ${fn.name}(${fn.params.join(', ')})\n`;
-          readableCode += `  -- Original function body reconstructed\n`;
-          readableCode += `  -- Complexity: ${fn.complexity}\n`;
-          readableCode += `  -- Lines: ${fn.lines.start}-${fn.lines.end}\n`;
-          readableCode += `  print("Function ${fn.name} called")\n`;
-          readableCode += `  return true\n`;
-          readableCode += `end\n\n`;
-        });
-      }
-      
-      // Add metadata
-      if (result.data?.metadata?.data) {
-        readableCode += "-- Build metadata:\n";
-        readableCode += `-- Build ID: ${result.data.metadata.data.buildId || 'unknown'}\n`;
-        readableCode += `-- Version: ${result.data.metadata.data.version || 'unknown'}\n`;
-        if (result.data.metadata.data.layers) {
-          readableCode += `-- Layers: ${result.data.metadata.data.layers.join(', ')}\n`;
-        }
-        readableCode += "\n";
-      }
-      
-      // Add the original code as fallback
-      readableCode += "-- Original obfuscated code:\n";
-      readableCode += codeToAnalyze.split('\n').map(line => `-- ${line}`).join('\n');
-      
-      setOutputCode(readableCode);
-      setProgress({ stage: "Complete", percent: 100, currentStep: 5, totalSteps: 5 });
-      
-      setAnalysisResult(result);
-      setShowAnalysis(true);
-      
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Cancelled') {
-        setError("Reverse engineering cancelled");
       } else {
         setError(error instanceof Error ? error.message : "Unknown error occurred");
       }
@@ -619,19 +432,84 @@ export default function Home() {
     clearInterval(progressInterval);
   };
 
-  const reverseEngineeringCode = async () => {
-    if (!inputCode && !outputCode) {
+  const reverseCode = async () => {
+    if (!outputCode && !inputCode) {
       setError("No code to reverse engineer");
       return;
     }
 
     setIsProcessing(true);
     setError(null);
-    setCopySuccess(false);
-    setMetrics(null);
-    setWarning(null);
+
+    try {
+      const engineer = new XZXReverseEngineer();
+      const codeToReverse = outputCode || inputCode;
+      
+      // Analyze the code
+      const analysis = await engineer.analyze(codeToReverse);
+      
+      // Extract decrypted strings and reconstruct readable code
+      let readableCode = codeToReverse;
+      
+      // If we have decrypted strings, replace encoded versions with readable ones
+      if (analysis.data?.strings?.data?.decrypted && analysis.data.strings.data.matches) {
+        const matches = analysis.data.strings.data.matches;
+        const decrypted = analysis.data.strings.data.decrypted;
+        
+        for (let i = 0; i < matches.length; i++) {
+          if (matches[i] && decrypted[i]) {
+            // Replace encoded strings with readable ones
+            readableCode = readableCode.replace(matches[i], `"${decrypted[i]}"`);
+          }
+        }
+      }
+      
+      // Format the code nicely
+      readableCode = formatCode(readableCode);
+      
+      setOutputCode(readableCode);
+      setShowAnalysis(true);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Reverse engineering failed");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const formatCode = (code: string): string => {
+    // Simple code formatter - adds proper indentation
+    const lines = code.split('\n');
+    let indentLevel = 0;
+    const formattedLines: string[] = [];
     
-    await performReverseEngineering();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) {
+        formattedLines.push('');
+        continue;
+      }
+      
+      // Decrease indent for lines starting with end, else, elseif, until
+      if (trimmed.match(/^(end|else|elseif|until)/)) {
+        indentLevel = Math.max(0, indentLevel - 1);
+      }
+      
+      // Add the line with proper indentation
+      formattedLines.push('  '.repeat(indentLevel) + trimmed);
+      
+      // Increase indent for blocks
+      if (trimmed.match(/(function|if|for|while|repeat|do)\s*($|\(|then|do$)/) && 
+          !trimmed.match(/end/)) {
+        indentLevel++;
+      }
+      
+      // Special handling for else/elseif
+      if (trimmed.match(/^else|^elseif/)) {
+        // Already handled above
+      }
+    }
+    
+    return formattedLines.join('\n');
   };
 
   const analyzeCode = async () => {
@@ -672,7 +550,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = fileName ? `reconstructed_${fileName.replace(/\.lua$/, '')}.lua` : "reconstructed.lua";
+    a.download = fileName ? `obfuscated_${fileName.replace(/\.lua$/, '')}.lua` : "obfuscated.lua";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -728,7 +606,12 @@ export default function Home() {
     };
 
     return (
-      <div className="flex items-center justify-between group hover:bg-gray-800/50 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer">
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center justify-between group hover:bg-gray-800/50 p-3.5 rounded-xl -mx-3.5 transition-all duration-200 cursor-pointer"
+      >
         <Label htmlFor={id} className="text-sm font-semibold text-gray-200 cursor-pointer flex-1">
           <div className="flex items-center gap-2">
             <span>{label}</span>
@@ -744,41 +627,72 @@ export default function Home() {
           disabled={isProcessing}
           className={colors[color as keyof typeof colors]}
         />
-      </div>
+      </motion.div>
     );
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gray-900 flex items-center justify-center"
+      >
         <div className="text-center">
-          <div className="relative w-20 h-20 mx-auto mb-4">
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="relative w-20 h-20 mx-auto mb-4"
+          >
             <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
             <div className="relative w-20 h-20 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
               <Shield className="w-10 h-10 text-white" />
             </div>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">XZX Obfuscator</h2>
-          <p className="text-gray-400">Loading advanced protection...</p>
+          </motion.div>
+          <motion.h2 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="text-2xl font-bold text-white mb-2"
+          >
+            XZX Obfuscator
+          </motion.h2>
+          <motion.p 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-gray-400"
+          >
+            Loading advanced protection...
+          </motion.p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen bg-gray-900 text-gray-100"
+    >
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div 
+        <motion.div 
+          animate={{ 
+            x: mousePosition.x * 0.02,
+            y: mousePosition.y * 0.02
+          }}
+          transition={{ type: "spring", stiffness: 50, damping: 30 }}
           className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(139,92,246,0.15),transparent_50%)]"
-          style={{
-            transform: `translate(${mousePosition.x * 0.02}px, ${mousePosition.y * 0.02}px)`,
-          }}
         />
-        <div 
-          className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(236,72,153,0.1),transparent_50%)]"
-          style={{
-            transform: `translate(${mousePosition.x * -0.01}px, ${mousePosition.y * -0.01}px)`,
+        <motion.div 
+          animate={{ 
+            x: mousePosition.x * -0.01,
+            y: mousePosition.y * -0.01
           }}
+          transition={{ type: "spring", stiffness: 50, damping: 30 }}
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_rgba(236,72,153,0.1),transparent_50%)]"
         />
         <div className="absolute top-20 left-20 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-pink-600/20 rounded-full blur-3xl animate-pulse delay-1000" />
@@ -789,7 +703,11 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center gap-3">
-                <div className="relative">
+                <motion.div 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="relative"
+                >
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur opacity-50"></div>
                   <div className="relative w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
                     {reverseMode ? (
@@ -798,7 +716,7 @@ export default function Home() {
                       <Shield className="w-4 h-4 text-white" />
                     )}
                   </div>
-                </div>
+                </motion.div>
                 <span className="text-xl font-bold bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
                   XZX
                 </span>
@@ -811,26 +729,40 @@ export default function Home() {
 
               <div className="flex items-center gap-3">
                 {isOffline && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 rounded-full">
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 rounded-full"
+                  >
                     <WifiOff className="w-3.5 h-3.5 text-yellow-400" />
                     <span className="text-xs text-yellow-300">Offline</span>
-                  </div>
+                  </motion.div>
                 )}
 
-                <button
+                {/* REVERSE MODE Button - Same size as Discord button */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setReverseMode(!reverseMode)}
                   className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105",
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all duration-300 text-sm",
                     reverseMode 
-                      ? "bg-red-600 hover:bg-red-700 text-white" 
-                      : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+                      ? "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20" 
+                      : "bg-purple-600 hover:bg-purple-700 text-white"
                   )}
                 >
-                  <Bug className="w-3.5 h-3.5" />
+                  <motion.div
+                    animate={{ rotate: reverseMode ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {reverseMode ? <Skull className="w-3.5 h-3.5" /> : <Bug className="w-3.5 h-3.5" />}
+                  </motion.div>
                   <span>{reverseMode ? "REVERSE MODE ON" : "REVERSE MODE"}</span>
-                </button>
+                </motion.button>
 
-                <a
+                <motion.a
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   href="https://discord.gg/5q5bEKmYqF"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -839,21 +771,28 @@ export default function Home() {
                   <MessageCircle className="w-3.5 h-3.5" />
                   <span>Discord</span>
                   <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-                </a>
+                </motion.a>
 
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                   className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
                 >
                   {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                </button>
+                </motion.button>
               </div>
             </div>
           </div>
         </nav>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+          <motion.div 
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8"
+          >
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
                 {reverseMode ? "XZX Reverse Engineer" : "XZX Lua Obfuscator"}
@@ -866,11 +805,17 @@ export default function Home() {
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700">
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700"
+              >
                 <TrendingUp className="w-4 h-4 text-green-400" />
                 <span className="text-sm text-gray-300">{totalObfuscations.toLocaleString()}+ scripts processed</span>
-              </div>
-              <div className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700">
+              </motion.div>
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                className="flex items-center gap-3 px-4 py-2 bg-gray-800/50 rounded-xl border border-gray-700"
+              >
                 {reverseMode ? (
                   <Bug className="w-4 h-4 text-red-400" />
                 ) : (
@@ -879,186 +824,153 @@ export default function Home() {
                 <span className="text-sm text-gray-300">
                   {reverseMode ? "Analysis Mode" : "Advanced protection"}
                 </span>
-              </div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-8 space-y-6">
-              <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl transition-all duration-300 hover:border-gray-600">
-                <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-sm text-gray-400">Input</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileUpload}
-                      accept=".lua,.txt"
-                      className="hidden"
-                    />
-                    <Button
-                      onClick={triggerFileUpload}
-                      variant="outline"
-                      size="sm"
-                      className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
-                      disabled={isProcessing}
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload
-                    </Button>
-                    
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={obfuscateCode}
-                        disabled={!inputCode || isProcessing || isOffline}
-                        className={cn(
-                          "text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px] transition-all duration-300 ease-in-out transform hover:scale-105",
-                          reverseMode 
-                            ? "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700" 
-                            : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-                        )}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                        {isProcessing ? (
-                          <div className="flex items-center justify-center">
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Processing
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center">
-                            {reverseMode ? (
-                              <>
-                                <Bug className="w-4 h-4 mr-2" />
-                                Reverse
-                              </>
-                            ) : (
-                              <>
-                                <Shield className="w-4 h-4 mr-2" />
-                                Obfuscate
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </Button>
-                      
-                      {isProcessing && (
-                        <Button
-                          onClick={cancelObfuscation}
-                          variant="outline"
-                          size="sm"
-                          className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          Cancel
-                        </Button>
-                      )}
-                    </div>
-
-                    {fileName && (
-                      <div className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full animate-in fade-in slide-in-from-right-5 duration-300">
-                        <File className="w-3 h-3 text-purple-400" />
-                        <span className="text-xs text-purple-300 truncate max-w-[100px]">{fileName}</span>
-                        <button onClick={clearFile} className="hover:text-white" disabled={isProcessing}>
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="h-[400px]">
-                  <CodeEditor
-                    value={inputCode}
-                    onChange={handleInputChange}
-                    options={{
-                      readOnly: isProcessing,
-                      automaticLayout: true,
-                      wordWrap: "on",
-                      lineNumbers: "on",
-                      fontSize: 14,
-                      scrollBeyondLastLine: false,
-                    }}
-                  />
-                </div>
-              </Card>
-
-              {isProcessing && progress && (
-                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6 animate-in fade-in slide-in-from-bottom-5 duration-500">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">
-                      {reverseMode ? "Reverse Engineering Progress" : "Obfuscation Progress"}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-400">{formatTime(elapsedTime)}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">{progress.stage}</span>
-                      <span className="text-sm font-semibold text-purple-400">{progress.percent}%</span>
-                    </div>
-                    
-                    <Progress value={progress.percent} className="h-2 bg-gray-700" />
-                    
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Step {progress.currentStep} of {progress.totalSteps}</span>
-                      <span>Estimated: {formatTime(Math.round((elapsedTime / progress.percent) * (100 - progress.percent)))}</span>
-                    </div>
-                  </div>
-                </Card>
-              )}
-
-              {outputCode && (
-                <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl transition-all duration-300 hover:border-gray-600">
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
                   <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-                      <span className="text-sm text-gray-400">
-                        {reverseMode ? "Reconstructed Output" : "Output"}
-                      </span>
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-sm text-gray-400">Input</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button
-                        onClick={copyToClipboard}
-                        variant="outline"
-                        size="sm"
-                        className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
-                        disabled={isProcessing}
-                      >
-                        {copySuccess ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-2 text-green-400" />
-                            Copied!
-                          </>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".lua,.txt"
+                        className="hidden"
+                      />
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Button
+                          onClick={triggerFileUpload}
+                          variant="outline"
+                          size="sm"
+                          className="border-gray-700 hover:bg-gray-700"
+                          disabled={isProcessing}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload
+                        </Button>
+                      </motion.div>
+                      
+                      <div className="flex items-center gap-2">
+                        {reverseMode ? (
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              onClick={analyzeCode}
+                              disabled={!inputCode || isProcessing}
+                              className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
+                            >
+                              {isProcessing ? (
+                                <div className="flex items-center justify-center">
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Analyzing
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center">
+                                  <Bug className="w-4 h-4 mr-2" />
+                                  Analyze
+                                </div>
+                              )}
+                            </Button>
+                          </motion.div>
                         ) : (
                           <>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy
+                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                              <Button
+                                onClick={obfuscateCode}
+                                disabled={!inputCode || isProcessing || isOffline}
+                                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                {isProcessing ? (
+                                  <div className="flex items-center justify-center">
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Processing
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center">
+                                    <Shield className="w-4 h-4 mr-2" />
+                                    Obfuscate
+                                  </div>
+                                )}
+                              </Button>
+                            </motion.div>
+                            
+                            {/* REVERSE CODE Button - Same size as Obfuscate button */}
+                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                              <Button
+                                onClick={reverseCode}
+                                disabled={(!outputCode && !inputCode) || isProcessing}
+                                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold px-4 py-2 rounded-lg relative overflow-hidden group min-w-[120px]"
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                                {isProcessing ? (
+                                  <div className="flex items-center justify-center">
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Reversing
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center">
+                                    <RotateCcw className="w-4 h-4 mr-2" />
+                                    Reverse Code
+                                  </div>
+                                )}
+                              </Button>
+                            </motion.div>
                           </>
                         )}
-                      </Button>
-                      <Button
-                        onClick={downloadCode}
-                        variant="outline"
-                        size="sm"
-                        className="border-gray-700 hover:bg-gray-700 transition-all duration-200"
-                        disabled={isProcessing}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
+                        
+                        {isProcessing && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0 }}
+                          >
+                            <Button
+                              onClick={cancelObfuscation}
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-700 hover:bg-gray-700"
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Cancel
+                            </Button>
+                          </motion.div>
+                        )}
+                      </div>
+
+                      {fileName && (
+                        <motion.div
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          className="flex items-center gap-2 bg-purple-500/10 px-3 py-1 rounded-full"
+                        >
+                          <File className="w-3 h-3 text-purple-400" />
+                          <span className="text-xs text-purple-300 truncate max-w-[100px]">{fileName}</span>
+                          <button onClick={clearFile} className="hover:text-white" disabled={isProcessing}>
+                            <X className="w-3 h-3" />
+                          </button>
+                        </motion.div>
+                      )}
                     </div>
                   </div>
                   <div className="h-[400px]">
                     <CodeEditor
-                      value={outputCode}
-                      readOnly
+                      value={inputCode}
+                      onChange={handleInputChange}
                       options={{
-                        readOnly: true,
+                        readOnly: isProcessing,
                         automaticLayout: true,
                         wordWrap: "on",
                         lineNumbers: "on",
@@ -1068,312 +980,506 @@ export default function Home() {
                     />
                   </div>
                 </Card>
-              )}
+              </motion.div>
 
-              {!reverseMode && metrics && (
-                <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6 animate-in fade-in duration-500">
-                  <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
-                      <div className="text-sm text-gray-400 mb-1">Input Size</div>
-                      <div className="text-xl font-bold">{formatBytes(metrics.inputSize)}</div>
-                    </div>
-                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
-                      <div className="text-sm text-gray-400 mb-1">Output Size</div>
-                      <div className="text-xl font-bold">{formatBytes(metrics.outputSize)}</div>
-                    </div>
-                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
-                      <div className="text-sm text-gray-400 mb-1">Ratio</div>
-                      <div className="text-xl font-bold text-purple-400">{(metrics.outputSize / metrics.inputSize).toFixed(2)}x</div>
-                    </div>
-                    <div className="p-4 bg-gray-700/50 rounded-xl transition-all duration-200 hover:bg-gray-700">
-                      <div className="text-sm text-gray-400 mb-1">Time</div>
-                      <div className="text-xl font-bold">{metrics.duration.toFixed(1)}s</div>
-                    </div>
-                  </div>
+              <AnimatePresence>
+                {isProcessing && progress && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold">
+                          {reverseMode ? "Analysis Progress" : "Obfuscation Progress"}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-400">{formatTime(elapsedTime)}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-400">{progress.stage}</span>
+                          <span className="text-sm font-semibold text-purple-400">{progress.percent}%</span>
+                        </div>
+                        
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progress.percent}%` }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <Progress value={progress.percent} className="h-2 bg-gray-700" />
+                        </motion.div>
+                        
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Step {progress.currentStep} of {progress.totalSteps}</span>
+                          <span>Estimated: {formatTime(Math.round((elapsedTime / progress.percent) * (100 - progress.percent)))}</span>
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                  {metrics.instructionCount !== undefined && (
-                    <div className="mt-4 p-4 bg-gray-700/30 rounded-xl">
-                      <div className="text-sm text-gray-400">Instruction Count</div>
-                      <div className="text-lg font-semibold text-purple-400">{metrics.instructionCount}</div>
-                    </div>
-                  )}
+              <AnimatePresence>
+                {!reverseMode && outputCode && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <Card className="overflow-hidden border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+                      <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                          <span className="text-sm text-gray-400">Output</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              onClick={copyToClipboard}
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-700 hover:bg-gray-700"
+                              disabled={isProcessing}
+                            >
+                              {copySuccess ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4 mr-2 text-green-400" />
+                                  Copied!
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-4 h-4 mr-2" />
+                                  Copy
+                                </>
+                              )}
+                            </Button>
+                          </motion.div>
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              onClick={downloadCode}
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-700 hover:bg-gray-700"
+                              disabled={isProcessing}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
+                          </motion.div>
+                        </div>
+                      </div>
+                      <div className="h-[400px]">
+                        <CodeEditor
+                          value={outputCode}
+                          readOnly
+                          options={{
+                            readOnly: true,
+                            automaticLayout: true,
+                            wordWrap: "on",
+                            lineNumbers: "on",
+                            fontSize: 14,
+                            scrollBeyondLastLine: false,
+                          }}
+                        />
+                      </div>
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                  <div className="mt-6">
-                    <h4 className="text-sm font-medium text-gray-400 mb-3">Applied Layers</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {metrics.layersApplied.map((layer: string) => (
-                        <span key={layer} className="px-2 py-1 bg-purple-500/20 rounded-full text-xs text-purple-300">
-                          {layer}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </Card>
-              )}
+              <AnimatePresence>
+                {!reverseMode && metrics && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.4 }}
+                  >
+                    <Card className="border border-gray-700 bg-gray-800/50 backdrop-blur-xl p-6">
+                      <h3 className="text-lg font-semibold mb-4">Protection Metrics</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <motion.div 
+                          whileHover={{ scale: 1.02 }}
+                          className="p-4 bg-gray-700/50 rounded-xl"
+                        >
+                          <div className="text-sm text-gray-400 mb-1">Input Size</div>
+                          <div className="text-xl font-bold">{formatBytes(metrics.inputSize)}</div>
+                        </motion.div>
+                        <motion.div 
+                          whileHover={{ scale: 1.02 }}
+                          className="p-4 bg-gray-700/50 rounded-xl"
+                        >
+                          <div className="text-sm text-gray-400 mb-1">Output Size</div>
+                          <div className="text-xl font-bold">{formatBytes(metrics.outputSize)}</div>
+                        </motion.div>
+                        <motion.div 
+                          whileHover={{ scale: 1.02 }}
+                          className="p-4 bg-gray-700/50 rounded-xl"
+                        >
+                          <div className="text-sm text-gray-400 mb-1">Ratio</div>
+                          <div className="text-xl font-bold text-purple-400">{(metrics.outputSize / metrics.inputSize).toFixed(2)}x</div>
+                        </motion.div>
+                        <motion.div 
+                          whileHover={{ scale: 1.02 }}
+                          className="p-4 bg-gray-700/50 rounded-xl"
+                        >
+                          <div className="text-sm text-gray-400 mb-1">Time</div>
+                          <div className="text-xl font-bold">{metrics.duration.toFixed(1)}s</div>
+                        </motion.div>
+                      </div>
+
+                      {metrics.instructionCount !== undefined && (
+                        <motion.div 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="mt-4 p-4 bg-gray-700/30 rounded-xl"
+                        >
+                          <div className="text-sm text-gray-400">Instruction Count</div>
+                          <div className="text-lg font-semibold text-purple-400">{metrics.instructionCount}</div>
+                        </motion.div>
+                      )}
+
+                      <div className="mt-6">
+                        <h4 className="text-sm font-medium text-gray-400 mb-3">Applied Layers</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {metrics.layersApplied.map((layer: string, index: number) => (
+                            <motion.span
+                              key={layer}
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="px-2 py-1 bg-purple-500/20 rounded-full text-xs text-purple-300"
+                            >
+                              {layer}
+                            </motion.span>
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="lg:col-span-4">
-              <Card className="sticky top-24 border border-gray-700 bg-gray-800/50 backdrop-blur-xl transition-all duration-300 hover:border-gray-600">
-                <div className="p-6 border-b border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">
-                      {reverseMode ? "Analysis Settings" : "Protection Settings"}
-                    </h3>
-                    {!reverseMode && (
-                      <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
-                        {getActiveAdvancedCount()} active
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-6 max-h-[600px] overflow-y-auto custom-scrollbar">
-                  {reverseMode ? (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-gray-700/30 rounded-xl">
-                        <h4 className="text-sm font-medium text-red-400 mb-2 flex items-center gap-2">
-                          <Bug className="w-4 h-4" />
-                          Analysis Features
-                        </h4>
-                        <ul className="space-y-2 text-sm text-gray-300">
-                          <li className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            Function extraction
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            String decryption
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            Bytecode analysis
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            Control flow visualization
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            Metadata extraction
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <CheckCircle className="w-3 h-3 text-green-400" />
-                            Complexity metrics
-                          </li>
-                        </ul>
-                      </div>
-
-                      <div className="p-4 bg-gray-700/30 rounded-xl">
-                        <h4 className="text-sm font-medium text-red-400 mb-2 flex items-center gap-2">
-                          <Rocket className="w-4 h-4" />
-                          Reverse Engineering
-                        </h4>
-                        <p className="text-xs text-gray-400 mb-3">
-                          Click the Reverse button to analyze and reconstruct obfuscated code into readable format.
-                        </p>
-                        <Button
-                          onClick={reverseEngineeringCode}
-                          disabled={(!inputCode && !outputCode) || isProcessing}
-                          className="w-full bg-red-600 hover:bg-red-700 text-white transition-all duration-300 transform hover:scale-105"
-                        >
-                          <Bug className="w-4 h-4 mr-2" />
-                          REVERSE CODE
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="space-y-4 mb-8">
-                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Basic</h4>
-                        {renderSwitch(
-                          "mangle-names",
-                          "Mangle Names",
-                          "Replace identifiers with random strings",
-                          settings.mangleNames,
-                          (checked) => setSettings({ ...settings, mangleNames: checked })
-                        )}
-                        {renderSwitch(
-                          "encode-strings",
-                          "Encode Strings",
-                          "Convert strings to encrypted byte arrays",
-                          settings.encodeStrings,
-                          (checked) => setSettings({ ...settings, encodeStrings: checked }),
-                          "pink"
-                        )}
-                        {renderSwitch(
-                          "encode-numbers",
-                          "Encode Numbers",
-                          "Transform numbers into expressions",
-                          settings.encodeNumbers,
-                          (checked) => setSettings({ ...settings, encodeNumbers: checked })
-                        )}
-                        {renderSwitch(
-                          "minify",
-                          "Minify",
-                          "Remove whitespace and comments",
-                          settings.minify,
-                          (checked) => setSettings({ ...settings, minify: checked })
-                        )}
-                      </div>
-
-                      <div className="space-y-4 mb-8">
-                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Advanced</h4>
-                        {renderSwitch(
-                          "dead-code",
-                          "Dead Code Injection",
-                          "Inject unreachable code blocks",
-                          settings.deadCodeInjection,
-                          (checked) => setSettings({ ...settings, deadCodeInjection: checked }),
-                          "orange",
-                          "Advanced"
-                        )}
-                        {renderSwitch(
-                          "control-flow",
-                          "Control Flow Flattening",
-                          "Transform into state machine",
-                          settings.controlFlowFlattening,
-                          (checked) => setSettings({ ...settings, controlFlowFlattening: checked }),
-                          "purple",
-                          "Advanced"
-                        )}
-                        {renderSwitch(
-                          "anti-debug",
-                          "Anti-Debugging",
-                          "Runtime debugger detection",
-                          settings.antiDebugging,
-                          (checked) => setSettings({ ...settings, antiDebugging: checked }),
-                          "red",
-                          "Advanced"
-                        )}
-                        {renderSwitch(
-                          "use-vm",
-                          "Virtual Machine",
-                          "Wrap code in custom VM",
-                          settings.useVM,
-                          (checked) => setSettings({ ...settings, useVM: checked }),
-                          "blue",
-                          "Advanced"
-                        )}
-                      </div>
-
-                      <div className="space-y-4 mb-8">
-                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Target</h4>
-                        <Select
-                          value={settings.targetVersion}
-                          onValueChange={(value: string) => setSettings({ ...settings, targetVersion: value })}
-                          disabled={isProcessing}
-                        >
-                          <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="5.1">Lua 5.1</SelectItem>
-                            <SelectItem value="5.2">Lua 5.2</SelectItem>
-                            <SelectItem value="5.3">Lua 5.3</SelectItem>
-                            <SelectItem value="5.4">Lua 5.4</SelectItem>
-                            <SelectItem value="luajit">LuaJIT</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-4 mb-8">
-                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
-                        <Select
-                          value={settings.optimizationLevel.toString()}
-                          onValueChange={(value: string) => setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 })}
-                          disabled={isProcessing}
-                        >
-                          <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Level 0 (None)</SelectItem>
-                            <SelectItem value="1">Level 1 (Basic)</SelectItem>
-                            <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
-                            <SelectItem value="3">Level 3 (Maximum)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-4 mb-8">
-                        <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Encryption</h4>
-                        <Select
-                          value={settings.encryptionAlgorithm}
-                          onValueChange={(value: string) => setSettings({ ...settings, encryptionAlgorithm: value })}
-                          disabled={!settings.encodeStrings || isProcessing}
-                        >
-                          <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            <SelectItem value="xor">XOR</SelectItem>
-                            <SelectItem value="base64">Base64</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="mt-8 pt-8 border-t border-gray-700">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-sm font-medium">Protection Level</span>
-                          <span className={cn(
-                            "px-3 py-1 rounded-full text-xs font-medium transition-all duration-300",
-                            protectionStrength === "none" && "bg-gray-600/20 text-gray-300",
-                            protectionStrength === "low" && "bg-purple-500/20 text-purple-300",
-                            protectionStrength === "medium" && "bg-pink-500/20 text-pink-300",
-                            protectionStrength === "high" && "bg-orange-500/20 text-orange-300",
-                            protectionStrength === "maximum" && "bg-red-500/20 text-red-300 animate-pulse"
-                          )}>
-                            {settings.compressionLevel}%
-                          </span>
+              <motion.div
+                initial={{ x: 20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Card className="sticky top-24 border border-gray-700 bg-gray-800/50 backdrop-blur-xl">
+                  <div className="p-6 border-b border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">
+                        {reverseMode ? "Analysis Settings" : "Protection Settings"}
+                      </h3>
+                      {!reverseMode && (
+                        <div className="px-3 py-1 bg-purple-600/20 rounded-full text-xs text-purple-300">
+                          {getActiveAdvancedCount()} active
                         </div>
-                        <Slider
-                          value={[settings.compressionLevel]}
-                          onValueChange={value => {
-                            const level = value[0];
-                            setSettings({
-                              ...settings,
-                              compressionLevel: level,
-                              minify: level >= 10,
-                              mangleNames: level >= 20,
-                              encodeStrings: level >= 30,
-                              encodeNumbers: level >= 40,
-                              deadCodeInjection: level >= 65,
-                              controlFlowFlattening: level >= 70,
-                              antiDebugging: level >= 80,
-                              useVM: level >= 85,
-                              optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
-                            });
-                          }}
-                          max={100}
-                          step={5}
-                          className="w-full"
-                          disabled={isProcessing}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </Card>
+                      )}
+                    </div>
+                  </div>
+
+                  <ScrollArea className="p-6 max-h-[600px] overflow-y-auto custom-scrollbar">
+                    <AnimatePresence mode="wait">
+                      {reverseMode ? (
+                        <motion.div
+                          key="reverse"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.3 }}
+                          className="space-y-4"
+                        >
+                          <div className="p-4 bg-gray-700/30 rounded-xl">
+                            <h4 className="text-sm font-medium text-red-400 mb-2 flex items-center gap-2">
+                              <Bug className="w-4 h-4" />
+                              Analysis Features
+                            </h4>
+                            <ul className="space-y-2 text-sm text-gray-300">
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.1 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Function extraction
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.2 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                String decryption
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.3 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Bytecode analysis
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.4 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Control flow visualization
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.5 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Metadata extraction
+                              </motion.li>
+                              <motion.li 
+                                initial={{ x: -10, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                transition={{ delay: 0.6 }}
+                                className="flex items-center gap-2"
+                              >
+                                <CheckCircle className="w-3 h-3 text-green-400" />
+                                Complexity metrics
+                              </motion.li>
+                            </ul>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="obfuscate"
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <div className="space-y-4 mb-8">
+                            <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Basic</h4>
+                            {renderSwitch(
+                              "mangle-names",
+                              "Mangle Names",
+                              "Replace identifiers with random strings",
+                              settings.mangleNames,
+                              (checked) => setSettings({ ...settings, mangleNames: checked })
+                            )}
+                            {renderSwitch(
+                              "encode-strings",
+                              "Encode Strings",
+                              "Convert strings to encrypted byte arrays",
+                              settings.encodeStrings,
+                              (checked) => setSettings({ ...settings, encodeStrings: checked }),
+                              "pink"
+                            )}
+                            {renderSwitch(
+                              "encode-numbers",
+                              "Encode Numbers",
+                              "Transform numbers into expressions",
+                              settings.encodeNumbers,
+                              (checked) => setSettings({ ...settings, encodeNumbers: checked })
+                            )}
+                            {renderSwitch(
+                              "minify",
+                              "Minify",
+                              "Remove whitespace and comments",
+                              settings.minify,
+                              (checked) => setSettings({ ...settings, minify: checked })
+                            )}
+                          </div>
+
+                          <div className="space-y-4 mb-8">
+                            <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Advanced</h4>
+                            {renderSwitch(
+                              "dead-code",
+                              "Dead Code Injection",
+                              "Inject unreachable code blocks",
+                              settings.deadCodeInjection,
+                              (checked) => setSettings({ ...settings, deadCodeInjection: checked }),
+                              "orange",
+                              "Advanced"
+                            )}
+                            {renderSwitch(
+                              "control-flow",
+                              "Control Flow Flattening",
+                              "Transform into state machine",
+                              settings.controlFlowFlattening,
+                              (checked) => setSettings({ ...settings, controlFlowFlattening: checked }),
+                              "purple",
+                              "Advanced"
+                            )}
+                            {renderSwitch(
+                              "anti-debug",
+                              "Anti-Debugging",
+                              "Runtime debugger detection",
+                              settings.antiDebugging,
+                              (checked) => setSettings({ ...settings, antiDebugging: checked }),
+                              "red",
+                              "Advanced"
+                            )}
+                            {renderSwitch(
+                              "use-vm",
+                              "Virtual Machine",
+                              "Wrap code in custom VM",
+                              settings.useVM,
+                              (checked) => setSettings({ ...settings, useVM: checked }),
+                              "blue",
+                              "Advanced"
+                            )}
+                          </div>
+
+                          <div className="space-y-4 mb-8">
+                            <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Target</h4>
+                            <Select
+                              value={settings.targetVersion}
+                              onValueChange={(value: string) => setSettings({ ...settings, targetVersion: value })}
+                              disabled={isProcessing}
+                            >
+                              <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="5.1">Lua 5.1</SelectItem>
+                                <SelectItem value="5.2">Lua 5.2</SelectItem>
+                                <SelectItem value="5.3">Lua 5.3</SelectItem>
+                                <SelectItem value="5.4">Lua 5.4</SelectItem>
+                                <SelectItem value="luajit">LuaJIT</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-4 mb-8">
+                            <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Optimization</h4>
+                            <Select
+                              value={settings.optimizationLevel.toString()}
+                              onValueChange={(value: string) => setSettings({ ...settings, optimizationLevel: parseInt(value) as 0 | 1 | 2 | 3 })}
+                              disabled={isProcessing}
+                            >
+                              <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">Level 0 (None)</SelectItem>
+                                <SelectItem value="1">Level 1 (Basic)</SelectItem>
+                                <SelectItem value="2">Level 2 (Aggressive)</SelectItem>
+                                <SelectItem value="3">Level 3 (Maximum)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-4 mb-8">
+                            <h4 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Encryption</h4>
+                            <Select
+                              value={settings.encryptionAlgorithm}
+                              onValueChange={(value: string) => setSettings({ ...settings, encryptionAlgorithm: value })}
+                              disabled={!settings.encodeStrings || isProcessing}
+                            >
+                              <SelectTrigger className="w-full bg-gray-700/50 border-gray-600">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                <SelectItem value="xor">XOR</SelectItem>
+                                <SelectItem value="base64">Base64</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="mt-8 pt-8 border-t border-gray-700">
+                            <div className="flex items-center justify-between mb-4">
+                              <span className="text-sm font-medium">Protection Level</span>
+                              <span className={cn(
+                                "px-3 py-1 rounded-full text-xs font-medium transition-colors duration-300",
+                                protectionStrength === "none" && "bg-gray-600/20 text-gray-300",
+                                protectionStrength === "low" && "bg-purple-500/20 text-purple-300",
+                                protectionStrength === "medium" && "bg-pink-500/20 text-pink-300",
+                                protectionStrength === "high" && "bg-orange-500/20 text-orange-300",
+                                protectionStrength === "maximum" && "bg-red-500/20 text-red-300 animate-pulse"
+                              )}>
+                                {settings.compressionLevel}%
+                              </span>
+                            </div>
+                            <Slider
+                              value={[settings.compressionLevel]}
+                              onValueChange={value => {
+                                const level = value[0];
+                                setSettings({
+                                  ...settings,
+                                  compressionLevel: level,
+                                  minify: level >= 10,
+                                  mangleNames: level >= 20,
+                                  encodeStrings: level >= 30,
+                                  encodeNumbers: level >= 40,
+                                  deadCodeInjection: level >= 65,
+                                  controlFlowFlattening: level >= 70,
+                                  antiDebugging: level >= 80,
+                                  useVM: level >= 85,
+                                  optimizationLevel: level >= 90 ? 3 : level >= 70 ? 2 : level >= 40 ? 1 : 0,
+                                });
+                              }}
+                              max={100}
+                              step={5}
+                              className="w-full"
+                              disabled={isProcessing}
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </ScrollArea>
+                </Card>
+              </motion.div>
             </div>
           </div>
 
-          {error && (
-            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-5 duration-300">
-              <AlertCircle className="w-5 h-5 text-red-400" />
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          )}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3"
+              >
+                <AlertCircle className="w-5 h-5 text-red-400" />
+                <p className="text-sm text-red-300">{error}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          {warning && !error && (
-            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-5 duration-300">
-              <AlertTriangle className="w-5 h-5 text-yellow-400" />
-              <p className="text-sm text-yellow-300">{warning}</p>
-            </div>
-          )}
+          <AnimatePresence>
+            {warning && !error && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3"
+              >
+                <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                <p className="text-sm text-yellow-300">{warning}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <footer className="mt-12 pt-8 border-t border-gray-700">
+          <motion.footer 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-12 pt-8 border-t border-gray-700"
+          >
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="text-sm text-gray-400">
                 © 2026 XZX HUB. All rights reserved.
@@ -1384,7 +1490,9 @@ export default function Home() {
               </div>
               
               <div className="flex items-center gap-4">
-                <a
+                <motion.a
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   href="https://discord.gg/5q5bEKmYqF"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1392,16 +1500,16 @@ export default function Home() {
                 >
                   <MessageCircle className="w-4 h-4 text-[#5865F2]" />
                   <span className="text-sm">Join our Discord</span>
-                </a>
+                </motion.a>
               </div>
             </div>
-          </footer>
+          </motion.footer>
         </div>
       </div>
 
       {/* Analysis Dialog */}
       <Dialog open={showAnalysis} onOpenChange={setShowAnalysis}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-6xl max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-6xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
               <Bug className="w-6 h-6 text-red-400" />
@@ -1414,12 +1522,12 @@ export default function Home() {
 
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid grid-cols-6 mb-4 bg-gray-800">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-red-600 transition-all duration-200">Overview</TabsTrigger>
-              <TabsTrigger value="strings" className="data-[state=active]:bg-red-600 transition-all duration-200">Strings</TabsTrigger>
-              <TabsTrigger value="functions" className="data-[state=active]:bg-red-600 transition-all duration-200">Functions</TabsTrigger>
-              <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600 transition-all duration-200">Bytecode</TabsTrigger>
-              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600 transition-all duration-200">Metadata</TabsTrigger>
-              <TabsTrigger value="flow" className="data-[state=active]:bg-red-600 transition-all duration-200">Control Flow</TabsTrigger>
+              <TabsTrigger value="overview" className="data-[state=active]:bg-red-600">Overview</TabsTrigger>
+              <TabsTrigger value="strings" className="data-[state=active]:bg-red-600">Strings</TabsTrigger>
+              <TabsTrigger value="functions" className="data-[state=active]:bg-red-600">Functions</TabsTrigger>
+              <TabsTrigger value="bytecode" className="data-[state=active]:bg-red-600">Bytecode</TabsTrigger>
+              <TabsTrigger value="metadata" className="data-[state=active]:bg-red-600">Metadata</TabsTrigger>
+              <TabsTrigger value="flow" className="data-[state=active]:bg-red-600">Control Flow</TabsTrigger>
             </TabsList>
 
             <ScrollArea className="h-[500px] pr-4">
@@ -1562,7 +1670,7 @@ export default function Home() {
             <Button
               variant="outline"
               onClick={() => setShowAnalysis(false)}
-              className="border-gray-700 hover:bg-gray-800 transition-all duration-200"
+              className="border-gray-700 hover:bg-gray-800"
             >
               Close
             </Button>
@@ -1570,7 +1678,7 @@ export default function Home() {
               onClick={() => {
                 navigator.clipboard.writeText(JSON.stringify(analysisResult, null, 2));
               }}
-              className="bg-red-600 hover:bg-red-700 text-white transition-all duration-200"
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
               Copy Results
             </Button>
@@ -1591,6 +1699,6 @@ export default function Home() {
           border-radius: 10px;
         }
       `}</style>
-    </div>
+    </motion.div>
   );
 }
